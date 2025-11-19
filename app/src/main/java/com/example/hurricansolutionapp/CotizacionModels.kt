@@ -27,26 +27,15 @@ data class Ventana(
 }
 
 data class Cotizacion(
-    // Identificador único
-    val id: Long = System.currentTimeMillis(),
-
-    // Datos del cliente / proyecto
+    val id: Long = System.currentTimeMillis(),   // 👈 identificador único
     val clienteNombre: String,
     val clienteTelefono: String,
     val ubicacion: String,
     val especialista: String,
     val fecha: String,
-
-    // Tipo de producto seleccionado
-    val producto: TipoProducto = TipoProducto.HS875,
-
-    // Ventanas / aperturas
+    val producto: TipoProducto,
     val ventanas: List<Ventana>,
-
-    // Impuestos
     val ivaPorcentaje: Double = 0.16,
-
-    // Estado de sincronización con CRM
     val sincronizada: Boolean = false
 ) {
     val subtotal: Double

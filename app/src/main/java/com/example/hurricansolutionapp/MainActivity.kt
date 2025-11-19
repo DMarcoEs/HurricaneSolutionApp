@@ -10,7 +10,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.Card
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,9 +36,16 @@ sealed class AppScreen {
     object Home : AppScreen()
     object Historial : AppScreen()
     data class Form(val cotizacionInicial: Cotizacion? = null) : AppScreen()
-    data class Resumen(val cotizacion: Cotizacion) : AppScreen()
+    data class Resumen(
+        val cotizacion: Cotizacion,
+        val desdeHistorial: Boolean   // 👈 solo este flag nuevo
+    ) : AppScreen()
 }
 
+enum class OrigenResumen {
+    NUEVA,
+    HISTORIAL
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +59,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
     val context = LocalContext.current
@@ -61,7 +76,6 @@ fun AppNavigation() {
             when (val screen = currentScreen) {
 
                 is AppScreen.Login -> {
-                    // Aquí dejamos que el back del sistema cierre la app
                     LoginScreen(
                         onLoginSuccess = {
                             currentScreen = AppScreen.Home
@@ -70,7 +84,6 @@ fun AppNavigation() {
                 }
 
                 is AppScreen.Home -> {
-                    // En Home también dejamos que el back cierre la app
                     HomeScreen(
                         onNuevaCotizacion = {
                             currentScreen = AppScreen.Form()
@@ -86,7 +99,6 @@ fun AppNavigation() {
                 }
 
                 is AppScreen.Form -> {
-                    // ⬅️ Back físico: regresar al Home
                     BackHandler {
                         currentScreen = AppScreen.Home
                     }
@@ -94,31 +106,43 @@ fun AppNavigation() {
                     CotizacionFormScreen(
                         cotizacionInicial = screen.cotizacionInicial,
                         onCotizacionGenerada = { nueva ->
-                            currentScreen = AppScreen.Resumen(nueva)
+                            // 👇 venimos del formulario, NO del historial
+                            currentScreen = AppScreen.Resumen(
+                                cotizacion = nueva,
+                                desdeHistorial = false
+                            )
                         }
                     )
                 }
 
                 is AppScreen.Resumen -> {
-                    // ⬅️ Back físico: volver a editar
+                    // si vienes del historial, el back debe regresar al historial
                     BackHandler {
-                        currentScreen = AppScreen.Form(screen.cotizacion)
+                        currentScreen = if (screen.desdeHistorial) {
+                            AppScreen.Historial
+                        } else {
+                            AppScreen.Form(screen.cotizacion)
+                        }
                     }
 
                     ResumenScreen(
                         cotizacion = screen.cotizacion,
+                        desdeHistorial = screen.desdeHistorial,
                         onVolver = {
-                            currentScreen = AppScreen.Form(screen.cotizacion)
+                            currentScreen = if (screen.desdeHistorial) {
+                                AppScreen.Historial
+                            } else {
+                                AppScreen.Form(screen.cotizacion)
+                            }
                         },
                         onFinalizar = {
-                            // después de guardar volvemos al Home
+                            // Después de GUARDAR siempre te mando al Home
                             currentScreen = AppScreen.Home
                         }
                     )
                 }
 
                 is AppScreen.Historial -> {
-                    // ⬅️ Back físico: regresar al Home
                     BackHandler {
                         currentScreen = AppScreen.Home
                     }
@@ -127,76 +151,118 @@ fun AppNavigation() {
                         onBack = {
                             currentScreen = AppScreen.Home
                         },
-                        onVerDetalle = { seleccionada ->
-                            // Abrir el resumen de la cotización tocada
-                            currentScreen = AppScreen.Resumen(seleccionada)
+                        onVerDetalle = { cotizacionSeleccionada ->
+                            // 👇 ahora indicamos que el resumen viene del historial
+                            currentScreen = AppScreen.Resumen(
+                                cotizacion = cotizacionSeleccionada,
+                                desdeHistorial = true
+                            )
                         }
                     )
                 }
             }
+
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistorialScreen(
     onBack: () -> Unit,
-    onVerDetalle: (Cotizacion) -> Unit   // 👈 NUEVO
+    onVerDetalle: (Cotizacion) -> Unit
 ) {
     val context = LocalContext.current
-    val cotizaciones = obtenerCotizacionesLocal(context)
+    var cotizaciones by remember { mutableStateOf(obtenerCotizacionesLocal(context)) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-        Text(
-            text = "Cotizaciones guardadas",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Cotizaciones guardadas") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Volver"
+                        )
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
 
         if (cotizaciones.isEmpty()) {
-            Text(
-                text = "No hay cotizaciones guardadas.",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No hay cotizaciones guardadas.")
+            }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(cotizaciones) { c ->
+                items(
+                    items = cotizaciones,
+                    key = { it.id }
+                ) { c ->
+
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onVerDetalle(c) }   // 👈 al tocar, abrimos detalle
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onVerDetalle(c) } // 👈 Tap en la tarjeta → ver detalle
+                                .padding(12.dp)
+                        ) {
                             Text("Cliente: ${c.clienteNombre}")
                             Text("Fecha: ${c.fecha}")
                             Text("Teléfono: ${c.clienteTelefono}")
-                            Text("Total: \$${"%,.2f".format(c.total)}")
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Total: \$${"%,.2f".format(c.total)}")
+
+                                // 🔴 Botón para borrar SOLO esta cotización
+                                IconButton(
+                                    onClick = {
+                                        borrarCotizacionLocal(context, c.id)
+                                        cotizaciones = obtenerCotizacionesLocal(context)
+
+                                        Toast.makeText(
+                                            context,
+                                            "Cotización eliminada",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Borrar"
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Button(
-            onClick = onBack,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Text("Volver")
-        }
     }
 }
+
 
 @Composable
 fun LoginScreen(
@@ -205,7 +271,7 @@ fun LoginScreen(
     val context = LocalContext.current
 
     var nombre by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") } // de momento decorativo
+    var password by remember { mutableStateOf("") } // De momento solo visual
 
     Column(
         modifier = Modifier
@@ -215,33 +281,45 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
+        // Título
         Text(
             text = "Hurricane Solution",
             style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // Subtítulo
+        Text(
+            text = "Inicia sesión para continuar",
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
+        // Nombre del especialista
         OutlinedTextField(
             value = nombre,
             onValueChange = { nombre = it },
             label = { Text("Nombre del especialista") },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Contraseña (oculta)
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = { Text("Contraseña") },
+            singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            visualTransformation = PasswordVisualTransformation(),   // 👈 aquí
+            visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         )
 
-
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Botón de iniciar sesión
         Button(
             onClick = {
                 if (nombre.isBlank()) {
@@ -252,17 +330,24 @@ fun LoginScreen(
                     ).show()
                     return@Button
                 }
-                SessionManager.login(context, nombre)
+
+                // Guardamos la sesión con el nombre del especialista
+                SessionManager.login(
+                    context = context,
+                    nombreEspecialista = nombre
+                )
+
                 onLoginSuccess()
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            Text("INICIAR SESIÓN")
+            Text(text = "INICIAR SESIÓN")
         }
     }
 }
+
 
 @Composable
 fun HomeScreen(
@@ -329,6 +414,14 @@ private fun filtrarSoloDigitos(input: String): String =
 /**
  * 📝 Formulario de cotización
  */
+
+// Estado de cada apertura/ventana en el formulario
+data class VentanaFormState(
+    val descripcion: String = "",
+    val alto: String = "",
+    val ancho: String = ""
+)
+
 @Composable
 fun CotizacionFormScreen(
     cotizacionInicial: Cotizacion? = null,
@@ -336,47 +429,57 @@ fun CotizacionFormScreen(
 ) {
     val context = LocalContext.current
 
-    // ---- States de los campos ----
+    // ---- States de los campos generales ----
     var nombre by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
     var ubicacion by remember { mutableStateOf("") }
     var fecha by remember { mutableStateOf("") }
 
-    var descVentana by remember { mutableStateOf("") }
-    var altoTexto by remember { mutableStateOf("") }
-    var anchoTexto by remember { mutableStateOf("") }
     var precioM2Texto by remember { mutableStateOf("") }
-
     var tipoProducto by remember { mutableStateOf(TipoProducto.HS875) }
+
+    // 🔹 Lista dinámica de aperturas en el formulario
+    val ventanasForm = remember { mutableStateListOf<VentanaFormState>() }
 
     val scrollState = rememberScrollState()
 
     // ---- Rellenar cuando vienes de "Volver y editar" ----
     LaunchedEffect(cotizacionInicial?.id) {
+        // Limpia la lista primero
+        ventanasForm.clear()
+
         cotizacionInicial?.let { cot ->
             nombre = cot.clienteNombre
             telefono = cot.clienteTelefono
             ubicacion = cot.ubicacion
             fecha = cot.fecha
-
             tipoProducto = cot.producto
 
-            val v = cot.ventanas.firstOrNull()
-            if (v != null) {
-                descVentana = v.descripcion
-                altoTexto = v.alto.toString()
-                anchoTexto = v.ancho.toString()
-                precioM2Texto = v.precioM2.toString()
-            } else {
-                precioM2Texto = ""
+            // Convertir cada ventana en un VentanaFormState
+            cot.ventanas.forEach { v ->
+                ventanasForm.add(
+                    VentanaFormState(
+                        descripcion = v.descripcion,
+                        alto = v.alto.toString(),
+                        ancho = v.ancho.toString()
+                    )
+                )
             }
+
+            // Precio según la cotización original
+            val v = cot.ventanas.firstOrNull()
+            precioM2Texto = v?.precioM2?.toString() ?: ""
         }
 
+        // Si es una cotización nueva
         if (cotizacionInicial == null) {
+            // 1 apertura vacía por defecto
+            ventanasForm.add(VentanaFormState())
             precioM2Texto = HS875_DEFAULT_PRICE.toString()
         }
     }
 
+    // Cuando cambia el producto (y NO vienes de editar), ajustar precio por m²
     LaunchedEffect(tipoProducto, cotizacionInicial?.id) {
         if (tipoProducto != TipoProducto.PERSONALIZADO && cotizacionInicial == null) {
             precioM2Texto = when (tipoProducto) {
@@ -402,6 +505,7 @@ fun CotizacionFormScreen(
             style = MaterialTheme.typography.headlineSmall
         )
 
+        // ------ Datos generales del cliente ------
         OutlinedTextField(
             value = nombre,
             onValueChange = { nombre = it },
@@ -437,34 +541,78 @@ fun CotizacionFormScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // ------ Aperturas / Ventanas dinámicas ------
         Text(
-            text = "Datos del área",
+            text = "Datos de aperturas / áreas",
             style = MaterialTheme.typography.titleMedium
         )
 
-        OutlinedTextField(
-            value = descVentana,
-            onValueChange = { descVentana = it },
-            label = { Text("Descripción (ej. Ventana sala)") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Lista de aperturas
+        ventanasForm.forEachIndexed { index, ventanaState ->
 
-        OutlinedTextField(
-            value = altoTexto,
-            onValueChange = { altoTexto = filtrarNumeroDecimal(it) },
-            label = { Text("Alto (m)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
+            Text(
+                text = "Apertura ${index + 1}",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
 
-        OutlinedTextField(
-            value = anchoTexto,
-            onValueChange = { anchoTexto = filtrarNumeroDecimal(it) },
-            label = { Text("Ancho (m)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
+            OutlinedTextField(
+                value = ventanaState.descripcion,
+                onValueChange = { value ->
+                    ventanasForm[index] = ventanaState.copy(descripcion = value)
+                },
+                label = { Text("Descripción (ej. Ventana sala)") },
+                modifier = Modifier.fillMaxWidth()
+            )
 
+            OutlinedTextField(
+                value = ventanaState.alto,
+                onValueChange = { value ->
+                    ventanasForm[index] = ventanaState.copy(alto = filtrarNumeroDecimal(value))
+                },
+                label = { Text("Alto (m)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = ventanaState.ancho,
+                onValueChange = { value ->
+                    ventanasForm[index] = ventanaState.copy(ancho = filtrarNumeroDecimal(value))
+                },
+                label = { Text("Ancho (m)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Botón para eliminar SOLO esta apertura (mientras haya al menos 1)
+            if (ventanasForm.size > 1) {
+                TextButton(
+                    onClick = {
+                        ventanasForm.removeAt(index)
+                    },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Eliminar apertura")
+                }
+            }
+        }
+
+        // Botón para agregar una nueva apertura vacía
+        OutlinedButton(
+            onClick = {
+                ventanasForm.add(VentanaFormState())
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            Text("Agregar otra apertura")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // ------ Tipo de producto y precio ------
         Text(
             text = "Tipo de producto",
             style = MaterialTheme.typography.titleSmall
@@ -504,15 +652,23 @@ fun CotizacionFormScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // ------ Botón CONTINUAR ------
         Button(
             onClick = {
-                val alto = altoTexto.toDoubleOrNull()
-                val ancho = anchoTexto.toDoubleOrNull()
-
-                if (nombre.isBlank() || alto == null || ancho == null) {
+                // Validar datos generales
+                if (nombre.isBlank()) {
                     Toast.makeText(
                         context,
-                        "Revisa los datos: nombre, alto y ancho.",
+                        "Ingresa el nombre del cliente.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@Button
+                }
+
+                if (ventanasForm.isEmpty()) {
+                    Toast.makeText(
+                        context,
+                        "Agrega al menos una apertura.",
                         Toast.LENGTH_LONG
                     ).show()
                     return@Button
@@ -528,6 +684,7 @@ fun CotizacionFormScreen(
                     return@Button
                 }
 
+                // Precio por m² según tipo de producto
                 val precioM2 = when (tipoProducto) {
                     TipoProducto.HS875 -> HS875_DEFAULT_PRICE
                     TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE
@@ -546,12 +703,37 @@ fun CotizacionFormScreen(
                     }
                 }
 
-                val ventana = Ventana(
-                    descripcion = if (descVentana.isBlank()) "Apertura 1" else descVentana,
-                    alto = alto,
-                    ancho = ancho,
-                    precioM2 = precioM2
-                )
+                // Construir la lista de Ventana a partir de todas las aperturas del formulario
+                val listaVentanas = mutableListOf<Ventana>()
+
+                ventanasForm.forEachIndexed { index, v ->
+                    val alto = v.alto.toDoubleOrNull()
+                    val ancho = v.ancho.toDoubleOrNull()
+
+                    if (alto == null || ancho == null) {
+                        Toast.makeText(
+                            context,
+                            "Revisa alto/ancho de la apertura ${index + 1}.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@Button
+                    }
+
+                    val desc = if (v.descripcion.isBlank()) {
+                        "Apertura ${index + 1}"
+                    } else {
+                        v.descripcion
+                    }
+
+                    listaVentanas.add(
+                        Ventana(
+                            descripcion = desc,
+                            alto = alto,
+                            ancho = ancho,
+                            precioM2 = precioM2
+                        )
+                    )
+                }
 
                 val especialistaSesion = SessionManager.getEspecialista(context)
 
@@ -562,7 +744,7 @@ fun CotizacionFormScreen(
                     especialista = especialistaSesion,
                     fecha = fecha,
                     producto = tipoProducto,
-                    ventanas = listOf(ventana)
+                    ventanas = listaVentanas
                 )
 
                 onCotizacionGenerada(cotizacion)
@@ -575,6 +757,7 @@ fun CotizacionFormScreen(
         }
     }
 }
+
 
 @Composable
 private fun ProductoRadioRow(
@@ -597,9 +780,11 @@ private fun ProductoRadioRow(
 /**
  * ✅ Pantalla de resumen
  */
+
 @Composable
 fun ResumenScreen(
     cotizacion: Cotizacion,
+    desdeHistorial: Boolean,
     onVolver: () -> Unit,
     onFinalizar: () -> Unit
 ) {
@@ -619,6 +804,7 @@ fun ResumenScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())  // 👈 ahora sí baja hasta IVA/Total
             .padding(16.dp)
     ) {
 
@@ -636,7 +822,9 @@ fun ResumenScreen(
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
         ) {
-            Text("Volver y editar")
+            Text(
+                if (desdeHistorial) "Volver al historial" else "Volver y editar"
+            )
         }
 
         Text(
@@ -673,7 +861,7 @@ fun ResumenScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
@@ -735,6 +923,7 @@ fun ResumenPreview() {
     HurricanSolutionAppTheme {
         ResumenScreen(
             cotizacion = demo,
+            desdeHistorial = false,
             onVolver = {},
             onFinalizar = {}
         )

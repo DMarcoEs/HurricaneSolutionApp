@@ -38,10 +38,20 @@ fun guardarCotizacionLocal(context: Context, nuevaCotizacion: Cotizacion) {
 }
 
 /**
- * 🔹 Devuelve TODAS las cotizaciones guardadas (pendientes + sincronizadas).
+ * 🔹 Devuelve TODAS las cotizaciones guardadas.
  */
 fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
     return leerListaInterna(context)
+}
+
+/**
+ * 🔹 Borra TODAS las cotizaciones.
+ */
+fun borrarTodasLasCotizacionesLocal(context: Context) {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    prefs.edit()
+        .remove(KEY_COTIZACIONES)
+        .apply()
 }
 
 /**
@@ -52,8 +62,7 @@ fun obtenerCotizacionesPendientes(context: Context): List<Cotizacion> {
 }
 
 /**
- * 🔹 Reemplaza la lista completa de cotizaciones (por si en algún momento
- *     quieres actualizar en bloque).
+ * 🔹 Reemplaza la lista completa de cotizaciones.
  */
 fun guardarListaCotizacionesLocal(context: Context, lista: List<Cotizacion>) {
     guardarListaInterna(context, lista)
@@ -61,7 +70,6 @@ fun guardarListaCotizacionesLocal(context: Context, lista: List<Cotizacion>) {
 
 /**
  * 🔹 Marca una cotización como sincronizada (por id) y la guarda.
- *     Devuelve la cotización actualizada o null si no la encontró.
  */
 fun marcarCotizacionSincronizada(context: Context, id: Long): Cotizacion? {
     val lista = leerListaInterna(context)
@@ -76,4 +84,13 @@ fun marcarCotizacionSincronizada(context: Context, id: Long): Cotizacion? {
     guardarListaInterna(context, lista)
 
     return cotizacionActualizada
+}
+
+/**
+ * 🔹 Borra SOLO una cotización por id.
+ */
+fun borrarCotizacionLocal(context: Context, id: Long) {
+    val lista = leerListaInterna(context)
+    val nuevaLista = lista.filter { it.id != id }
+    guardarListaInterna(context, nuevaLista)
 }

@@ -3,6 +3,12 @@ package com.example.hurricansolutionapp
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
+import java.io.File
+import java.io.FileOutputStream
+import android.os.Environment
 
 private const val PREFS_NAME = "cotizaciones_prefs"
 private const val KEY_COTIZACIONES = "cotizaciones_json"
@@ -93,4 +99,105 @@ fun borrarCotizacionLocal(context: Context, id: Long) {
     val lista = leerListaInterna(context)
     val nuevaLista = lista.filter { it.id != id }
     guardarListaInterna(context, nuevaLista)
+
+    fun getPdfFileForCotizacion(context: Context, cotizacion: Cotizacion): File {
+        // Carpeta: /Android/data/tu.paquete/files/Documents/
+        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+        if (dir != null && !dir.exists()) {
+            dir.mkdirs()
+        }
+        return File(dir, "Cotizacion_${cotizacion.id}.pdf")
+    }
+
+    fun generarPdfCotizacion(context: Context, cotizacion: Cotizacion): File? {
+        return try {
+            val pdf = PdfDocument()
+
+            // Tamaño carta aprox
+            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+            val page = pdf.startPage(pageInfo)
+            val canvas = page.canvas
+            val paint = Paint()
+
+            // Margen izquierdo y posición inicial
+            var x = 40f
+            var y = 40f
+
+            // 🔵 Encabezado
+            paint.textSize = 20f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            canvas.drawText("HURRICANE SOLUTION", x, y, paint)
+            y += 28f
+
+            paint.textSize = 14f
+            paint.typeface = Typeface.DEFAULT
+            canvas.drawText("Cotización de proyecto", x, y, paint)
+            y += 30f
+
+            // 🔵 Datos del cliente
+            paint.textSize = 12f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            canvas.drawText("Datos del cliente", x, y, paint)
+            y += 18f
+
+            paint.typeface = Typeface.DEFAULT
+            canvas.drawText("Cliente: ${cotizacion.clienteNombre}", x, y, paint); y += 16f
+            canvas.drawText("Teléfono: ${cotizacion.clienteTelefono}", x, y, paint); y += 16f
+            canvas.drawText("Ubicación: ${cotizacion.ubicacion}", x, y, paint); y += 16f
+            canvas.drawText("Especialista: ${cotizacion.especialista}", x, y, paint); y += 16f
+            canvas.drawText("Fecha: ${cotizacion.fecha}", x, y, paint); y += 24f
+
+            // 🔵 Aperturas (en lista)
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            canvas.drawText("Aperturas / Áreas a proteger", x, y, paint)
+            y += 20f
+            paint.typeface = Typeface.DEFAULT
+
+            cotizacion.ventanas.forEachIndexed { index, v ->
+                canvas.drawText("Apertura ${index + 1}", x, y, paint); y += 16f
+                canvas.drawText("• Descripción: ${v.descripcion}", x + 16f, y, paint); y += 16f
+                canvas.drawText("• Medidas: ${v.alto} x ${v.ancho} m", x + 16f, y, paint); y += 16f
+                canvas.drawText("• Área: ${"%.2f".format(v.areaM2)} m²", x + 16f, y, paint); y += 16f
+                canvas.drawText("• Precio m²: \$${"%.2f".format(v.precioM2)}", x + 16f, y, paint); y += 16f
+                canvas.drawText("• Subtotal: \$${"%,.2f".format(v.subtotal)}", x + 16f, y, paint); y += 22f
+            }
+
+            // 🔵 Totales
+            y += 8f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            canvas.drawText(
+                "Subtotal: \$${"%,.2f".format(cotizacion.subtotal)}",
+                x,
+                y,
+                paint
+            )
+            y += 16f
+            canvas.drawText(
+                "IVA (${(cotizacion.ivaPorcentaje * 100).toInt()}%): \$${"%,.2f".format(cotizacion.iva)}",
+                x,
+                y,
+                paint
+            )
+            y += 16f
+            canvas.drawText(
+                "TOTAL: \$${"%,.2f".format(cotizacion.total)}",
+                x,
+                y,
+                paint
+            )
+
+            pdf.finishPage(page)
+
+            // 📁 Guardar en /Android/data/…/files/Documents/Cotizacion_ID.pdf
+            val file = getPdfFileForCotizacion(context, cotizacion)
+            FileOutputStream(file).use { out ->
+                pdf.writeTo(out)
+            }
+            pdf.close()
+            file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }

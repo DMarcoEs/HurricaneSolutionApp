@@ -3,6 +3,7 @@ package com.example.hurricansolutionapp
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import java.io.File
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
@@ -919,6 +920,10 @@ fun ResumenScreen(
 ) {
     val context = LocalContext.current
 
+    // 👉 NUEVOS ESTADOS PARA EL PDF
+    var ultimoPdfGenerado by remember { mutableStateOf<File?>(null) }
+    var mostrarDialogoPdf by remember { mutableStateOf(false) }
+
     // Total sin mostrar IVA por separado (usamos el subtotal)
     val totalSinIva = cotizacion.subtotal
 
@@ -1083,20 +1088,22 @@ fun ResumenScreen(
                 val pdfFile = generarPdfCotizacion(context, cotizacion)
                 val totalGuardadas = obtenerCotizacionesLocal(context).size
 
-                // Puedes cambiar este texto si ya no quieres mencionar IVA
-                val mensaje = if (pdfFile != null) {
-                    "Cotización guardada y PDF creado.\nTotal guardadas: $totalGuardadas"
+                if (pdfFile != null) {
+                    ultimoPdfGenerado = pdfFile
+                    mostrarDialogoPdf = true
+                    Toast.makeText(
+                        context,
+                        "Cotización guardada y PDF creado.\nTotal guardadas: $totalGuardadas",
+                        Toast.LENGTH_LONG
+                    ).show()
                 } else {
-                    "Cotización guardada (error al crear PDF).\nTotal guardadas: $totalGuardadas"
+                    Toast.makeText(
+                        context,
+                        "Cotización guardada (error al crear PDF).\nTotal guardadas: $totalGuardadas",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-
-                Toast.makeText(
-                    context,
-                    mensaje,
-                    Toast.LENGTH_LONG
-                ).show()
-
-                onFinalizar()
+                // 👀 Ya NO llamo a onFinalizar() aquí, para que puedas ver/compartir primero.
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -1104,6 +1111,35 @@ fun ResumenScreen(
         ) {
             Text(text = "GUARDAR")
         }
+    }
+
+    // 👉 ESTE BLOQUE VA **FUERA** DEL COLUMN, PERO DENTRO DE ResumenScreen
+    if (mostrarDialogoPdf && ultimoPdfGenerado != null) {
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoPdf = false },
+            title = { Text("PDF generado") },
+            text = { Text("¿Qué deseas hacer con la cotización en PDF?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        mostrarDialogoPdf = false
+                        verPdf(context, ultimoPdfGenerado!!)
+                    }
+                ) {
+                    Text("Ver PDF")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        mostrarDialogoPdf = false
+                        compartirPdf(context, ultimoPdfGenerado!!)
+                    }
+                ) {
+                    Text("Compartir")
+                }
+            }
+        )
     }
 }
 

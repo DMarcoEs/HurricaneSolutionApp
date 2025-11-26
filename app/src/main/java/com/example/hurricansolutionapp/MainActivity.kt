@@ -16,6 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ArrowBack
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Card
 import androidx.compose.ui.Alignment
@@ -263,7 +265,6 @@ fun HistorialScreen(
     }
 }
 
-
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit
@@ -271,7 +272,7 @@ fun LoginScreen(
     val context = LocalContext.current
 
     var nombre by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") } // De momento solo visual
+    var password by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -322,20 +323,39 @@ fun LoginScreen(
         // Botón de iniciar sesión
         Button(
             onClick = {
-                if (nombre.isBlank()) {
+                if (nombre.isBlank() || password.isBlank()) {
                     Toast.makeText(
                         context,
-                        "Ingresa tu nombre para iniciar sesión.",
+                        "Ingresa nombre y contraseña.",
                         Toast.LENGTH_LONG
                     ).show()
                     return@Button
                 }
 
-                // Guardamos la sesión con el nombre del especialista
+                // ✅ Validar contra la lista fija de especialistas
+                val user = AuthRepository.login(nombre, password)
+
+                if (user == null) {
+                    // ❌ Credenciales incorrectas
+                    Toast.makeText(
+                        context,
+                        "Nombre o contraseña incorrectos.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@Button
+                }
+
+                // ✅ Login correcto → guardamos en SessionManager
                 SessionManager.login(
                     context = context,
-                    nombreEspecialista = nombre
+                    nombreEspecialista = user.nombre
                 )
+
+                Toast.makeText(
+                    context,
+                    "Bienvenido ${user.nombre}",
+                    Toast.LENGTH_SHORT
+                ).show()
 
                 onLoginSuccess()
             },
@@ -347,6 +367,7 @@ fun LoginScreen(
         }
     }
 }
+
 
 
 @Composable
@@ -416,6 +437,7 @@ private fun filtrarSoloDigitos(input: String): String =
  */
 
 // Estado de cada apertura/ventana en el formulario
+// Estado de cada apertura/ventana en el formulario
 data class VentanaFormState(
     val descripcion: String = "",
     val alto: String = "",
@@ -429,34 +451,45 @@ fun CotizacionFormScreen(
 ) {
     val context = LocalContext.current
 
+    // ---- fecha automática de hoy ----
+    val fechaHoy = remember {
+        LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+    }
+
     // ---- States de los campos generales ----
     var nombre by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
     var ubicacion by remember { mutableStateOf("") }
-    var fecha by remember { mutableStateOf("") }
+    var fecha by remember { mutableStateOf(fechaHoy) }
 
     var precioM2Texto by remember { mutableStateOf("") }
     var tipoProducto by remember { mutableStateOf(TipoProducto.HS875) }
 
-    // 🔹 Lista dinámica de aperturas en el formulario
+    // 🔹 Lista de TODAS las aperturas guardadas
     val ventanasForm = remember { mutableStateListOf<VentanaFormState>() }
+
+    // 🔹 Campos de la APERTURA ACTUAL (una sola caja)
+    var descripcionActual by remember { mutableStateOf("") }
+    var altoActual by remember { mutableStateOf("") }
+    var anchoActual by remember { mutableStateOf("") }
+
+    // 🔹 Índice que estoy editando (null = creando nueva)
+    var indexEditando by remember { mutableStateOf<Int?>(null) }
 
     val scrollState = rememberScrollState()
 
     // ---- Rellenar cuando vienes de "Volver y editar" ----
     LaunchedEffect(cotizacionInicial?.id) {
-        // Limpia la lista primero
         ventanasForm.clear()
 
-        cotizacionInicial?.let { cot ->
-            nombre = cot.clienteNombre
-            telefono = cot.clienteTelefono
-            ubicacion = cot.ubicacion
-            fecha = cot.fecha
-            tipoProducto = cot.producto
+        if (cotizacionInicial != null) {
+            nombre = cotizacionInicial.clienteNombre
+            telefono = cotizacionInicial.clienteTelefono
+            ubicacion = cotizacionInicial.ubicacion
+            fecha = cotizacionInicial.fecha
+            tipoProducto = cotizacionInicial.producto
 
-            // Convertir cada ventana en un VentanaFormState
-            cot.ventanas.forEach { v ->
+            cotizacionInicial.ventanas.forEach { v ->
                 ventanasForm.add(
                     VentanaFormState(
                         descripcion = v.descripcion,
@@ -466,15 +499,18 @@ fun CotizacionFormScreen(
                 )
             }
 
-            // Precio según la cotización original
-            val v = cot.ventanas.firstOrNull()
+            val v = cotizacionInicial.ventanas.firstOrNull()
             precioM2Texto = v?.precioM2?.toString() ?: ""
-        }
-
-        // Si es una cotización nueva
-        if (cotizacionInicial == null) {
-            // 1 apertura vacía por defecto
-            ventanasForm.add(VentanaFormState())
+        } else {
+            // Nueva cotización
+            nombre = ""
+            telefono = ""
+            ubicacion = ""
+            fecha = fechaHoy
+            descripcionActual = ""
+            altoActual = ""
+            anchoActual = ""
+            indexEditando = null
             precioM2Texto = HS875_DEFAULT_PRICE.toString()
         }
     }
@@ -528,86 +564,181 @@ fun CotizacionFormScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // 🔹 Fecha solo de lectura (automática)
         OutlinedTextField(
             value = fecha,
-            onValueChange = { texto ->
-                val filtrado = texto.filter { it.isDigit() || it == '/' }.take(10)
-                fecha = filtrado
-            },
-            label = { Text("Fecha (dd/MM/aaaa)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            onValueChange = { /* no editable */ },
+            label = { Text("Fecha (automática)") },
+            enabled = false,
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ------ Aperturas / Ventanas dinámicas ------
+        // ------ Aperturas / Ventanas en UNA sola caja ------
         Text(
             text = "Datos de aperturas / áreas",
             style = MaterialTheme.typography.titleMedium
         )
 
-        // Lista de aperturas
-        ventanasForm.forEachIndexed { index, ventanaState ->
+        val numeroActual = indexEditando?.let { it + 1 } ?: (ventanasForm.size + 1)
 
-            Text(
-                text = "Apertura ${index + 1}",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-            )
+        Text(
+            text = "Medida actual: $numeroActual",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+        )
 
-            OutlinedTextField(
-                value = ventanaState.descripcion,
-                onValueChange = { value ->
-                    ventanasForm[index] = ventanaState.copy(descripcion = value)
-                },
-                label = { Text("Descripción (ej. Ventana sala)") },
-                modifier = Modifier.fillMaxWidth()
-            )
+        OutlinedTextField(
+            value = descripcionActual,
+            onValueChange = { descripcionActual = it },
+            label = { Text("Descripción (ej. Ventana sala)") },
+            modifier = Modifier.fillMaxWidth()
+        )
 
-            OutlinedTextField(
-                value = ventanaState.alto,
-                onValueChange = { value ->
-                    ventanasForm[index] = ventanaState.copy(alto = filtrarNumeroDecimal(value))
-                },
-                label = { Text("Alto (m)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
+        OutlinedTextField(
+            value = altoActual,
+            onValueChange = { altoActual = filtrarNumeroDecimal(it) },
+            label = { Text("Alto (m)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
 
-            OutlinedTextField(
-                value = ventanaState.ancho,
-                onValueChange = { value ->
-                    ventanasForm[index] = ventanaState.copy(ancho = filtrarNumeroDecimal(value))
-                },
-                label = { Text("Ancho (m)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
+        OutlinedTextField(
+            value = anchoActual,
+            onValueChange = { anchoActual = filtrarNumeroDecimal(it) },
+            label = { Text("Ancho (m)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
 
-            // Botón para eliminar SOLO esta apertura (mientras haya al menos 1)
-            if (ventanasForm.size > 1) {
-                TextButton(
-                    onClick = {
-                        ventanasForm.removeAt(index)
-                    },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("Eliminar apertura")
-                }
-            }
-        }
+        Spacer(modifier = Modifier.height(4.dp))
 
-        // Botón para agregar una nueva apertura vacía
-        OutlinedButton(
+        val esEdicion = indexEditando != null
+
+        Button(
             onClick = {
-                ventanasForm.add(VentanaFormState())
+                val alto = altoActual.toDoubleOrNull()
+                val ancho = anchoActual.toDoubleOrNull()
+
+                if (alto == null || ancho == null) {
+                    Toast.makeText(
+                        context,
+                        "Ingresa alto y ancho válidos.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@Button
+                }
+
+                val desc = if (descripcionActual.isBlank()) {
+                    "Apertura $numeroActual"
+                } else {
+                    descripcionActual
+                }
+
+                val nuevaVentana = VentanaFormState(
+                    descripcion = desc,
+                    alto = altoActual,
+                    ancho = anchoActual
+                )
+
+                if (esEdicion) {
+                    val idx = indexEditando!!
+                    if (idx in ventanasForm.indices) {
+                        ventanasForm[idx] = nuevaVentana
+                        Toast.makeText(
+                            context,
+                            "Medida ${idx + 1} actualizada.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } else {
+                    ventanasForm.add(nuevaVentana)
+                    Toast.makeText(
+                        context,
+                        "Medida ${ventanasForm.size} agregada.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                // Limpiar campos y salir de modo edición
+                descripcionActual = ""
+                altoActual = ""
+                anchoActual = ""
+                indexEditando = null
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp)
+                .height(50.dp)
         ) {
-            Text("Agregar otra apertura")
+            Text(if (esEdicion) "GUARDAR CAMBIOS" else "AGREGAR MEDIDA")
+        }
+
+        // 🔹 Lista compacta de medidas agregadas (para ver, editar, borrar)
+        if (ventanasForm.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Medidas agregadas:",
+                style = MaterialTheme.typography.titleSmall
+            )
+
+            ventanasForm.forEachIndexed { index, v ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Medida ${index + 1}: ${v.descripcion}")
+                            Text(
+                                "Alto: ${v.alto} m   Ancho: ${v.ancho} m",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    // Cargar esta medida en la caja para editar
+                                    indexEditando = index
+                                    descripcionActual = v.descripcion
+                                    altoActual = v.alto
+                                    anchoActual = v.ancho
+                                }
+                            ) {
+                                Text("Editar")
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    ventanasForm.removeAt(index)
+                                    // Si estaba editando y se borra, salir de edición
+                                    if (indexEditando == index) {
+                                        indexEditando = null
+                                        descripcionActual = ""
+                                        altoActual = ""
+                                        anchoActual = ""
+                                    }
+                                }
+                            ) {
+                                Text("Eliminar")
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -655,7 +786,6 @@ fun CotizacionFormScreen(
         // ------ Botón CONTINUAR ------
         Button(
             onClick = {
-                // Validar datos generales
                 if (nombre.isBlank()) {
                     Toast.makeText(
                         context,
@@ -678,13 +808,13 @@ fun CotizacionFormScreen(
                 if (!fecha.matches(regexFecha)) {
                     Toast.makeText(
                         context,
-                        "Fecha inválida. Usa formato dd/MM/aaaa.",
+                        "Fecha inválida.",
                         Toast.LENGTH_LONG
                     ).show()
                     return@Button
                 }
 
-                // Precio por m² según tipo de producto
+                // Precio por m²
                 val precioM2 = when (tipoProducto) {
                     TipoProducto.HS875 -> HS875_DEFAULT_PRICE
                     TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE
@@ -703,7 +833,7 @@ fun CotizacionFormScreen(
                     }
                 }
 
-                // Construir la lista de Ventana a partir de todas las aperturas del formulario
+                // Construir la lista de Ventana a partir de TODAS las aperturas guardadas
                 val listaVentanas = mutableListOf<Ventana>()
 
                 ventanasForm.forEachIndexed { index, v ->
@@ -758,7 +888,6 @@ fun CotizacionFormScreen(
     }
 }
 
-
 @Composable
 private fun ProductoRadioRow(
     label: String,
@@ -790,24 +919,17 @@ fun ResumenScreen(
 ) {
     val context = LocalContext.current
 
-    val detalleVentanas = buildString {
-        cotizacion.ventanas.forEachIndexed { index, ventana ->
-            append("Apertura ${index + 1}\n")
-            append("  • Descripción: ${ventana.descripcion}\n")
-            append("  • Medidas: ${ventana.alto} x ${ventana.ancho} m\n")
-            append("  • Área: ${"%.2f".format(ventana.areaM2)} m²\n")
-            append("  • Precio por m²: \$${"%.2f".format(ventana.precioM2)}\n")
-            append("  • Subtotal: \$${"%,.2f".format(ventana.subtotal)}\n\n")
-        }
-    }
+    // Total sin mostrar IVA por separado (usamos el subtotal)
+    val totalSinIva = cotizacion.subtotal
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())  // 👈 ahora sí baja hasta IVA/Total
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
 
+        // Título
         Text(
             text = "Resumen de cotización",
             style = MaterialTheme.typography.headlineSmall,
@@ -816,6 +938,7 @@ fun ResumenScreen(
                 .padding(bottom = 16.dp)
         )
 
+        // Botón volver (historial o editar)
         OutlinedButton(
             onClick = onVolver,
             modifier = Modifier
@@ -827,8 +950,10 @@ fun ResumenScreen(
             )
         }
 
+        // ---- Datos del cliente / encabezado ----
         Text(
-            text = "Cliente: ${cotizacion.clienteNombre}\nTel: ${cotizacion.clienteTelefono}",
+            text = "Cliente: ${cotizacion.clienteNombre}\n" +
+                    "Tel: ${cotizacion.clienteTelefono}",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
@@ -847,28 +972,118 @@ fun ResumenScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        Text(
-            text = "Descripción del Área:\n$detalleVentanas",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        // -------- TABLA TIPO EXCEL --------
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                // Encabezados
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Descripción",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.4f)
+                    )
+                    Text(
+                        text = "Área total (m²)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.2f)
+                    )
+                    Text(
+                        text = "Tipo de montaje",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.2f)
+                    )
+                    Text(
+                        text = "Costo",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(0.2f)
+                    )
+                }
 
-        Text(
-            text = "Subtotal: \$${"%,.2f".format(cotizacion.subtotal)}\n" +
-                    "IVA: \$${"%,.2f".format(cotizacion.iva)}\n" +
-                    "Total: \$${"%,.2f".format(cotizacion.total)}",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+                Divider()
 
-        Spacer(modifier = Modifier.height(16.dp))
+                // Filas: una por cada apertura
+                cotizacion.ventanas.forEach { ventana ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = ventana.descripcion,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(0.4f)
+                        )
 
+                        Text(
+                            text = "%.2f".format(ventana.areaM2),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(0.2f)
+                        )
+
+                        Text(
+                            text = cotizacion.producto.etiqueta,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(0.2f)
+                        )
+
+                        Text(
+                            text = "$" + "%,.2f".format(ventana.subtotal),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(0.2f)
+                        )
+                    }
+                }
+
+                Divider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+
+                // Fila de TOTAL
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = "Total:  ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "$" + "%,.2f".format(totalSinIva),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ---- Botón GUARDAR ----
         Button(
             onClick = {
                 guardarCotizacionLocal(context, cotizacion)
                 val pdfFile = generarPdfCotizacion(context, cotizacion)
                 val totalGuardadas = obtenerCotizacionesLocal(context).size
 
+                // Puedes cambiar este texto si ya no quieres mencionar IVA
                 val mensaje = if (pdfFile != null) {
                     "Cotización guardada y PDF creado.\nTotal guardadas: $totalGuardadas"
                 } else {
@@ -891,6 +1106,7 @@ fun ResumenScreen(
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable

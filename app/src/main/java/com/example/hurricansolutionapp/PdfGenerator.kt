@@ -8,9 +8,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.time.LocalDateTime
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import java.time.format.DateTimeFormatter
+import android.graphics.BitmapFactory
 
 fun generarPdfCotizacion(
     context: Context,
@@ -35,13 +34,18 @@ fun generarPdfCotizacion(
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     val margin = 32f
-    var y = 40f
 
-    // ---------- ENCABEZADO NEGRO ----------
+    // --------- FOLIO (también lo usamos para el nombre del archivo) ----------
+    val timeStamp = LocalDateTime.now().format(
+        DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+    )
+    val folio = "Folio: $timeStamp"
+
+    // --------- ENCABEZADO NEGRO ----------
     paint.color = Color.BLACK
     canvas.drawRect(0f, 0f, pageWidth.toFloat(), 70f, paint)
 
-    // 👉 LOGO EN EL ENCABEZADO
+    // LOGO (opcional, si existe en drawable/logo_hurricane)
     try {
         val rawLogo = BitmapFactory.decodeResource(
             context.resources,
@@ -50,22 +54,44 @@ fun generarPdfCotizacion(
         val logo: Bitmap = Bitmap.createScaledBitmap(rawLogo, 120, 40, true)
         canvas.drawBitmap(logo, margin, 15f, null)
     } catch (e: Exception) {
-        // Si algo falla con el logo, solo seguimos sin él
         e.printStackTrace()
     }
 
-    // Texto "HURRICANE SOLUTION" a la derecha del logo
+    // Texto "HURRICANE SOLUTION" (blanco grande, arriba)
     paint.color = Color.WHITE
     paint.textSize = 18f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     canvas.drawText(
         "HURRICANE SOLUTION",
         margin + 130f,
-        45f,
+        40f,
         paint
     )
 
-    // ---------- TÍTULO ----------
+    // Lema en Times New Roman centrado en el banner
+    paint.textSize = 10f
+    paint.typeface = Typeface.create("times new roman", Typeface.NORMAL)
+    val lema = "Instalacion de protección contra huracanes"
+    val lemaWidth = paint.measureText(lema)
+    canvas.drawText(
+        lema,
+        (pageWidth - lemaWidth) / 2f,
+        60f,
+        paint
+    )
+
+    // FOLIO arriba a la derecha
+    paint.textSize = 10f
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+    val folioWidth = paint.measureText(folio)
+    canvas.drawText(
+        folio,
+        pageWidth - folioWidth - margin,
+        40f,
+        paint
+    )
+
+    // ---------- TÍTULO "COTIZACIÓN DE PROYECTO" ----------
     paint.color = Color.BLACK
     paint.textSize = 16f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -79,9 +105,26 @@ fun generarPdfCotizacion(
         paint
     )
 
-    y = 130f
+    // ---------- MATERIAL (debajo del título) ----------
+    val materialTexto = when (cotizacion.producto) {
+        TipoProducto.HS875 -> "Material: HS-875 (Polipropileno)"
+        TipoProducto.HS1250 -> "Material: HS-1250 (Polinet y Armado)"
+        TipoProducto.HS1500 -> "Material: HS-1500"
+        TipoProducto.PERSONALIZADO -> "Material: Personalizado"
+    }
+
+    paint.textSize = 11f
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+    val materialWidth = paint.measureText(materialTexto)
+    canvas.drawText(
+        materialTexto,
+        (pageWidth - materialWidth) / 2f,
+        115f,
+        paint
+    )
 
     // ---------- BLOQUE CLIENTE (IZQUIERDA) ----------
+    var y = 140f
     paint.textSize = 10f
     val leftX = margin
     val rightX = pageWidth / 2f
@@ -89,9 +132,9 @@ fun generarPdfCotizacion(
     fun drawLabelValue(label: String, value: String, startY: Float): Float {
         val rowHeight = 18f
 
-        // Fondo del label
+        // Fondo del label (NEGRO, ya no azul)
         paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(30, 30, 60)
+        paint.color = Color.BLACK
         canvas.drawRect(
             leftX,
             startY - rowHeight,
@@ -100,13 +143,13 @@ fun generarPdfCotizacion(
             paint
         )
 
-        // Texto label
+        // Texto label (blanco)
         paint.color = Color.WHITE
         paint.textSize = 9f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText(label, leftX + 4f, startY - 5f, paint)
 
-        // Texto valor (AHORA SÍ visible)
+        // Texto valor (negro)
         paint.color = Color.BLACK
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         canvas.drawText(value, leftX + 115f, startY - 5f, paint)
@@ -116,16 +159,17 @@ fun generarPdfCotizacion(
 
     y = drawLabelValue("Nombre del Cliente:", cotizacion.clienteNombre, y)
     y = drawLabelValue("Dirección:", cotizacion.ubicacion, y + 10f)
+    // Si luego tienes fraccionamiento y municipio, puedes agregarlos aquí igual
 
-    // ---------- BLOQUE DERECHA: ESPECIALISTA / FECHA ----------
+    // ---------- BLOQUE DERECHA: ESPECIALISTA / FECHA / METRAJE ----------
     val rightBlockX = rightX + 10f
-    var rightY = 130f
+    var rightY = 140f
 
     fun drawRightRow(label: String, value: String, startY: Float): Float {
         val rowHeight = 18f
 
-        // Fondo label
-        paint.color = Color.rgb(30, 30, 60)
+        // Fondo label (NEGRO)
+        paint.color = Color.BLACK
         canvas.drawRect(
             rightBlockX,
             startY - rowHeight,
@@ -134,13 +178,13 @@ fun generarPdfCotizacion(
             paint
         )
 
-        // Label
+        // Label (blanco)
         paint.color = Color.WHITE
         paint.textSize = 9f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText(label, rightBlockX + 4f, startY - 5f, paint)
 
-        // Valor
+        // Valor (negro)
         paint.color = Color.BLACK
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         canvas.drawText(value, rightBlockX + 115f, startY - 5f, paint)
@@ -148,8 +192,16 @@ fun generarPdfCotizacion(
         return startY + 6f
     }
 
+    // Metraje final = suma de áreas
+    val metrajeFinal = cotizacion.ventanas.sumOf { it.areaM2 }
+
     rightY = drawRightRow("Especialista:", cotizacion.especialista, rightY)
     rightY = drawRightRow("Fecha:", cotizacion.fecha, rightY + 10f)
+    rightY = drawRightRow(
+        "Metraje final:",
+        "%.2f m²".format(metrajeFinal),
+        rightY + 10f
+    )
 
     // ---------- TABLA PRINCIPAL ----------
     y = maxOf(y, rightY) + 30f
@@ -174,7 +226,7 @@ fun generarPdfCotizacion(
     var x = tableLeft
 
     fun drawHeader(text: String, width: Float) {
-        paint.color = Color.rgb(30, 30, 60)
+        paint.color = Color.BLACK
         canvas.drawRect(x, y, x + width, y + headerHeight, paint)
         paint.color = Color.WHITE
         paint.textAlign = Paint.Align.CENTER
@@ -204,10 +256,10 @@ fun generarPdfCotizacion(
         x = tableLeft
         val area = "%.2f".format(v.areaM2)
         val cantidad = "1"
-        val tipoMontaje = "Flush Mount"   // Aquí luego puedes hacerlo dinámico si lo necesitas
-        val adecuaciones = "Por revisar"
+        val tipoMontaje = "Flush Mount"   // Cambiable si luego tienes ese dato
+        val adecuaciones = v.adecuacion   // 👈 IMPORTANTE: usa el texto real
 
-        // 👉 SOLO DESCRIPCIÓN (sin “Apertura 1:”)
+        // SOLO DESCRIPCIÓN (sin “Apertura 1:”)
         canvas.drawText(v.descripcion, x + 4f, y + rowHeight - 4f, paint)
         x += colDescripcionW
 
@@ -223,7 +275,7 @@ fun generarPdfCotizacion(
         canvas.drawText(tipoMontaje, x + 4f, y + rowHeight - 4f, paint)
         x += colMontajeW
 
-        // Adecuaciones
+        // Adecuaciones (por revisar / texto libre)
         canvas.drawText(adecuaciones, x + 4f, y + rowHeight - 4f, paint)
 
         // Línea inferior
@@ -267,10 +319,6 @@ fun generarPdfCotizacion(
     if (!docsDir.exists()) {
         docsDir.mkdirs()
     }
-
-    val timeStamp = LocalDateTime.now().format(
-        DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
-    )
 
     val fileName = "Cotizacion_${timeStamp}.pdf"
     val file = File(docsDir, fileName)

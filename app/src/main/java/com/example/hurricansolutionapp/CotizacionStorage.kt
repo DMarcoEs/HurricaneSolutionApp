@@ -1,203 +1,159 @@
 package com.example.hurricansolutionapp
 
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import android.graphics.Paint
-import android.graphics.Typeface
-import android.graphics.pdf.PdfDocument
-import java.io.File
-import java.io.FileOutputStream
-import android.os.Environment
+import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 
+// Nombre del archivo de preferencias y clave
 private const val PREFS_NAME = "cotizaciones_prefs"
 private const val KEY_COTIZACIONES = "cotizaciones_json"
 
-private fun leerListaInterna(context: Context): MutableList<Cotizacion> {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val json = prefs.getString(KEY_COTIZACIONES, null) ?: return mutableListOf()
+/**
+ * Devuelve el SharedPreferences donde guardamos las cotizaciones
+ */
+private fun getPrefs(context: Context): SharedPreferences {
+    return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+}
 
-    return try {
-        val gson = Gson()
-        val type = object : TypeToken<List<Cotizacion>>() {}.type
-        val lista = gson.fromJson<List<Cotizacion>>(json, type) ?: emptyList()
-        lista.toMutableList()
-    } catch (e: Exception) {
-        mutableListOf()
+/**
+ * Guarda (o actualiza) una cotización en memoria local.
+ */
+fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
+    val prefs = getPrefs(context)
+
+    // Leemos la lista actual
+    val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
+    val array = JSONArray(listaJson)
+
+    // Si ya existe una cotización con el mismo id, la quitamos para volverla a meter actualizada
+    val nuevoArray = JSONArray()
+    for (i in 0 until array.length()) {
+        val obj = array.getJSONObject(i)
+        val idExistente = obj.optLong("id", -1L)
+        if (idExistente != cotizacion.id) {
+            nuevoArray.put(obj)
+        }
     }
-}
 
-private fun guardarListaInterna(context: Context, lista: List<Cotizacion>) {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    val gson = Gson()
-    val json = gson.toJson(lista)
-    prefs.edit().putString(KEY_COTIZACIONES, json).apply()
-}
+    // Convertimos la cotización actual a JSON
+    val cotizacionJson = JSONObject().apply {
+        put("id", cotizacion.id)
+        put("clienteNombre", cotizacion.clienteNombre)
+        put("clienteTelefono", cotizacion.clienteTelefono)
+        put("ubicacion", cotizacion.ubicacion)
+        put("especialista", cotizacion.especialista)
+        put("fecha", cotizacion.fecha)
+        put("producto", cotizacion.producto.name)   // guardamos el enum como texto
 
-/**
- * 🔹 Agrega una nueva cotización al almacenamiento local.
- */
-fun guardarCotizacionLocal(context: Context, nuevaCotizacion: Cotizacion) {
-    val listaActual = leerListaInterna(context)
-    listaActual.add(nuevaCotizacion)
-    guardarListaInterna(context, listaActual)
-}
+        // Ventanas
+        val ventanasArray = JSONArray()
+        cotizacion.ventanas.forEach { v ->
+            val vObj = JSONObject().apply {
+                put("descripcion", v.descripcion)
+                put("alto", v.alto)
+                put("ancho", v.ancho)
+                put("precioM2", v.precioM2)
+                // Si luego agregamos adecuaciones, aquí se pondrá:
+                // put("adecuacion", v.adecuacion)
+            }
+            ventanasArray.put(vObj)
+        }
+        put("ventanas", ventanasArray)
+    }
 
-/**
- * 🔹 Devuelve TODAS las cotizaciones guardadas.
- */
-fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
-    return leerListaInterna(context)
-}
+    // Añadimos la nueva cotización
+    nuevoArray.put(cotizacionJson)
 
-/**
- * 🔹 Borra TODAS las cotizaciones.
- */
-fun borrarTodasLasCotizacionesLocal(context: Context) {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // Guardamos todo
     prefs.edit()
-        .remove(KEY_COTIZACIONES)
+        .putString(KEY_COTIZACIONES, nuevoArray.toString())
         .apply()
 }
 
 /**
- * 🔹 Devuelve SOLO las cotizaciones que NO se han sincronizado con el CRM.
+ * Obtiene la lista de cotizaciones guardadas localmente.
  */
-fun obtenerCotizacionesPendientes(context: Context): List<Cotizacion> {
-    return leerListaInterna(context).filter { !it.sincronizada }
+fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
+    val prefs = getPrefs(context)
+    val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
+    val array = JSONArray(listaJson)
+
+    val resultado = mutableListOf<Cotizacion>()
+
+    for (i in 0 until array.length()) {
+        val obj = array.getJSONObject(i)
+
+        val id = obj.optLong("id", System.currentTimeMillis())
+        val clienteNombre = obj.optString("clienteNombre", "")
+        val clienteTelefono = obj.optString("clienteTelefono", "")
+        val ubicacion = obj.optString("ubicacion", "")
+        val especialista = obj.optString("especialista", "")
+        val fecha = obj.optString("fecha", "")
+
+        val productoName = obj.optString("producto", TipoProducto.HS875.name)
+        val producto = runCatching { TipoProducto.valueOf(productoName) }
+            .getOrElse { TipoProducto.HS875 }
+
+        // Ventanas
+        val ventanasJson = obj.optJSONArray("ventanas") ?: JSONArray()
+        val ventanas = mutableListOf<Ventana>()
+        for (j in 0 until ventanasJson.length()) {
+            val vObj = ventanasJson.getJSONObject(j)
+            val descripcion = vObj.optString("descripcion", "Apertura")
+            val alto = vObj.optDouble("alto", 0.0)
+            val ancho = vObj.optDouble("ancho", 0.0)
+            val precioM2 = vObj.optDouble("precioM2", HS875_DEFAULT_PRICE)
+
+            ventanas.add(
+                Ventana(
+                    descripcion = descripcion,
+                    alto = alto,
+                    ancho = ancho,
+                    precioM2 = precioM2
+                    // Si luego tenemos adecuación, aquí la pasamos
+                )
+            )
+        }
+
+        // Construimos el objeto Cotizacion.
+        // OJO: aquí solo usamos los parámetros que tenga tu data class.
+        val cotizacion = Cotizacion(
+            id = id,
+            clienteNombre = clienteNombre,
+            clienteTelefono = clienteTelefono,
+            ubicacion = ubicacion,
+            especialista = especialista,
+            fecha = fecha,
+            producto = producto,
+            ventanas = ventanas
+        )
+
+        resultado.add(cotizacion)
+    }
+
+    // Ordenamos por fecha de creación (opcional)
+    return resultado.reversed()
 }
 
 /**
- * 🔹 Reemplaza la lista completa de cotizaciones.
- */
-fun guardarListaCotizacionesLocal(context: Context, lista: List<Cotizacion>) {
-    guardarListaInterna(context, lista)
-}
-
-/**
- * 🔹 Marca una cotización como sincronizada (por id) y la guarda.
- */
-fun marcarCotizacionSincronizada(context: Context, id: Long): Cotizacion? {
-    val lista = leerListaInterna(context)
-    val index = lista.indexOfFirst { it.id == id }
-
-    if (index == -1) return null
-
-    val cotizacionOriginal = lista[index]
-    val cotizacionActualizada = cotizacionOriginal.copy(sincronizada = true)
-
-    lista[index] = cotizacionActualizada
-    guardarListaInterna(context, lista)
-
-    return cotizacionActualizada
-}
-
-/**
- * 🔹 Borra SOLO una cotización por id.
+ * Elimina UNA cotización por id.
  */
 fun borrarCotizacionLocal(context: Context, id: Long) {
-    val lista = leerListaInterna(context)
-    val nuevaLista = lista.filter { it.id != id }
-    guardarListaInterna(context, nuevaLista)
+    val prefs = getPrefs(context)
+    val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
+    val array = JSONArray(listaJson)
 
-    fun getPdfFileForCotizacion(context: Context, cotizacion: Cotizacion): File {
-        // Carpeta: /Android/data/tu.paquete/files/Documents/
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-        if (dir != null && !dir.exists()) {
-            dir.mkdirs()
-        }
-        return File(dir, "Cotizacion_${cotizacion.id}.pdf")
-    }
-
-    fun generarPdfCotizacion(context: Context, cotizacion: Cotizacion): File? {
-        return try {
-            val pdf = PdfDocument()
-
-            // Tamaño carta aprox
-            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
-            val page = pdf.startPage(pageInfo)
-            val canvas = page.canvas
-            val paint = Paint()
-
-            // Margen izquierdo y posición inicial
-            var x = 40f
-            var y = 40f
-
-            // 🔵 Encabezado
-            paint.textSize = 20f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("HURRICANE SOLUTION", x, y, paint)
-            y += 28f
-
-            paint.textSize = 14f
-            paint.typeface = Typeface.DEFAULT
-            canvas.drawText("Cotización de proyecto", x, y, paint)
-            y += 30f
-
-            // 🔵 Datos del cliente
-            paint.textSize = 12f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("Datos del cliente", x, y, paint)
-            y += 18f
-
-            paint.typeface = Typeface.DEFAULT
-            canvas.drawText("Cliente: ${cotizacion.clienteNombre}", x, y, paint); y += 16f
-            canvas.drawText("Teléfono: ${cotizacion.clienteTelefono}", x, y, paint); y += 16f
-            canvas.drawText("Ubicación: ${cotizacion.ubicacion}", x, y, paint); y += 16f
-            canvas.drawText("Especialista: ${cotizacion.especialista}", x, y, paint); y += 16f
-            canvas.drawText("Fecha: ${cotizacion.fecha}", x, y, paint); y += 24f
-
-            // 🔵 Aperturas (en lista)
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("Aperturas / Áreas a proteger", x, y, paint)
-            y += 20f
-            paint.typeface = Typeface.DEFAULT
-
-            cotizacion.ventanas.forEachIndexed { index, v ->
-                canvas.drawText("Apertura ${index + 1}", x, y, paint); y += 16f
-                canvas.drawText("• Descripción: ${v.descripcion}", x + 16f, y, paint); y += 16f
-                canvas.drawText("• Medidas: ${v.alto} x ${v.ancho} m", x + 16f, y, paint); y += 16f
-                canvas.drawText("• Área: ${"%.2f".format(v.areaM2)} m²", x + 16f, y, paint); y += 16f
-                canvas.drawText("• Precio m²: \$${"%.2f".format(v.precioM2)}", x + 16f, y, paint); y += 16f
-                canvas.drawText("• Subtotal: \$${"%,.2f".format(v.subtotal)}", x + 16f, y, paint); y += 22f
-            }
-
-            // 🔵 Totales
-            y += 8f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText(
-                "Subtotal: \$${"%,.2f".format(cotizacion.subtotal)}",
-                x,
-                y,
-                paint
-            )
-            y += 16f
-            canvas.drawText(
-                "IVA (${(cotizacion.ivaPorcentaje * 100).toInt()}%): \$${"%,.2f".format(cotizacion.iva)}",
-                x,
-                y,
-                paint
-            )
-            y += 16f
-            canvas.drawText(
-                "TOTAL: \$${"%,.2f".format(cotizacion.total)}",
-                x,
-                y,
-                paint
-            )
-
-            pdf.finishPage(page)
-
-            // 📁 Guardar en /Android/data/…/files/Documents/Cotizacion_ID.pdf
-            val file = getPdfFileForCotizacion(context, cotizacion)
-            FileOutputStream(file).use { out ->
-                pdf.writeTo(out)
-            }
-            pdf.close()
-            file
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+    val nuevoArray = JSONArray()
+    for (i in 0 until array.length()) {
+        val obj = array.getJSONObject(i)
+        val idExistente = obj.optLong("id", -1L)
+        if (idExistente != id) {
+            nuevoArray.put(obj)
         }
     }
+
+    prefs.edit()
+        .putString(KEY_COTIZACIONES, nuevoArray.toString())
+        .apply()
 }

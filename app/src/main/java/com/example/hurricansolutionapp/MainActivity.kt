@@ -6,33 +6,36 @@ import androidx.activity.ComponentActivity
 import java.io.File
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ArrowBack
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material3.Card
-import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import com.example.hurricansolutionapp.ui.theme.HurricanSolutionAppTheme
+
+// -----------------------------------------------------
+// Navegación
+// -----------------------------------------------------
 
 sealed class AppScreen {
     object Login : AppScreen()
@@ -41,13 +44,8 @@ sealed class AppScreen {
     data class Form(val cotizacionInicial: Cotizacion? = null) : AppScreen()
     data class Resumen(
         val cotizacion: Cotizacion,
-        val desdeHistorial: Boolean   // 👈 solo este flag nuevo
+        val desdeHistorial: Boolean
     ) : AppScreen()
-}
-
-enum class OrigenResumen {
-    NUEVA,
-    HISTORIAL
 }
 
 class MainActivity : ComponentActivity() {
@@ -109,7 +107,6 @@ fun AppNavigation() {
                     CotizacionFormScreen(
                         cotizacionInicial = screen.cotizacionInicial,
                         onCotizacionGenerada = { nueva ->
-                            // 👇 venimos del formulario, NO del historial
                             currentScreen = AppScreen.Resumen(
                                 cotizacion = nueva,
                                 desdeHistorial = false
@@ -119,29 +116,12 @@ fun AppNavigation() {
                 }
 
                 is AppScreen.Resumen -> {
-                    // si vienes del historial, el back debe regresar al historial
-                    BackHandler {
-                        currentScreen = if (screen.desdeHistorial) {
-                            AppScreen.Historial
-                        } else {
-                            AppScreen.Form(screen.cotizacion)
-                        }
-                    }
-
                     ResumenScreen(
                         cotizacion = screen.cotizacion,
                         desdeHistorial = screen.desdeHistorial,
-                        onVolver = {
-                            currentScreen = if (screen.desdeHistorial) {
-                                AppScreen.Historial
-                            } else {
-                                AppScreen.Form(screen.cotizacion)
-                            }
-                        },
-                        onFinalizar = {
-                            // Después de GUARDAR siempre te mando al Home
-                            currentScreen = AppScreen.Home
-                        }
+                        onVolverAInicio = { currentScreen = AppScreen.Home },
+                        onVolverAEditar = { currentScreen = AppScreen.Form(screen.cotizacion) },
+                        onVolverAHistorial = { currentScreen = AppScreen.Historial }
                     )
                 }
 
@@ -155,7 +135,6 @@ fun AppNavigation() {
                             currentScreen = AppScreen.Home
                         },
                         onVerDetalle = { cotizacionSeleccionada ->
-                            // 👇 ahora indicamos que el resumen viene del historial
                             currentScreen = AppScreen.Resumen(
                                 cotizacion = cotizacionSeleccionada,
                                 desdeHistorial = true
@@ -164,10 +143,13 @@ fun AppNavigation() {
                     )
                 }
             }
-
         }
     }
 }
+
+// -----------------------------------------------------
+// Historial
+// -----------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -223,7 +205,7 @@ fun HistorialScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onVerDetalle(c) } // 👈 Tap en la tarjeta → ver detalle
+                                .clickable { onVerDetalle(c) }
                                 .padding(12.dp)
                         ) {
                             Text("Cliente: ${c.clienteNombre}")
@@ -237,25 +219,67 @@ fun HistorialScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Total: \$${"%,.2f".format(c.total)}")
+                                // 🔹 Mostrar subtotal (sin IVA)
+                                Text("Total: \$${"%,.2f".format(c.subtotal)}")
 
-                                // 🔴 Botón para borrar SOLO esta cotización
-                                IconButton(
-                                    onClick = {
-                                        borrarCotizacionLocal(context, c.id)
-                                        cotizaciones = obtenerCotizacionesLocal(context)
-
-                                        Toast.makeText(
-                                            context,
-                                            "Cotización eliminada",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                Row {
+                                    // Ver PDF directo desde historial
+                                    TextButton(
+                                        onClick = {
+                                            val pdf = generarPdfCotizacion(context, c)
+                                            if (pdf != null) {
+                                                verPdf(context, pdf)
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Error al generar PDF",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    ) {
+                                        Text("PDF")
                                     }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Borrar"
-                                    )
+
+                                    // Compartir PDF directo desde historial
+                                    IconButton(
+                                        onClick = {
+                                            val pdf = generarPdfCotizacion(context, c)
+                                            if (pdf != null) {
+                                                compartirPdf(context, pdf)
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Error al generar PDF",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Compartir PDF"
+                                        )
+                                    }
+
+                                    // Borrar cotización
+                                    IconButton(
+                                        onClick = {
+                                            borrarCotizacionLocal(context, c.id)
+                                            cotizaciones = obtenerCotizacionesLocal(context)
+
+                                            Toast.makeText(
+                                                context,
+                                                "Cotización eliminada",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Borrar"
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -265,6 +289,10 @@ fun HistorialScreen(
         }
     }
 }
+
+// -----------------------------------------------------
+// Login & Home
+// -----------------------------------------------------
 
 @Composable
 fun LoginScreen(
@@ -283,21 +311,18 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // Título
         Text(
             text = "Hurricane Solution",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // Subtítulo
         Text(
             text = "Inicia sesión para continuar",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        // Nombre del especialista
         OutlinedTextField(
             value = nombre,
             onValueChange = { nombre = it },
@@ -306,7 +331,6 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Contraseña (oculta)
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -321,7 +345,6 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Botón de iniciar sesión
         Button(
             onClick = {
                 if (nombre.isBlank() || password.isBlank()) {
@@ -333,11 +356,9 @@ fun LoginScreen(
                     return@Button
                 }
 
-                // ✅ Validar contra la lista fija de especialistas
                 val user = AuthRepository.login(nombre, password)
 
                 if (user == null) {
-                    // ❌ Credenciales incorrectas
                     Toast.makeText(
                         context,
                         "Nombre o contraseña incorrectos.",
@@ -346,7 +367,6 @@ fun LoginScreen(
                     return@Button
                 }
 
-                // ✅ Login correcto → guardamos en SessionManager
                 SessionManager.login(
                     context = context,
                     nombreEspecialista = user.nombre
@@ -368,8 +388,6 @@ fun LoginScreen(
         }
     }
 }
-
-
 
 @Composable
 fun HomeScreen(
@@ -426,23 +444,28 @@ fun HomeScreen(
     }
 }
 
-// 🔧 Helper para dejar solo dígitos (y opcionalmente punto)
+// -----------------------------------------------------
+// Helpers numéricos
+// -----------------------------------------------------
+
 private fun filtrarNumeroDecimal(input: String): String =
     input.filter { it.isDigit() || it == '.' }
 
 private fun filtrarSoloDigitos(input: String): String =
     input.filter { it.isDigit() }
 
-/**
- * 📝 Formulario de cotización
- */
+// -----------------------------------------------------
+// Formulario de cotización (con Adecuaciones)
+// -----------------------------------------------------
 
-// Estado de cada apertura/ventana en el formulario
-// Estado de cada apertura/ventana en el formulario
+enum class AdecuacionTipo { NINGUNA, POR_REVISAR }
+
 data class VentanaFormState(
     val descripcion: String = "",
     val alto: String = "",
-    val ancho: String = ""
+    val ancho: String = "",
+    val adecuacionTipo: AdecuacionTipo = AdecuacionTipo.NINGUNA,
+    val adecuacionDetalle: String = ""
 )
 
 @Composable
@@ -452,12 +475,10 @@ fun CotizacionFormScreen(
 ) {
     val context = LocalContext.current
 
-    // ---- fecha automática de hoy ----
     val fechaHoy = remember {
         LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
     }
 
-    // ---- States de los campos generales ----
     var nombre by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
     var ubicacion by remember { mutableStateOf("") }
@@ -466,20 +487,19 @@ fun CotizacionFormScreen(
     var precioM2Texto by remember { mutableStateOf("") }
     var tipoProducto by remember { mutableStateOf(TipoProducto.HS875) }
 
-    // 🔹 Lista de TODAS las aperturas guardadas
     val ventanasForm = remember { mutableStateListOf<VentanaFormState>() }
 
-    // 🔹 Campos de la APERTURA ACTUAL (una sola caja)
     var descripcionActual by remember { mutableStateOf("") }
     var altoActual by remember { mutableStateOf("") }
     var anchoActual by remember { mutableStateOf("") }
+    var adecuacionTipoActual by remember { mutableStateOf(AdecuacionTipo.NINGUNA) }
+    var adecuacionDetalleActual by remember { mutableStateOf("") }
 
-    // 🔹 Índice que estoy editando (null = creando nueva)
     var indexEditando by remember { mutableStateOf<Int?>(null) }
 
     val scrollState = rememberScrollState()
 
-    // ---- Rellenar cuando vienes de "Volver y editar" ----
+    // Rellenar cuando vienes desde "Volver y editar"
     LaunchedEffect(cotizacionInicial?.id) {
         ventanasForm.clear()
 
@@ -491,11 +511,24 @@ fun CotizacionFormScreen(
             tipoProducto = cotizacionInicial.producto
 
             cotizacionInicial.ventanas.forEach { v ->
+                val tipoAdecuacion = if (v.adecuacion == "Ninguna") {
+                    AdecuacionTipo.NINGUNA
+                } else {
+                    AdecuacionTipo.POR_REVISAR
+                }
+
+                val detalleAdecuacion = when (v.adecuacion) {
+                    "Ninguna", "Por revisar" -> ""
+                    else -> v.adecuacion
+                }
+
                 ventanasForm.add(
                     VentanaFormState(
                         descripcion = v.descripcion,
                         alto = v.alto.toString(),
-                        ancho = v.ancho.toString()
+                        ancho = v.ancho.toString(),
+                        adecuacionTipo = tipoAdecuacion,
+                        adecuacionDetalle = detalleAdecuacion
                     )
                 )
             }
@@ -503,7 +536,6 @@ fun CotizacionFormScreen(
             val v = cotizacionInicial.ventanas.firstOrNull()
             precioM2Texto = v?.precioM2?.toString() ?: ""
         } else {
-            // Nueva cotización
             nombre = ""
             telefono = ""
             ubicacion = ""
@@ -511,14 +543,16 @@ fun CotizacionFormScreen(
             descripcionActual = ""
             altoActual = ""
             anchoActual = ""
+            adecuacionTipoActual = AdecuacionTipo.NINGUNA
+            adecuacionDetalleActual = ""
             indexEditando = null
             precioM2Texto = HS875_DEFAULT_PRICE.toString()
         }
     }
 
-    // Cuando cambia el producto (y NO vienes de editar), ajustar precio por m²
+    // Precio automático según producto (sólo nuevas)
     LaunchedEffect(tipoProducto, cotizacionInicial?.id) {
-        if (tipoProducto != TipoProducto.PERSONALIZADO && cotizacionInicial == null) {
+        if (cotizacionInicial == null) {
             precioM2Texto = when (tipoProducto) {
                 TipoProducto.HS875 -> HS875_DEFAULT_PRICE.toString()
                 TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE.toString()
@@ -542,7 +576,7 @@ fun CotizacionFormScreen(
             style = MaterialTheme.typography.headlineSmall
         )
 
-        // ------ Datos generales del cliente ------
+        // Datos cliente
         OutlinedTextField(
             value = nombre,
             onValueChange = { nombre = it },
@@ -565,10 +599,9 @@ fun CotizacionFormScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // 🔹 Fecha solo de lectura (automática)
         OutlinedTextField(
             value = fecha,
-            onValueChange = { /* no editable */ },
+            onValueChange = { },
             label = { Text("Fecha (automática)") },
             enabled = false,
             modifier = Modifier.fillMaxWidth()
@@ -576,7 +609,7 @@ fun CotizacionFormScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ------ Aperturas / Ventanas en UNA sola caja ------
+        // Aperturas
         Text(
             text = "Datos de aperturas / áreas",
             style = MaterialTheme.typography.titleMedium
@@ -613,6 +646,39 @@ fun CotizacionFormScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Adecuaciones
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Adecuaciones",
+            style = MaterialTheme.typography.titleSmall
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = adecuacionTipoActual == AdecuacionTipo.NINGUNA,
+                onClick = { adecuacionTipoActual = AdecuacionTipo.NINGUNA }
+            )
+            Text("No (Ninguna)")
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(
+                selected = adecuacionTipoActual == AdecuacionTipo.POR_REVISAR,
+                onClick = { adecuacionTipoActual = AdecuacionTipo.POR_REVISAR }
+            )
+            Text("Sí (hay adecuaciones)")
+        }
+
+        if (adecuacionTipoActual == AdecuacionTipo.POR_REVISAR) {
+            OutlinedTextField(
+                value = adecuacionDetalleActual,
+                onValueChange = { adecuacionDetalleActual = it },
+                label = { Text("Detalle de adecuación (opcional)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         Spacer(modifier = Modifier.height(4.dp))
 
         val esEdicion = indexEditando != null
@@ -640,7 +706,9 @@ fun CotizacionFormScreen(
                 val nuevaVentana = VentanaFormState(
                     descripcion = desc,
                     alto = altoActual,
-                    ancho = anchoActual
+                    ancho = anchoActual,
+                    adecuacionTipo = adecuacionTipoActual,
+                    adecuacionDetalle = adecuacionDetalleActual
                 )
 
                 if (esEdicion) {
@@ -662,10 +730,11 @@ fun CotizacionFormScreen(
                     ).show()
                 }
 
-                // Limpiar campos y salir de modo edición
                 descripcionActual = ""
                 altoActual = ""
                 anchoActual = ""
+                adecuacionTipoActual = AdecuacionTipo.NINGUNA
+                adecuacionDetalleActual = ""
                 indexEditando = null
             },
             modifier = Modifier
@@ -675,7 +744,7 @@ fun CotizacionFormScreen(
             Text(if (esEdicion) "GUARDAR CAMBIOS" else "AGREGAR MEDIDA")
         }
 
-        // 🔹 Lista compacta de medidas agregadas (para ver, editar, borrar)
+        // Lista de medidas
         if (ventanasForm.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -705,18 +774,29 @@ fun CotizacionFormScreen(
                                 "Alto: ${v.alto} m   Ancho: ${v.ancho} m",
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            val txtAdec = when (v.adecuacionTipo) {
+                                AdecuacionTipo.NINGUNA -> "Adecuación: Ninguna"
+                                AdecuacionTipo.POR_REVISAR ->
+                                    if (v.adecuacionDetalle.isBlank())
+                                        "Adecuación: Por revisar"
+                                    else
+                                        "Adecuación: ${v.adecuacionDetalle}"
+                            }
+                            Text(
+                                txtAdec,
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
 
-                        Column(
-                            horizontalAlignment = Alignment.End
-                        ) {
+                        Column(horizontalAlignment = Alignment.End) {
                             TextButton(
                                 onClick = {
-                                    // Cargar esta medida en la caja para editar
                                     indexEditando = index
                                     descripcionActual = v.descripcion
                                     altoActual = v.alto
                                     anchoActual = v.ancho
+                                    adecuacionTipoActual = v.adecuacionTipo
+                                    adecuacionDetalleActual = v.adecuacionDetalle
                                 }
                             ) {
                                 Text("Editar")
@@ -725,12 +805,13 @@ fun CotizacionFormScreen(
                             TextButton(
                                 onClick = {
                                     ventanasForm.removeAt(index)
-                                    // Si estaba editando y se borra, salir de edición
                                     if (indexEditando == index) {
                                         indexEditando = null
                                         descripcionActual = ""
                                         altoActual = ""
                                         anchoActual = ""
+                                        adecuacionTipoActual = AdecuacionTipo.NINGUNA
+                                        adecuacionDetalleActual = ""
                                     }
                                 }
                             ) {
@@ -744,7 +825,7 @@ fun CotizacionFormScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ------ Tipo de producto y precio ------
+        // Tipo de producto
         Text(
             text = "Tipo de producto",
             style = MaterialTheme.typography.titleSmall
@@ -766,25 +847,22 @@ fun CotizacionFormScreen(
                 selected = tipoProducto == TipoProducto.HS1500,
                 onClick = { tipoProducto = TipoProducto.HS1500 }
             )
-            ProductoRadioRow(
-                label = TipoProducto.PERSONALIZADO.etiqueta,
-                selected = tipoProducto == TipoProducto.PERSONALIZADO,
-                onClick = { tipoProducto = TipoProducto.PERSONALIZADO }
-            )
+            // 👇 Ya NO mostramos "Otro precio"
+            // (TipoProducto.PERSONALIZADO se queda sólo por compatibilidad)
         }
 
         OutlinedTextField(
             value = precioM2Texto,
-            onValueChange = { precioM2Texto = filtrarNumeroDecimal(it) },
+            onValueChange = { /* precio automático, no editable */ },
             label = { Text("Precio por m²") },
-            enabled = tipoProducto == TipoProducto.PERSONALIZADO,
+            enabled = false,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ------ Botón CONTINUAR ------
+        // Botón CONTINUAR
         Button(
             onClick = {
                 if (nombre.isBlank()) {
@@ -815,26 +893,14 @@ fun CotizacionFormScreen(
                     return@Button
                 }
 
-                // Precio por m²
                 val precioM2 = when (tipoProducto) {
                     TipoProducto.HS875 -> HS875_DEFAULT_PRICE
                     TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE
                     TipoProducto.HS1500 -> HS1500_DEFAULT_PRICE
-                    TipoProducto.PERSONALIZADO -> {
-                        val p = precioM2Texto.toDoubleOrNull()
-                        if (p == null) {
-                            Toast.makeText(
-                                context,
-                                "Ingresa un precio por m² válido.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            return@Button
-                        }
-                        p
-                    }
+                    TipoProducto.PERSONALIZADO ->
+                        precioM2Texto.toDoubleOrNull() ?: HS875_DEFAULT_PRICE
                 }
 
-                // Construir la lista de Ventana a partir de TODAS las aperturas guardadas
                 val listaVentanas = mutableListOf<Ventana>()
 
                 ventanasForm.forEachIndexed { index, v ->
@@ -856,12 +922,20 @@ fun CotizacionFormScreen(
                         v.descripcion
                     }
 
+                    val textoAdecuacion = when (v.adecuacionTipo) {
+                        AdecuacionTipo.NINGUNA -> "Ninguna"
+                        AdecuacionTipo.POR_REVISAR ->
+                            if (v.adecuacionDetalle.isBlank()) "Por revisar"
+                            else v.adecuacionDetalle
+                    }
+
                     listaVentanas.add(
                         Ventana(
                             descripcion = desc,
                             alto = alto,
                             ancho = ancho,
-                            precioM2 = precioM2
+                            precioM2 = precioM2,
+                            adecuacion = textoAdecuacion
                         )
                     )
                 }
@@ -907,24 +981,41 @@ private fun ProductoRadioRow(
     }
 }
 
-/**
- * ✅ Pantalla de resumen
- */
+// -----------------------------------------------------
+// Resumen + PDF
+// -----------------------------------------------------
 
 @Composable
 fun ResumenScreen(
     cotizacion: Cotizacion,
     desdeHistorial: Boolean,
-    onVolver: () -> Unit,
-    onFinalizar: () -> Unit
+    onVolverAInicio: () -> Unit,
+    onVolverAEditar: () -> Unit,
+    onVolverAHistorial: () -> Unit
 ) {
     val context = LocalContext.current
 
-    // 👉 NUEVOS ESTADOS PARA EL PDF
-    var ultimoPdfGenerado by remember { mutableStateOf<File?>(null) }
-    var mostrarDialogoPdf by remember { mutableStateOf(false) }
+    // 👉 Si viene del historial, ya está guardada
+    var guardado by remember { mutableStateOf(desdeHistorial) }
 
-    // Total sin mostrar IVA por separado (usamos el subtotal)
+    // 👉 Para no generar el PDF muchas veces
+    var pdfFile by remember { mutableStateOf<File?>(null) }
+
+    // 👉 Comportamiento del botón físico "atrás"
+    BackHandler {
+        if (desdeHistorial) {
+            // Vino desde Historial → regresar a Historial
+            onVolverAHistorial()
+        } else if (guardado) {
+            // Nueva cotización pero YA guardada → ir al Home
+            onVolverAInicio()
+        } else {
+            // Nueva cotización y NO guardada → volver a editar
+            onVolverAEditar()
+        }
+    }
+
+    // Total sin IVA
     val totalSinIva = cotizacion.subtotal
 
     Column(
@@ -943,9 +1034,15 @@ fun ResumenScreen(
                 .padding(bottom = 16.dp)
         )
 
-        // Botón volver (historial o editar)
+        // Botón volver (EDITAR o HISTORIAL, según origen)
         OutlinedButton(
-            onClick = onVolver,
+            onClick = {
+                if (desdeHistorial) {
+                    onVolverAHistorial()
+                } else {
+                    onVolverAEditar()
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
@@ -1081,68 +1178,84 @@ fun ResumenScreen(
             }
         }
 
-        // ---- Botón GUARDAR ----
-        Button(
-            onClick = {
-                guardarCotizacionLocal(context, cotizacion)
-                val pdfFile = generarPdfCotizacion(context, cotizacion)
-                val totalGuardadas = obtenerCotizacionesLocal(context).size
+        Spacer(modifier = Modifier.height(8.dp))
 
-                if (pdfFile != null) {
-                    ultimoPdfGenerado = pdfFile
-                    mostrarDialogoPdf = true
+        // ---- ZONA DE BOTONES SEGÚN ESTADO ----
+        if (!guardado) {
+            // 🔹 PRIMERA VEZ: solo botón GUARDAR
+            Button(
+                onClick = {
+                    guardarCotizacionLocal(context, cotizacion)
+                    val totalGuardadas = obtenerCotizacionesLocal(context).size
+
                     Toast.makeText(
                         context,
-                        "Cotización guardada y PDF creado.\nTotal guardadas: $totalGuardadas",
+                        "Cotización guardada.\nTotal guardadas: $totalGuardadas",
                         Toast.LENGTH_LONG
                     ).show()
-                } else {
-                    Toast.makeText(
-                        context,
-                        "Cotización guardada (error al crear PDF).\nTotal guardadas: $totalGuardadas",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-                // 👀 Ya NO llamo a onFinalizar() aquí, para que puedas ver/compartir primero.
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Text(text = "GUARDAR")
-        }
-    }
 
-    // 👉 ESTE BLOQUE VA **FUERA** DEL COLUMN, PERO DENTRO DE ResumenScreen
-    if (mostrarDialogoPdf && ultimoPdfGenerado != null) {
-        AlertDialog(
-            onDismissRequest = { mostrarDialogoPdf = false },
-            title = { Text("PDF generado") },
-            text = { Text("¿Qué deseas hacer con la cotización en PDF?") },
-            confirmButton = {
-                TextButton(
+                    guardado = true      // 👉 Ocultamos GUARDAR y mostramos PDF/Compartir
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text(text = "GUARDAR")
+            }
+        } else {
+            // 🔹 YA GUARDADA: botones PDF y COMPARTIR
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
                     onClick = {
-                        mostrarDialogoPdf = false
-                        verPdf(context, ultimoPdfGenerado!!)
-                    }
+                        val archivo = pdfFile ?: generarPdfCotizacion(context, cotizacion)
+                        if (archivo != null) {
+                            pdfFile = archivo
+                            verPdf(context, archivo)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Error al generar el PDF.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
                 ) {
-                    Text("Ver PDF")
+                    Text("VER PDF")
                 }
-            },
-            dismissButton = {
-                TextButton(
+
+                OutlinedButton(
                     onClick = {
-                        mostrarDialogoPdf = false
-                        compartirPdf(context, ultimoPdfGenerado!!)
-                    }
+                        val archivo = pdfFile ?: generarPdfCotizacion(context, cotizacion)
+                        if (archivo != null) {
+                            pdfFile = archivo
+                            compartirPdf(context, archivo)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Error al generar el PDF.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
                 ) {
-                    Text("Compartir")
+                    Text("COMPARTIR")
                 }
             }
-        )
+        }
     }
 }
-
+// -----------------------------------------------------
+// Previews
+// -----------------------------------------------------
 
 @Preview(showBackground = true)
 @Composable
@@ -1152,6 +1265,7 @@ fun CotizacionFormPreview() {
     }
 }
 
+@Preview(showBackground = true)
 @Preview(showBackground = true)
 @Composable
 fun ResumenPreview() {
@@ -1176,8 +1290,9 @@ fun ResumenPreview() {
         ResumenScreen(
             cotizacion = demo,
             desdeHistorial = false,
-            onVolver = {},
-            onFinalizar = {}
+            onVolverAInicio = {},
+            onVolverAEditar = {},
+            onVolverAHistorial = {}
         )
     }
 }

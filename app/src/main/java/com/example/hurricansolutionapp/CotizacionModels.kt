@@ -17,33 +17,24 @@ data class Ventana(
     val descripcion: String,
     val alto: Double,
     val ancho: Double,
-    val precioM2: Double
+    val precioM2: Double,
+    val adecuacion: String = "Por revisar"
 ) {
-    val areaM2: Double
-        get() = alto * ancho
-
-    val subtotal: Double
-        get() = areaM2 * precioM2
+    val areaM2: Double get() = alto * ancho
+    val subtotal: Double get() = areaM2 * precioM2
 }
 
 data class Cotizacion(
-    val id: Long = System.currentTimeMillis(),   // 👈 identificador único
+    val id: Long = System.currentTimeMillis(),
     val clienteNombre: String,
     val clienteTelefono: String,
     val ubicacion: String,
     val especialista: String,
     val fecha: String,
     val producto: TipoProducto,
-    val ventanas: List<Ventana>,
-    val ivaPorcentaje: Double = 0.16,
-    val sincronizada: Boolean = false
+    val ventanas: List<Ventana>
 ) {
-    val subtotal: Double
-        get() = ventanas.sumOf { it.subtotal }
-
-    val iva: Double
-        get() = subtotal * ivaPorcentaje
-
-    val total: Double
-        get() = subtotal + iva
+    val subtotal: Double get() = ventanas.sumOf { it.subtotal }
+    val iva: Double get() = 0.0              // ya no lo usamos, pero puede quedarse
+    val total: Double get() = subtotal       // compatibilidad, pero en pantalla usa subtotal
 }

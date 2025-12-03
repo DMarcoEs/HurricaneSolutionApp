@@ -126,8 +126,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             especialista = especialista,
             fecha = fecha,
             producto = producto,
-            ventanas = ventanas
-        )
+            ventanas = ventanas)
 
         resultado.add(cotizacion)
     }

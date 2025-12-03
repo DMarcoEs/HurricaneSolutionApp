@@ -2,7 +2,7 @@ package com.example.hurricansolutionapp
 
 data class SpecialistUser(
     val id: Int,
-    val nombre: String,
+    val correo: String,
     val password: String
 )
 
@@ -12,19 +12,19 @@ object AuthRepository {
     private val specialists = listOf(
         SpecialistUser(
             id = 1,
-            nombre = "Marco Alejandro Canche Kantun",
+            correo = "Marco@Hurricanesolution.com",
             password = "MarcoHS7111"
         ),
         SpecialistUser(
             id = 2,
-            nombre = "Derek Idrahim Hernandez Rios",
+            correo = "Derek@Hurricanesolution.com",
             password = "Derek.130804"
         )
     )
 
     fun login(nombre: String, password: String): SpecialistUser? {
         return specialists.firstOrNull { user ->
-            user.nombre.equals(nombre.trim(), ignoreCase = true) &&
+            user.correo.equals(nombre.trim(), ignoreCase = true) &&
                     user.password == password
         }
     }

@@ -24,8 +24,10 @@ data class Ventana(
     val subtotal: Double get() = areaM2 * precioM2
 }
 
+
 data class Cotizacion(
-    val id: Long = System.currentTimeMillis(),
+    val id: Long = 0L,
+    val folio: String = "",           // ya lo estás usando
     val clienteNombre: String,
     val clienteTelefono: String,
     val ubicacion: String,
@@ -34,7 +36,12 @@ data class Cotizacion(
     val producto: TipoProducto,
     val ventanas: List<Ventana>
 ) {
+    // Subtotal siempre se calcula a partir de las ventanas
     val subtotal: Double get() = ventanas.sumOf { it.subtotal }
-    val iva: Double get() = 0.0              // ya no lo usamos, pero puede quedarse
-    val total: Double get() = subtotal       // compatibilidad, pero en pantalla usa subtotal
+
+    // Si algún día usas IVA, lo cambias aquí
+    val iva: Double get() = 0.0
+
+    // Total = subtotal (por ahora)
+    val total: Double get() = subtotal
 }

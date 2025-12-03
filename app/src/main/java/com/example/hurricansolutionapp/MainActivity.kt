@@ -369,12 +369,12 @@ fun LoginScreen(
 
                 SessionManager.login(
                     context = context,
-                    nombreEspecialista = user.nombre
+                    nombreEspecialista = user.correo
                 )
 
                 Toast.makeText(
                     context,
-                    "Bienvenido ${user.nombre}",
+                    "Bienvenido ${user.correo}",
                     Toast.LENGTH_SHORT
                 ).show()
 
@@ -940,16 +940,33 @@ fun CotizacionFormScreen(
                     )
                 }
 
+                // 👉 Hasta aquí sólo llenamos listaVentanas
+                //    Ahora sí armamos el objeto Cotizacion
+
                 val especialistaSesion = SessionManager.getEspecialista(context)
 
+                // Folio:
+                // - Si vienes de "Volver y editar", conservamos el mismo folio
+                // - Si es una cotización nueva, generamos uno nuevo para ese especialista
+                val folioStr = if (cotizacionInicial != null && cotizacionInicial.folio.isNotBlank()) {
+                    cotizacionInicial.folio
+                } else {
+                    FolioManager.nextFolioForEspecialista(
+                        context = context,
+                        nombreCompleto = especialistaSesion
+                    )
+                }
+
                 val cotizacion = Cotizacion(
+                    id = cotizacionInicial?.id ?: 0L,   // si editas, conserva el id
+                    folio = folioStr,                   // 👈 MUY IMPORTANTE
                     clienteNombre = nombre,
                     clienteTelefono = telefono,
                     ubicacion = ubicacion,
                     especialista = especialistaSesion,
                     fecha = fecha,
                     producto = tipoProducto,
-                    ventanas = listaVentanas
+                    ventanas = listaVentanas,
                 )
 
                 onCotizacionGenerada(cotizacion)
@@ -1270,6 +1287,7 @@ fun CotizacionFormPreview() {
 @Composable
 fun ResumenPreview() {
     val demo = Cotizacion(
+        folio = "DEMO-0001",
         clienteNombre = "Esteban",
         clienteTelefono = "9840000000",
         ubicacion = "Puerto Morelos",
@@ -1285,7 +1303,6 @@ fun ResumenPreview() {
             )
         )
     )
-
     HurricanSolutionAppTheme {
         ResumenScreen(
             cotizacion = demo,

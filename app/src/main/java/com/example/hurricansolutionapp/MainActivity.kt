@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import org.json.JSONObject
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -32,10 +33,6 @@ import androidx.activity.compose.BackHandler
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import com.example.hurricansolutionapp.ui.theme.HurricanSolutionAppTheme
-
-// -----------------------------------------------------
-// Navegación
-// -----------------------------------------------------
 
 sealed class AppScreen {
     object Login : AppScreen()
@@ -300,7 +297,7 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
 
-    var nombre by remember { mutableStateOf("") }
+    var correo by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     Column(
@@ -324,10 +321,11 @@ fun LoginScreen(
         )
 
         OutlinedTextField(
-            value = nombre,
-            onValueChange = { nombre = it },
-            label = { Text("Nombre del especialista") },
+            value = correo,
+            onValueChange = { correo = it },
+            label = { Text("Correo electrónico") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -347,34 +345,36 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                if (nombre.isBlank() || password.isBlank()) {
+                if (correo.isBlank() || password.isBlank()) {
                     Toast.makeText(
                         context,
-                        "Ingresa nombre y contraseña.",
+                        "Ingresa correo y contraseña.",
                         Toast.LENGTH_LONG
                     ).show()
                     return@Button
                 }
 
-                val user = AuthRepository.login(nombre, password)
+                // 🔐 Login por correo
+                val user = AuthRepository.login(correo, password)
 
                 if (user == null) {
                     Toast.makeText(
                         context,
-                        "Nombre o contraseña incorrectos.",
+                        "Correo o contraseña incorrectos.",
                         Toast.LENGTH_LONG
                     ).show()
                     return@Button
                 }
 
+                // 🧠 Guardamos en sesión el NOMBRE (no el correo)
                 SessionManager.login(
                     context = context,
-                    nombreEspecialista = user.correo
+                    nombreEspecialista = user.nombre
                 )
 
                 Toast.makeText(
                     context,
-                    "Bienvenido ${user.correo}",
+                    "Bienvenido ${user.nombre}",
                     Toast.LENGTH_SHORT
                 ).show()
 
@@ -386,6 +386,7 @@ fun LoginScreen(
         ) {
             Text(text = "INICIAR SESIÓN")
         }
+
     }
 }
 
@@ -443,10 +444,6 @@ fun HomeScreen(
         }
     }
 }
-
-// -----------------------------------------------------
-// Helpers numéricos
-// -----------------------------------------------------
 
 private fun filtrarNumeroDecimal(input: String): String =
     input.filter { it.isDigit() || it == '.' }
@@ -862,7 +859,7 @@ fun CotizacionFormScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Botón CONTINUAR
+
         Button(
             onClick = {
                 if (nombre.isBlank()) {
@@ -940,36 +937,44 @@ fun CotizacionFormScreen(
                     )
                 }
 
-                // 👉 Hasta aquí sólo llenamos listaVentanas
-                //    Ahora sí armamos el objeto Cotizacion
 
+// ... ya calculaste listaVentanas, tipoProducto, etc.
+
+// Antes de crear la cotización:
                 val especialistaSesion = SessionManager.getEspecialista(context)
 
-                // Folio:
-                // - Si vienes de "Volver y editar", conservamos el mismo folio
-                // - Si es una cotización nueva, generamos uno nuevo para ese especialista
-                val folioStr = if (cotizacionInicial != null && cotizacionInicial.folio.isNotBlank()) {
+// 👇 Folio: si venimos de una cotización existente, respetamos su folio
+                val folioFinal = if (cotizacionInicial != null && cotizacionInicial.folio.isNotBlank()) {
                     cotizacionInicial.folio
                 } else {
-                    FolioManager.nextFolioForEspecialista(
-                        context = context,
-                        nombreCompleto = especialistaSesion
-                    )
+                    // Nueva cotización → generamos folio por iniciales
+                    val prefijo = especialistaSesion
+                        .trim()
+                        .split(" ")
+                        .filter { it.isNotBlank() }
+                        .take(2)                                   // nombre + primer apellido
+                        .joinToString("") { it.first().uppercase() }
+
+                    val consecutivo = FolioManager.nextFolioForPrefix(context, prefijo)
+
+                    "$prefijo-${String.format("%04d", consecutivo)}"
                 }
 
+// Construimos el objeto Cotizacion
                 val cotizacion = Cotizacion(
-                    id = cotizacionInicial?.id ?: 0L,   // si editas, conserva el id
-                    folio = folioStr,                   // 👈 MUY IMPORTANTE
+                    id = cotizacionInicial?.id ?: 0L,              // si editas, conserva el id
+                    folio = folioFinal,                            // 👈 MUY IMPORTANTE
                     clienteNombre = nombre,
                     clienteTelefono = telefono,
                     ubicacion = ubicacion,
                     especialista = especialistaSesion,
                     fecha = fecha,
                     producto = tipoProducto,
-                    ventanas = listaVentanas,
+                    ventanas = listaVentanas
                 )
 
                 onCotizacionGenerada(cotizacion)
+
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -998,10 +1003,6 @@ private fun ProductoRadioRow(
     }
 }
 
-// -----------------------------------------------------
-// Resumen + PDF
-// -----------------------------------------------------
-
 @Composable
 fun ResumenScreen(
     cotizacion: Cotizacion,
@@ -1012,27 +1013,21 @@ fun ResumenScreen(
 ) {
     val context = LocalContext.current
 
-    // 👉 Si viene del historial, ya está guardada
     var guardado by remember { mutableStateOf(desdeHistorial) }
 
     // 👉 Para no generar el PDF muchas veces
     var pdfFile by remember { mutableStateOf<File?>(null) }
 
-    // 👉 Comportamiento del botón físico "atrás"
     BackHandler {
         if (desdeHistorial) {
-            // Vino desde Historial → regresar a Historial
             onVolverAHistorial()
         } else if (guardado) {
-            // Nueva cotización pero YA guardada → ir al Home
             onVolverAInicio()
         } else {
-            // Nueva cotización y NO guardada → volver a editar
             onVolverAEditar()
         }
     }
 
-    // Total sin IVA
     val totalSinIva = cotizacion.subtotal
 
     Column(

@@ -7,10 +7,17 @@ object FolioManager {
     private const val PREFS_NAME = "folios_prefs"
     private const val KEY_PREFIX = "folio_counter_"
 
-    /**
-     * Genera el siguiente folio para un especialista.
-     * Ejemplo: "Fernando Loria" -> FL-0001, FL-0002, ...
-     */
+    fun nextFolioForPrefix(context: Context, prefijo: String): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val key = KEY_PREFIX + prefijo
+
+        val last = prefs.getInt(key, 0)
+        val next = last + 1
+
+        prefs.edit().putInt(key, next).apply()
+        return next
+    }
+
     fun nextFolioForEspecialista(
         context: Context,
         nombreCompleto: String

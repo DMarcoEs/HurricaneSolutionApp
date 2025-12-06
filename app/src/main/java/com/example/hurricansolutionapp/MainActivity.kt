@@ -14,13 +14,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import org.json.JSONObject
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -287,10 +301,6 @@ fun HistorialScreen(
     }
 }
 
-// -----------------------------------------------------
-// Login & Home
-// -----------------------------------------------------
-
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit
@@ -484,6 +494,10 @@ fun CotizacionFormScreen(
     var precioM2Texto by remember { mutableStateOf("") }
     var tipoProducto by remember { mutableStateOf(TipoProducto.HS875) }
 
+    var hs875Check by remember { mutableStateOf(true) }
+    var hs1250Check by remember { mutableStateOf(false) }
+    var hs1500Check by remember { mutableStateOf(false) }
+
     val ventanasForm = remember { mutableStateListOf<VentanaFormState>() }
 
     var descripcionActual by remember { mutableStateOf("") }
@@ -496,27 +510,30 @@ fun CotizacionFormScreen(
 
     val scrollState = rememberScrollState()
 
-    // Rellenar cuando vienes desde "Volver y editar"
     LaunchedEffect(cotizacionInicial?.id) {
         ventanasForm.clear()
 
         if (cotizacionInicial != null) {
+            // Rellenamos los datos del cliente
             nombre = cotizacionInicial.clienteNombre
             telefono = cotizacionInicial.clienteTelefono
             ubicacion = cotizacionInicial.ubicacion
             fecha = cotizacionInicial.fecha
             tipoProducto = cotizacionInicial.producto
 
-            cotizacionInicial.ventanas.forEach { v ->
-                val tipoAdecuacion = if (v.adecuacion == "Ninguna") {
-                    AdecuacionTipo.NINGUNA
-                } else {
-                    AdecuacionTipo.POR_REVISAR
-                }
+            // ✅ Marcar checkboxes según los productos guardados
+            val productosIniciales = cotizacionInicial.productos
+            hs875Check = productosIniciales.contains(TipoProducto.HS875)
+            hs1250Check = productosIniciales.contains(TipoProducto.HS1250)
+            hs1500Check = productosIniciales.contains(TipoProducto.HS1500)
 
-                val detalleAdecuacion = when (v.adecuacion) {
-                    "Ninguna", "Por revisar" -> ""
-                    else -> v.adecuacion
+            // ✅ Recrear la lista de medidas para editar
+            cotizacionInicial.ventanas.forEach { v ->
+                // Interpretamos el texto de adecuación que trae la ventana
+                val (tipoAdecuacion, detalleAdecuacion) = when (v.adecuacion) {
+                    "Ninguna" -> AdecuacionTipo.NINGUNA to ""
+                    "Por revisar", "" -> AdecuacionTipo.POR_REVISAR to ""
+                    else -> AdecuacionTipo.POR_REVISAR to v.adecuacion
                 }
 
                 ventanasForm.add(
@@ -530,9 +547,18 @@ fun CotizacionFormScreen(
                 )
             }
 
+            // Dejamos limpia la medida actual, para que solo se use “Editar”
+            descripcionActual = ""
+            altoActual = ""
+            anchoActual = ""
+            adecuacionTipoActual = AdecuacionTipo.NINGUNA
+            adecuacionDetalleActual = ""
+            indexEditando = null
+
             val v = cotizacionInicial.ventanas.firstOrNull()
             precioM2Texto = v?.precioM2?.toString() ?: ""
         } else {
+            // Nueva cotización → valores por defecto
             nombre = ""
             telefono = ""
             ubicacion = ""
@@ -544,10 +570,15 @@ fun CotizacionFormScreen(
             adecuacionDetalleActual = ""
             indexEditando = null
             precioM2Texto = HS875_DEFAULT_PRICE.toString()
+
+            tipoProducto = TipoProducto.HS875
+            hs875Check = true
+            hs1250Check = false
+            hs1500Check = false
         }
     }
 
-    // Precio automático según producto (sólo nuevas)
+
     LaunchedEffect(tipoProducto, cotizacionInicial?.id) {
         if (cotizacionInicial == null) {
             precioM2Texto = when (tipoProducto) {
@@ -606,19 +637,114 @@ fun CotizacionFormScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Aperturas
         Text(
             text = "Datos de aperturas / áreas",
             style = MaterialTheme.typography.titleMedium
         )
 
-        val numeroActual = indexEditando?.let { it + 1 } ?: (ventanasForm.size + 1)
+// ----- Carrusel de medidas -----
+        val totalMedidas = ventanasForm.size
+// índice lógico actual:
+//   0..(totalMedidas-1)  -> editando una existente
+//   totalMedidas         -> "nueva medida"
+        val idxActual = indexEditando ?: totalMedidas
 
-        Text(
-            text = "Medida actual: $numeroActual",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // ⬅️ Botón medida anterior
+            IconButton(
+                onClick = {
+                    if (idxActual > 0) {
+                        val nuevo = idxActual - 1
+                        if (nuevo in ventanasForm.indices) {
+                            indexEditando = nuevo
+                            val v = ventanasForm[nuevo]
+                            descripcionActual = v.descripcion
+                            altoActual = v.alto
+                            anchoActual = v.ancho
+                            adecuacionTipoActual = v.adecuacionTipo
+                            adecuacionDetalleActual = v.adecuacionDetalle
+                        }
+                    }
+                },
+                enabled = idxActual > 0
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Medida anterior"
+                )
+            }
+
+            // Texto central + bolitas
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val textoCentro = if (idxActual < totalMedidas) {
+                    // Editando una medida existente
+                    "Medida ${idxActual + 1} de $totalMedidas"
+                } else {
+                    // Posición de nueva medida
+                    "Medida nueva (${totalMedidas + 1})"
+                }
+
+                Text(
+                    text = textoCentro,
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                if (totalMedidas > 0) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        repeat(totalMedidas) { i ->
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 2.dp)
+                                    .size(if (i == idxActual) 8.dp else 6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (i == idxActual)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ➡️ Botón siguiente medida
+            IconButton(
+                onClick = {
+                    if (idxActual < totalMedidas - 1) {
+                        val nuevo = idxActual + 1
+                        if (nuevo in ventanasForm.indices) {
+                            indexEditando = nuevo
+                            val v = ventanasForm[nuevo]
+                            descripcionActual = v.descripcion
+                            altoActual = v.alto
+                            anchoActual = v.ancho
+                            adecuacionTipoActual = v.adecuacionTipo
+                            adecuacionDetalleActual = v.adecuacionDetalle
+                        }
+                    }
+                },
+                enabled = idxActual < totalMedidas - 1
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowForward,
+                    contentDescription = "Siguiente medida"
+                )
+            }
+        }
 
         OutlinedTextField(
             value = descripcionActual,
@@ -694,8 +820,11 @@ fun CotizacionFormScreen(
                     return@Button
                 }
 
+                val numeroActualLocal =
+                    indexEditando?.let { it + 1 } ?: (ventanasForm.size + 1)
+
                 val desc = if (descripcionActual.isBlank()) {
-                    "Apertura $numeroActual"
+                    "Apertura $numeroActualLocal"
                 } else {
                     descripcionActual
                 }
@@ -741,85 +870,6 @@ fun CotizacionFormScreen(
             Text(if (esEdicion) "GUARDAR CAMBIOS" else "AGREGAR MEDIDA")
         }
 
-        // Lista de medidas
-        if (ventanasForm.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Medidas agregadas:",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            ventanasForm.forEachIndexed { index, v ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Medida ${index + 1}: ${v.descripcion}")
-                            Text(
-                                "Alto: ${v.alto} m   Ancho: ${v.ancho} m",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            val txtAdec = when (v.adecuacionTipo) {
-                                AdecuacionTipo.NINGUNA -> "Adecuación: Ninguna"
-                                AdecuacionTipo.POR_REVISAR ->
-                                    if (v.adecuacionDetalle.isBlank())
-                                        "Adecuación: Por revisar"
-                                    else
-                                        "Adecuación: ${v.adecuacionDetalle}"
-                            }
-                            Text(
-                                txtAdec,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            TextButton(
-                                onClick = {
-                                    indexEditando = index
-                                    descripcionActual = v.descripcion
-                                    altoActual = v.alto
-                                    anchoActual = v.ancho
-                                    adecuacionTipoActual = v.adecuacionTipo
-                                    adecuacionDetalleActual = v.adecuacionDetalle
-                                }
-                            ) {
-                                Text("Editar")
-                            }
-
-                            TextButton(
-                                onClick = {
-                                    ventanasForm.removeAt(index)
-                                    if (indexEditando == index) {
-                                        indexEditando = null
-                                        descripcionActual = ""
-                                        altoActual = ""
-                                        anchoActual = ""
-                                        adecuacionTipoActual = AdecuacionTipo.NINGUNA
-                                        adecuacionDetalleActual = ""
-                                    }
-                                }
-                            ) {
-                                Text("Eliminar")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         Spacer(modifier = Modifier.height(8.dp))
 
         // Tipo de producto
@@ -829,23 +879,45 @@ fun CotizacionFormScreen(
         )
 
         Column {
-            ProductoRadioRow(
-                label = TipoProducto.HS875.etiqueta,
-                selected = tipoProducto == TipoProducto.HS875,
-                onClick = { tipoProducto = TipoProducto.HS875 }
-            )
-            ProductoRadioRow(
-                label = TipoProducto.HS1250.etiqueta,
-                selected = tipoProducto == TipoProducto.HS1250,
-                onClick = { tipoProducto = TipoProducto.HS1250 }
-            )
-            ProductoRadioRow(
-                label = TipoProducto.HS1500.etiqueta,
-                selected = tipoProducto == TipoProducto.HS1500,
-                onClick = { tipoProducto = TipoProducto.HS1500 }
-            )
-            // 👇 Ya NO mostramos "Otro precio"
-            // (TipoProducto.PERSONALIZADO se queda sólo por compatibilidad)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = hs875Check,
+                    onCheckedChange = { checked ->
+                        hs875Check = checked
+                        if (checked) {
+                            // última selección: producto principal
+                            tipoProducto = TipoProducto.HS875
+                        }
+                    }
+                )
+                Text(TipoProducto.HS875.etiqueta)
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = hs1250Check,
+                    onCheckedChange = { checked ->
+                        hs1250Check = checked
+                        if (checked) {
+                            tipoProducto = TipoProducto.HS1250
+                        }
+                    }
+                )
+                Text(TipoProducto.HS1250.etiqueta)
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = hs1500Check,
+                    onCheckedChange = { checked ->
+                        hs1500Check = checked
+                        if (checked) {
+                            tipoProducto = TipoProducto.HS1500
+                        }
+                    }
+                )
+                Text(TipoProducto.HS1500.etiqueta)
+            }
         }
 
         OutlinedTextField(
@@ -889,6 +961,24 @@ fun CotizacionFormScreen(
                     ).show()
                     return@Button
                 }
+
+                // ✅ NUEVO: construir lista de productos seleccionados
+                val productosSeleccionados = mutableListOf<TipoProducto>()
+                if (hs875Check) productosSeleccionados.add(TipoProducto.HS875)
+                if (hs1250Check) productosSeleccionados.add(TipoProducto.HS1250)
+                if (hs1500Check) productosSeleccionados.add(TipoProducto.HS1500)
+
+                if (productosSeleccionados.isEmpty()) {
+                    Toast.makeText(
+                        context,
+                        "Selecciona al menos un tipo de producto.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@Button
+                }
+
+                val productoPrincipal = productosSeleccionados.first()
+                tipoProducto = productoPrincipal
 
                 val precioM2 = when (tipoProducto) {
                     TipoProducto.HS875 -> HS875_DEFAULT_PRICE
@@ -937,13 +1027,8 @@ fun CotizacionFormScreen(
                     )
                 }
 
-
-// ... ya calculaste listaVentanas, tipoProducto, etc.
-
-// Antes de crear la cotización:
                 val especialistaSesion = SessionManager.getEspecialista(context)
 
-// 👇 Folio: si venimos de una cotización existente, respetamos su folio
                 val folioFinal = if (cotizacionInicial != null && cotizacionInicial.folio.isNotBlank()) {
                     cotizacionInicial.folio
                 } else {
@@ -960,16 +1045,17 @@ fun CotizacionFormScreen(
                     "$prefijo-${String.format("%04d", consecutivo)}"
                 }
 
-// Construimos el objeto Cotizacion
+
                 val cotizacion = Cotizacion(
-                    id = cotizacionInicial?.id ?: 0L,              // si editas, conserva el id
-                    folio = folioFinal,                            // 👈 MUY IMPORTANTE
+                    id = cotizacionInicial?.id ?: 0L,
+                    folio = folioFinal,
                     clienteNombre = nombre,
                     clienteTelefono = telefono,
                     ubicacion = ubicacion,
                     especialista = especialistaSesion,
                     fecha = fecha,
                     producto = tipoProducto,
+                    productos = productosSeleccionados,
                     ventanas = listaVentanas
                 )
 
@@ -1014,8 +1100,6 @@ fun ResumenScreen(
     val context = LocalContext.current
 
     var guardado by remember { mutableStateOf(desdeHistorial) }
-
-    // 👉 Para no generar el PDF muchas veces
     var pdfFile by remember { mutableStateOf<File?>(null) }
 
     BackHandler {
@@ -1028,197 +1112,414 @@ fun ResumenScreen(
         }
     }
 
-    val totalSinIva = cotizacion.subtotal
+    // --------- Productos seleccionados ---------
+    val productosSeleccionados: List<TipoProducto> = remember(cotizacion) {
+        val lista = try {
+            cotizacion.productos
+        } catch (e: Exception) {
+            emptyList<TipoProducto>()
+        }
+        if (lista.isNotEmpty()) lista.distinct() else listOf(cotizacion.producto)
+    }
 
+    fun precioM2Para(producto: TipoProducto, precioBase: Double): Double =
+        when (producto) {
+            TipoProducto.HS875 -> HS875_DEFAULT_PRICE
+            TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE
+            TipoProducto.HS1500 -> HS1500_DEFAULT_PRICE
+            TipoProducto.PERSONALIZADO -> precioBase
+        }
+
+    fun subtotalVentana(ventana: Ventana, producto: TipoProducto): Double {
+        val area = ventana.alto * ventana.ancho
+        val precioM2 = precioM2Para(producto, ventana.precioM2)
+        return area * precioM2
+    }
+
+    val totalesPorProducto: Map<TipoProducto, Double> = remember(cotizacion) {
+        productosSeleccionados.associateWith { p ->
+            cotizacion.ventanas.sumOf { v -> subtotalVentana(v, p) }
+        }
+    }
+
+    val productoPrincipal = productosSeleccionados.first()
+    val totalPrincipal = totalesPorProducto[productoPrincipal] ?: 0.0
+
+    fun formatoMoneda(valor: Double): String =
+        "$" + "%,.2f".format(valor)
+
+    // ================== LAYOUT ==================
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
 
-        // Título
-        Text(
-            text = "Resumen de cotización",
-            style = MaterialTheme.typography.headlineSmall,
+        // -------- PARTE SUPERIOR (contenido) --------
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        )
-
-        // Botón volver (EDITAR o HISTORIAL, según origen)
-        OutlinedButton(
-            onClick = {
-                if (desdeHistorial) {
-                    onVolverAHistorial()
-                } else {
-                    onVolverAEditar()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp)
+                .weight(1f)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                if (desdeHistorial) "Volver al historial" else "Volver y editar"
-            )
-        }
 
-        // ---- Datos del cliente / encabezado ----
-        Text(
-            text = "Cliente: ${cotizacion.clienteNombre}\n" +
-                    "Tel: ${cotizacion.clienteTelefono}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Text(
-            text = "Ubicación: ${cotizacion.ubicacion}\n" +
-                    "Especialista: ${cotizacion.especialista}\n" +
-                    "Fecha: ${cotizacion.fecha}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Text(
-            text = "Producto: ${cotizacion.producto.etiqueta}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // -------- TABLA TIPO EXCEL --------
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
+            // Título
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp)
+                    .padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Encabezados
-                Row(
+                Text(
+                    text = "Resumen de cotización",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // -------- Tarjeta ESPECIALISTA --------
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(12.dp)
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "Especialista"
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Especialista",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "Descripción",
+                        text = cotizacion.especialista,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(0.4f)
+                        fontWeight = FontWeight.Bold
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     Text(
-                        text = "Área total (m²)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(0.2f)
+                        text = "Fecha: ${cotizacion.fecha}",
+                        style = MaterialTheme.typography.bodySmall
                     )
+
+                    if (cotizacion.folio.isNotBlank()) {
+                        Text(
+                            text = "Folio: ${cotizacion.folio}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // -------- Tarjeta CLIENTE --------
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "Cliente"
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cliente",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "Tipo de montaje",
+                        text = cotizacion.clienteNombre,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(0.2f)
+                        fontWeight = FontWeight.Bold
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Phone,
+                            contentDescription = "Teléfono"
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = cotizacion.clienteTelefono,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    if (cotizacion.ubicacion.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Place,
+                                contentDescription = "Ubicación"
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = cotizacion.ubicacion,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+
+            // -------- Tarjeta PRODUCTOS --------
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.escuadra),
+                            contentDescription = "Productos y medidas",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.Unspecified
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Productos y medidas",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    val productosTexto = productosSeleccionados.joinToString("\n") {
+                        "• ${it.etiqueta}"
+                    }
+
                     Text(
-                        text = "Costo",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(0.2f)
+                        text = productosTexto,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
+            }
 
-                Divider()
+            // -------- Tarjeta TABLA --------
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 180.dp, max = 320.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
 
-                // Filas: una por cada apertura
-                cotizacion.ventanas.forEach { ventana ->
+                    val columnasProducto = productosSeleccionados.size.coerceAtLeast(1)
+
+                    val (weightDescripcion, weightArea) = when (columnasProducto) {
+                        // 1 producto: hacemos más pequeñas Descripción y Área
+                        // para que la columna HS-XXX se acerque al centro
+                        1 -> 0.30f to 0.20f
+                        // 2 productos: lo dejamos como estaba (ya se veía bien)
+                        2 -> 0.36f to 0.18f
+                        // 3 productos: compactas para que quepan las 3
+                        else -> 0.33f to 0.17f
+                    }
+
+                    val weightProductosTotal = 1f - weightDescripcion - weightArea
+                    val pesoPorProducto = weightProductosTotal / columnasProducto
+
+                    // ENCABEZADO
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = ventana.descripcion,
+                            text = "Descripción",
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(0.4f)
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(weightDescripcion)
+                        )
+                        Text(
+                            text = "Área\n(m²)",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(weightArea)
                         )
 
-                        Text(
-                            text = "%.2f".format(ventana.areaM2),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(0.2f)
-                        )
+                        productosSeleccionados.forEach { producto ->
 
-                        Text(
-                            text = cotizacion.producto.etiqueta,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(0.2f)
-                        )
+                            val etiquetaHeader: String =
+                                if (columnasProducto >= 3) {
+                                    // 👉 Con 3 productos: "HS" arriba y número abajo
+                                    when (producto) {
+                                        TipoProducto.HS875 -> "HS\n875"
+                                        TipoProducto.HS1250 -> "HS\n1250"
+                                        TipoProducto.HS1500 -> "HS\n1500"
+                                        TipoProducto.PERSONALIZADO -> "Otro"
+                                    }
+                                } else {
+                                    // 👉 Con 1 ó 2 productos: texto normal en una sola línea
+                                    when (producto) {
+                                        TipoProducto.HS875 -> "HS-875"
+                                        TipoProducto.HS1250 -> "HS-1250"
+                                        TipoProducto.HS1500 -> "HS-1500"
+                                        TipoProducto.PERSONALIZADO -> "Otro"
+                                    }
+                                }
 
-                        Text(
-                            text = "$" + "%,.2f".format(ventana.subtotal),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(0.2f)
-                        )
+                            Text(
+                                text = etiquetaHeader,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = if (columnasProducto >= 3) 10.sp else 11.sp,
+                                maxLines = if (columnasProducto >= 3) 2 else 1,
+                                overflow = TextOverflow.Clip,
+                                textAlign = when {
+                                    columnasProducto >= 3 -> TextAlign.Center      // 3 productos: HS / 875 centrado
+                                    columnasProducto == 1 -> TextAlign.Center      // 1 producto: centrado con el precio
+                                    else -> TextAlign.End                          // 2 productos: lo dejamos como estaba
+                                },
+                                modifier = Modifier.weight(pesoPorProducto)
+                            )
+                        }
                     }
-                }
 
-                Divider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                    Divider()
 
-                // Fila de TOTAL
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = "Total:  ",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "$" + "%,.2f".format(totalSinIva),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    // CUERPO DE LA TABLA
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (cotizacion.ventanas.isEmpty()) {
+                            Text(
+                                text = "Sin medidas capturadas.",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        } else {
+                            LazyColumn {
+                                items(cotizacion.ventanas.size) { index ->
+                                    val ventana = cotizacion.ventanas[index]
+                                    val area = ventana.alto * ventana.ancho
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = ventana.descripcion,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.weight(weightDescripcion),
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "%.2f".format(area),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.weight(weightArea)
+                                        )
+
+                                        productosSeleccionados.forEach { producto ->
+                                            val subtotal = subtotalVentana(ventana, producto)
+                                            Text(
+                                                text = formatoMoneda(subtotal),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = if (columnasProducto >= 3) 9.sp else 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Clip,
+                                                textAlign = when {
+                                                    columnasProducto == 1 -> TextAlign.Center
+                                                    else -> TextAlign.End
+                                                },
+                                                modifier = Modifier.weight(pesoPorProducto)
+                                            )
+                                        }
+                                    }
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
+        // -------- PARTE INFERIOR (botones) --------
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(
+            onClick = { onVolverAEditar() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(50)
+        ) {
+            Text("EDITAR COTIZACIÓN")
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ---- ZONA DE BOTONES SEGÚN ESTADO ----
+
         if (!guardado) {
-            // 🔹 PRIMERA VEZ: solo botón GUARDAR
             Button(
                 onClick = {
                     guardarCotizacionLocal(context, cotizacion)
                     val totalGuardadas = obtenerCotizacionesLocal(context).size
-
                     Toast.makeText(
                         context,
                         "Cotización guardada.\nTotal guardadas: $totalGuardadas",
                         Toast.LENGTH_LONG
                     ).show()
-
-                    guardado = true      // 👉 Ocultamos GUARDAR y mostramos PDF/Compartir
+                    guardado = true
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(52.dp),
+                shape = RoundedCornerShape(50)
             ) {
-                Text(text = "GUARDAR")
+                Text("GUARDAR COTIZACIÓN")
             }
         } else {
-            // 🔹 YA GUARDADA: botones PDF y COMPARTIR
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = {
@@ -1235,8 +1536,9 @@ fun ResumenScreen(
                         }
                     },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    shape = RoundedCornerShape(50)
                 ) {
                     Text("VER PDF")
                 }
@@ -1256,55 +1558,13 @@ fun ResumenScreen(
                         }
                     },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    shape = RoundedCornerShape(50)
                 ) {
                     Text("COMPARTIR")
                 }
             }
         }
-    }
-}
-// -----------------------------------------------------
-// Previews
-// -----------------------------------------------------
-
-@Preview(showBackground = true)
-@Composable
-fun CotizacionFormPreview() {
-    HurricanSolutionAppTheme {
-        CotizacionFormScreen(onCotizacionGenerada = {})
-    }
-}
-
-@Preview(showBackground = true)
-@Preview(showBackground = true)
-@Composable
-fun ResumenPreview() {
-    val demo = Cotizacion(
-        folio = "DEMO-0001",
-        clienteNombre = "Esteban",
-        clienteTelefono = "9840000000",
-        ubicacion = "Puerto Morelos",
-        especialista = "Fernando Loria",
-        fecha = "30/09/2025",
-        producto = TipoProducto.HS875,
-        ventanas = listOf(
-            Ventana(
-                descripcion = "Apertura 1",
-                alto = 2.5,
-                ancho = 3.1,
-                precioM2 = HS875_DEFAULT_PRICE
-            )
-        )
-    )
-    HurricanSolutionAppTheme {
-        ResumenScreen(
-            cotizacion = demo,
-            desdeHistorial = false,
-            onVolverAInicio = {},
-            onVolverAEditar = {},
-            onVolverAHistorial = {}
-        )
     }
 }

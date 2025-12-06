@@ -45,6 +45,13 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         put("fecha", cotizacion.fecha)
         put("producto", cotizacion.producto.name)
 
+        // ✅ NUEVO: guardamos también la lista de productos seleccionados
+        val productosArray = JSONArray()
+        cotizacion.productos.forEach { p ->
+            productosArray.put(p.name)
+        }
+        put("productos", productosArray)
+
         val ventanasArray = JSONArray()
         cotizacion.ventanas.forEach { v ->
             val vObj = JSONObject().apply {
@@ -89,7 +96,20 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         val producto = runCatching { TipoProducto.valueOf(productoName) }
             .getOrElse { TipoProducto.HS875 }
 
-        // Ventanas
+
+        val productosArrayJson = obj.optJSONArray("productos")
+        val productos: List<TipoProducto> =
+            if (productosArrayJson != null && productosArrayJson.length() > 0) {
+                (0 until productosArrayJson.length()).mapNotNull { idx ->
+                    val name = productosArrayJson.optString(idx, null)
+                    name?.let {
+                        runCatching { TipoProducto.valueOf(it) }.getOrNull()
+                    }
+                }.ifEmpty { listOf(producto) }
+            } else {
+                listOf(producto)
+            }
+
         val ventanasJson = obj.optJSONArray("ventanas") ?: JSONArray()
         val ventanas = mutableListOf<Ventana>()
         for (j in 0 until ventanasJson.length()) {
@@ -121,8 +141,9 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             especialista = especialista,
             fecha = fecha,
             producto = producto,
-            ventanas = ventanas)
-
+            productos = productos,   // ✅ NUEVO
+            ventanas = ventanas
+        )
         resultado.add(cotizacion)
     }
 

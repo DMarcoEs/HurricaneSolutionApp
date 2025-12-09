@@ -618,6 +618,10 @@ fun CotizacionFormScreen(
     var precioM2Texto by remember { mutableStateOf("") }
     var tipoProducto by remember { mutableStateOf(TipoProducto.HS875) }
 
+    // 💥 NUEVO: control del descuento
+    var aplicaDescuento by remember { mutableStateOf(false) }
+    var descuentoTexto by remember { mutableStateOf("") }  // dólares por m²
+
     var hs875Check by remember { mutableStateOf(true) }
     var hs1250Check by remember { mutableStateOf(false) }
     var hs1500Check by remember { mutableStateOf(false) }
@@ -633,11 +637,15 @@ fun CotizacionFormScreen(
     var indexEditando by remember { mutableStateOf<Int?>(null) }
 
     val scrollState = rememberScrollState()
+    var tipoMontaje by remember { mutableStateOf("Flush Mount") }
+
 
     LaunchedEffect(cotizacionInicial?.id) {
         ventanasForm.clear()
 
         if (cotizacionInicial != null) {
+            // 🧾 Editando una cotización existente
+
             // Datos del cliente
             nombre = cotizacionInicial.clienteNombre
             telefono = cotizacionInicial.clienteTelefono
@@ -645,13 +653,22 @@ fun CotizacionFormScreen(
             fecha = cotizacionInicial.fecha
             tipoProducto = cotizacionInicial.producto
 
-            // productos seleccionados
+            // Productos seleccionados
             val productosIniciales = cotizacionInicial.productos
             hs875Check = productosIniciales.contains(TipoProducto.HS875)
             hs1250Check = productosIniciales.contains(TipoProducto.HS1250)
             hs1500Check = productosIniciales.contains(TipoProducto.HS1500)
 
-            // medidas
+            // Descuento guardado (si existía)
+            if (cotizacionInicial.descuentoDolaresPorM2 > 0.0) {
+                aplicaDescuento = true
+                descuentoTexto = cotizacionInicial.descuentoDolaresPorM2.toString()
+            } else {
+                aplicaDescuento = false
+                descuentoTexto = ""
+            }
+
+            // Medidas
             cotizacionInicial.ventanas.forEach { v ->
                 val (tipoAdecuacion, detalleAdecuacion) = when (v.adecuacion) {
                     "Ninguna" -> AdecuacionTipo.NINGUNA to ""
@@ -680,7 +697,7 @@ fun CotizacionFormScreen(
             val v = cotizacionInicial.ventanas.firstOrNull()
             precioM2Texto = v?.precioM2?.toString() ?: ""
         } else {
-            // Nueva cotización
+            // 🆕 Nueva cotización
             nombre = ""
             telefono = ""
             ubicacion = ""
@@ -699,8 +716,13 @@ fun CotizacionFormScreen(
             hs875Check = true
             hs1250Check = false
             hs1500Check = false
+
+            // Descuento por defecto
+            aplicaDescuento = false
+            descuentoTexto = ""
         }
     }
+
 
     // actualizar precio automático por producto
     LaunchedEffect(tipoProducto, cotizacionInicial?.id) {
@@ -1114,7 +1136,84 @@ fun CotizacionFormScreen(
             }
         }
 
-        // ---------- CARD TIPO DE PRODUCTO + PRECIO ----------
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Tipo de montaje",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+
+                    // FLUSH MOUNT
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (tipoMontaje == "Flush Mount")
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable { tipoMontaje = "Flush Mount" }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Flush Mount",
+                            color =
+                                if (tipoMontaje == "Flush Mount")
+                                    MaterialTheme.colorScheme.onPrimary
+                                else
+                                    MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // TRAPEZOIDAL
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (tipoMontaje == "Trapezoidal")
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable { tipoMontaje = "Trapezoidal" }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Trapezoidal",
+                            color =
+                                if (tipoMontaje == "Trapezoidal")
+                                    MaterialTheme.colorScheme.onPrimary
+                                else
+                                    MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+
+
+// ---------- CARD TIPO DE PRODUCTO ----------
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -1213,17 +1312,70 @@ fun CotizacionFormScreen(
                             MaterialTheme.colorScheme.onSurface
                     )
                 }
-
-                OutlinedTextField(
-                    value = precioM2Texto,
-                    onValueChange = { /* automático, no editable */ },
-                    label = { Text("Precio por m²") },
-                    enabled = false,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
+        // -----------------------------------------
+        //  DESCUENTO POR m²
+        // -----------------------------------------
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = "Descuento por m²",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("¿Aplicar descuento?", style = MaterialTheme.typography.bodyMedium)
+
+                    Switch(
+                        checked = aplicaDescuento,
+                        onCheckedChange = { aplicaDescuento = it }
+                    )
+                }
+
+                if (aplicaDescuento) {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = descuentoTexto,
+                        onValueChange = {
+                            descuentoTexto = filtrarNumeroDecimal(it)
+                        },
+                        label = { Text("Descuento en dólares por m²") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            keyboardType = KeyboardType.Number
+                        )
+                    )
+                    Text(
+                        text = "Ejemplo: 5 = 5 dólares menos por m²",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    Text(
+                        text = "Sin descuento (0 dólares por m²).",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // ---------- BOTÓN FINAL ----------
         Button(
@@ -1337,6 +1489,13 @@ fun CotizacionFormScreen(
                     "$prefijo-${String.format("%04d", consecutivo)}"
                 }
 
+                // 💥 Obtenemos el descuento en dólares por m² (si aplica)
+                val descuentoDolaresPorM2 = if (aplicaDescuento) {
+                    descuentoTexto.toDoubleOrNull() ?: 0.0
+                } else {
+                    0.0
+                }
+
                 val cotizacion = Cotizacion(
                     id = cotizacionInicial?.id ?: 0L,
                     folio = folioFinal,
@@ -1347,6 +1506,11 @@ fun CotizacionFormScreen(
                     fecha = fecha,
                     producto = tipoProducto,
                     productos = productosSeleccionados,
+                    tipoMontaje = tipoMontaje,
+
+                    // 💥 NUEVO CAMPO
+                    descuentoDolaresPorM2 = descuentoDolaresPorM2,
+
                     ventanas = listaVentanas
                 )
 
@@ -1612,9 +1776,18 @@ fun ResumenScreen(
                         "• ${it.etiqueta}"
                     }
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "Tipo de montaje: ${cotizacion.tipoMontaje}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+
                     Text(
                         text = productosTexto,
                         style = MaterialTheme.typography.bodySmall
+
                     )
                 }
             }

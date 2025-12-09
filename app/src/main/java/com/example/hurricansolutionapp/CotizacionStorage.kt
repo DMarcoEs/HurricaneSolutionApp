@@ -12,6 +12,9 @@ private fun getPrefs(context: Context): SharedPreferences {
     return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }
 
+/**
+ * Guarda o actualiza una cotización en SharedPreferences.
+ */
 fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
     val prefs = getPrefs(context)
 
@@ -26,15 +29,16 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         cotizacion.id
     }
 
+    // Copiamos todas las cotizaciones excepto la que tenga el mismo id (para actualizarla)
     for (i in 0 until array.length()) {
         val obj = array.getJSONObject(i)
         val idExistente = obj.optLong("id", -1L)
-
         if (idExistente != idParaGuardar) {
             nuevoArray.put(obj)
         }
     }
 
+    // Objeto JSON de la nueva/actualizada cotización
     val cotizacionJson = JSONObject().apply {
         put("id", idParaGuardar)
         put("folio", cotizacion.folio)
@@ -45,13 +49,17 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         put("fecha", cotizacion.fecha)
         put("producto", cotizacion.producto.name)
 
-        // ✅ NUEVO: guardamos también la lista de productos seleccionados
+        // 🔹 lista de productos
         val productosArray = JSONArray()
         cotizacion.productos.forEach { p ->
             productosArray.put(p.name)
         }
         put("productos", productosArray)
 
+        // 🔹 descuento en dólares por m²
+        put("descuentoDolaresPorM2", cotizacion.descuentoDolaresPorM2)
+        put("tipoMontaje", cotizacion.tipoMontaje)
+        // 🔹 ventanas
         val ventanasArray = JSONArray()
         cotizacion.ventanas.forEach { v ->
             val vObj = JSONObject().apply {
@@ -59,14 +67,13 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
                 put("alto", v.alto)
                 put("ancho", v.ancho)
                 put("precioM2", v.precioM2)
-                // si luego quieres, aquí también puedes agregar "adecuacion"
             }
             ventanasArray.put(vObj)
         }
         put("ventanas", ventanasArray)
     }
 
-
+    // Añadimos la cotización al arreglo final y guardamos
     nuevoArray.put(cotizacionJson)
 
     prefs.edit()
@@ -74,18 +81,20 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         .apply()
 }
 
-
+/**
+ * Recupera todas las cotizaciones guardadas.
+ */
 fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
     val prefs = getPrefs(context)
     val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
     val array = JSONArray(listaJson)
-
     val resultado = mutableListOf<Cotizacion>()
 
     for (i in 0 until array.length()) {
         val obj = array.getJSONObject(i)
 
         val id = obj.optLong("id", System.currentTimeMillis())
+        val folio = obj.optString("folio", "")
         val clienteNombre = obj.optString("clienteNombre", "")
         val clienteTelefono = obj.optString("clienteTelefono", "")
         val ubicacion = obj.optString("ubicacion", "")
@@ -95,7 +104,6 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         val productoName = obj.optString("producto", TipoProducto.HS875.name)
         val producto = runCatching { TipoProducto.valueOf(productoName) }
             .getOrElse { TipoProducto.HS875 }
-
 
         val productosArrayJson = obj.optJSONArray("productos")
         val productos: List<TipoProducto> =
@@ -109,6 +117,11 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             } else {
                 listOf(producto)
             }
+
+        // 🔹 leemos el descuento guardado
+        val descuentoDolaresPorM2 = obj.optDouble("descuentoDolaresPorM2", 0.0)
+
+        val tipoMontaje = obj.optString("tipoMontaje", "Flush Mount")
 
         val ventanasJson = obj.optJSONArray("ventanas") ?: JSONArray()
         val ventanas = mutableListOf<Ventana>()
@@ -125,12 +138,9 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
                     alto = alto,
                     ancho = ancho,
                     precioM2 = precioM2
-                    // Si luego tenemos adecuación, aquí la pasamos
                 )
             )
         }
-
-        val folio = obj.optString("folio", "")
 
         val cotizacion = Cotizacion(
             id = id,
@@ -141,13 +151,15 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             especialista = especialista,
             fecha = fecha,
             producto = producto,
-            productos = productos,   // ✅ NUEVO
+            productos = productos,
+            descuentoDolaresPorM2 = descuentoDolaresPorM2,
+            tipoMontaje = tipoMontaje,
             ventanas = ventanas
         )
         resultado.add(cotizacion)
     }
 
-    // Ordenamos por fecha de creación (opcional)
+    // opcional: orden inverso (más recientes primero)
     return resultado.reversed()
 }
 

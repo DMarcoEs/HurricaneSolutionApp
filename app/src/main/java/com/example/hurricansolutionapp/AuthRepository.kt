@@ -13,7 +13,7 @@ object AuthRepository {
     // Cambia correos / nombres / contraseñas como tú quieras
     private val usuarios = listOf(
         UsuarioApp(
-            correo = "protegiendo@hurricanesolution.com",
+            correo = "Fernando",
             nombre = "Fernando Loria Fernandez",
             password = "1234"
         ),

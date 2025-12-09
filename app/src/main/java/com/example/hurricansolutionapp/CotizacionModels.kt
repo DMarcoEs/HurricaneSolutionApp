@@ -8,11 +8,12 @@ enum class TipoProducto(val etiqueta: String) {
     PERSONALIZADO("Otro precio")
 }
 
-// 🔹 Precios por m² por defecto (AJUSTA ESTOS VALORES A LOS REALES)
+// 🔹 Precios por m² por defecto (AJÚSTALOS A LOS REALES)
 const val HS875_DEFAULT_PRICE = 150.0
 const val HS1250_DEFAULT_PRICE = 180.0
 const val HS1500_DEFAULT_PRICE = 210.0
 
+// 🔹 Medida individual (ventana / área a proteger)
 data class Ventana(
     val descripcion: String,
     val alto: Double,
@@ -20,47 +21,48 @@ data class Ventana(
     val precioM2: Double,
     val adecuacion: String = "Por revisar"
 ) {
+    // Área en m²
     val areaM2: Double get() = alto * ancho
 
     // Subtotal usando el precioM2 que se guardó (producto principal)
     val subtotal: Double get() = areaM2 * precioM2
 
-    // ✅ NUEVO: subtotal calculado según el tipo de producto
+    // Subtotal de ESTA ventana usando el precio por m² según el producto
     fun subtotalPorProducto(producto: TipoProducto): Double {
         val precio = when (producto) {
             TipoProducto.HS875 -> HS875_DEFAULT_PRICE
             TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE
             TipoProducto.HS1500 -> HS1500_DEFAULT_PRICE
-            TipoProducto.PERSONALIZADO -> precioM2  // usa el precio personalizado
+            TipoProducto.PERSONALIZADO -> precioM2  // usa el precio personalizado que capturaste
         }
         return areaM2 * precio
     }
 }
 
+// 🔹 Cotización completa
 data class Cotizacion(
     val id: Long = 0L,
-    val folio: String = "",              // ya lo estás usando
+    val folio: String = "",
     val clienteNombre: String,
     val clienteTelefono: String,
     val ubicacion: String,
     val especialista: String,
     val fecha: String,
-
-    // Producto principal (para compatibilidad con lo que ya existe)
     val producto: TipoProducto,
-
-    // ✅ NUEVO: lista de productos seleccionados (multiproducto)
+    val descuentoDolaresPorM2: Double = 0.0,
     val productos: List<TipoProducto> = listOf(producto),
+    val ventanas: List<Ventana>,
 
-    val ventanas: List<Ventana>
+    // NUEVO
+    val tipoMontaje: String = "Flush Mount"
 ) {
-    // Subtotal actual (sigue usando el precioM2 guardado en cada ventana)
+    // Subtotal actual (con el precioM2 guardado en cada ventana)
     val subtotal: Double get() = ventanas.sumOf { it.subtotal }
 
-    val iva: Double get() = 0.0
+    val iva: Double get() = 0.0        // por ahora sin IVA
     val total: Double get() = subtotal
 
-    // ✅ NUEVO: total por producto usando los precios por m² de cada tipo
+    // Total por producto usando los precios por m² de cada tipo
     fun totalPorProducto(producto: TipoProducto): Double =
         ventanas.sumOf { it.subtotalPorProducto(producto) }
 }

@@ -612,7 +612,12 @@ fun CotizacionFormScreen(
 
     var nombre by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
-    var ubicacion by remember { mutableStateOf("") }
+
+// Campos de dirección desglosados
+    var ciudad by remember { mutableStateOf("") }           // Ciudad / Localidad / Municipio
+    var colonia by remember { mutableStateOf("") }          // Colonia / Fracc.
+    var direccionDetalle by remember { mutableStateOf("") } // Calle, avenida, número (opcional)
+
     var fecha by remember { mutableStateOf(fechaHoy) }
 
     var precioM2Texto by remember { mutableStateOf("") }
@@ -646,12 +651,28 @@ fun CotizacionFormScreen(
         if (cotizacionInicial != null) {
             // 🧾 Editando una cotización existente
 
-            // Datos del cliente
+// Datos del cliente
             nombre = cotizacionInicial.clienteNombre
             telefono = cotizacionInicial.clienteTelefono
-            ubicacion = cotizacionInicial.ubicacion
             fecha = cotizacionInicial.fecha
             tipoProducto = cotizacionInicial.producto
+
+// Desglosamos la ubicación guardada (separada por comas)
+            val ubicacionInicial = cotizacionInicial.ubicacion
+            if (ubicacionInicial.isNotBlank()) {
+                val partes = ubicacionInicial
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+
+                ciudad = partes.getOrNull(0) ?: ""
+                colonia = partes.getOrNull(1) ?: ""
+                direccionDetalle = partes.drop(2).joinToString(", ")
+            } else {
+                ciudad = ""
+                colonia = ""
+                direccionDetalle = ""
+            }
 
             // Productos seleccionados
             val productosIniciales = cotizacionInicial.productos
@@ -697,10 +718,12 @@ fun CotizacionFormScreen(
             val v = cotizacionInicial.ventanas.firstOrNull()
             precioM2Texto = v?.precioM2?.toString() ?: ""
         } else {
-            // 🆕 Nueva cotización
+// 🆕 Nueva cotización
             nombre = ""
             telefono = ""
-            ubicacion = ""
+            ciudad = ""
+            colonia = ""
+            direccionDetalle = ""
             fecha = fechaHoy
 
             descripcionActual = ""
@@ -803,10 +826,31 @@ fun CotizacionFormScreen(
                     )
                 }
 
+// Bloque de ubicación / dirección
+                Text(
+                    text = "Ubicación / Dirección",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
                 OutlinedTextField(
-                    value = ubicacion,
-                    onValueChange = { ubicacion = it },
-                    label = { Text("Ubicación / Dirección") },
+                    value = ciudad,
+                    onValueChange = { ciudad = it },
+                    label = { Text("Ciudad / Localidad / Municipio") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = colonia,
+                    onValueChange = { colonia = it },
+                    label = { Text("Colonia / Fraccionamiento") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = direccionDetalle,
+                    onValueChange = { direccionDetalle = it },
+                    label = { Text("Dirección (calle, avenida, número) - opcional") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1496,12 +1540,21 @@ fun CotizacionFormScreen(
                     0.0
                 }
 
+                // Construimos la dirección final a partir de los 3 campos.
+// Solo se usan las partes que no estén vacías.
+                val partesUbicacion = listOf(ciudad, colonia, direccionDetalle)
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+
+                val ubicacionFinal = partesUbicacion.joinToString(separator = ", ")
+
+
                 val cotizacion = Cotizacion(
                     id = cotizacionInicial?.id ?: 0L,
                     folio = folioFinal,
                     clienteNombre = nombre,
                     clienteTelefono = telefono,
-                    ubicacion = ubicacion,
+                    ubicacion = ubicacionFinal,
                     especialista = especialistaSesion,
                     fecha = fecha,
                     producto = tipoProducto,

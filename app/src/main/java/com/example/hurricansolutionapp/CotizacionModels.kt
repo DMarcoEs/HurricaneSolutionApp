@@ -49,14 +49,12 @@ data class Cotizacion(
     val especialista: String,
     val fecha: String,
     val producto: TipoProducto,
-    val descuentoDolaresPorM2: Double = 0.0,
     val productos: List<TipoProducto> = listOf(producto),
-    val ventanas: List<Ventana>,
-
-    // NUEVO
-    val tipoMontaje: String = "Flush Mount"
+    val tipoMontaje: String = "Flush Mount",
+    val descuentoDolaresPorM2: Double = 0.0,
+    val ventanas: List<Ventana>
 ) {
-    // Subtotal actual (con el precioM2 guardado en cada ventana)
+    // Total usando SOLO el producto principal
     val subtotal: Double get() = ventanas.sumOf { it.subtotal }
 
     val iva: Double get() = 0.0        // por ahora sin IVA

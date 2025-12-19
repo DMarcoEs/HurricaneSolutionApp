@@ -308,32 +308,29 @@ fun generarPdfCotizacion(
         )
         canvas.drawText(address, leftTextStartX, line3Y, textPaint)
 
-        // ===================== LADO DERECHO =====================
-        // Aquí queremos el mismo estilo: icono + texto en dos filas,
-        // pero pegado al lado derecho.
+// ===================== LADO DERECHO =====================
         textPaint.textAlign = Paint.Align.LEFT
 
-        fun drawRightRow(text: String, icon: Bitmap?, baselineY: Float, isWhats: Boolean = false) {
-            val textWidth = textPaint.measureText(text)
-            val textStartX = pageWidth.toFloat() - margin - textWidth
-            val iconCenterX = textStartX - 4f - iconSize / 2f
-
-            val centerY = iconCenterYForText(baselineY)
-
-            if (isWhats) {
-                drawIcon(icon, iconCenterX, centerY, paint = iconPaintWhite)
-            } else {
-                drawIcon(icon, iconCenterX, centerY)
-            }
-
-            canvas.drawText(text, textStartX, baselineY, textPaint)
-        }
+        val rightStartX = pageWidth.toFloat() - margin - 240f
+        val rightIconCenterX = rightStartX + iconSize / 2f
+        val rightTextStartX = rightStartX + iconSize + 4f
 
 // Web alineada con el primer correo
-        drawRightRow(web, iconWeb, line1Y)
+        drawIcon(
+            iconWeb,
+            rightIconCenterX,
+            iconCenterYForText(line1Y)
+        )
+        canvas.drawText(web, rightTextStartX, line1Y, textPaint)
 
-// Teléfono + WhatsApp alineado con el segundo correo
-        drawRightRow(phone, iconWhatsRaw, line2Y, isWhats = true)
+// Teléfono (Whats) alineado con el segundo correo
+        drawIcon(
+            iconWhatsRaw,
+            rightIconCenterX,
+            iconCenterYForText(line2Y)
+        )
+        canvas.drawText(phone, rightTextStartX, line2Y, textPaint)
+
 
         // ===================== REDES SOCIALES (debajo del teléfono) =====================
 
@@ -508,12 +505,12 @@ fun generarPdfCotizacion(
         )
     }
 
-    // Altura mínima que necesitamos para Resumen + Condiciones
-    val condLineCount = 12
-    val condLineHeight = 9f
-    val condicionesMinBlock = 18f + condLineCount * condLineHeight + 80f // aprox
+// Altura mínima que necesitamos para Resumen + Condiciones
+    val condLineCount = 14            // súbelo un poquito (por los wraps reales)
+    val condLineHeight = 7.5f         // déjalo igual (tú ya lo dejaste bien)
+    val condicionesMinBlock = 16f + condLineCount * condLineHeight + 45f
     val resumenBlockHeight = 18f * 3
-    val extraSpaceNeededLastPage = condicionesMinBlock + resumenBlockHeight + 20f
+    val extraSpaceNeededLastPage = condicionesMinBlock + resumenBlockHeight + 16f
 
     // ---------- Empezamos a dibujar páginas ----------
     var pageNumber = 1
@@ -544,95 +541,110 @@ fun generarPdfCotizacion(
     // Caja de folio alineada verticalmente con el título
     drawFolioBox(canvas, tituloY)
 
-    // =================== BLOQUES CLIENTE / ESPECIALISTA ===================
-    paint.textSize = 10f
-    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+// =================== BLOQUES CLIENTE / ESPECIALISTA (DISEÑO TIPO HOJA) ===================
+    paint.textAlign = Paint.Align.LEFT
 
     var y = 140f
+
     val leftX = margin
-    val rightX = pageWidth / 2f
 
-    fun drawLabelValue(label: String, value: String, startY: Float): Float {
-        val rowHeight = 18f
+// ✅ Tamaños más “como hoja” (no estorbosos)
+    val leftBlockWidth = 255f
+    val rightBlockWidth = 245f
 
-        // Fondo del label
-        paint.style = Paint.Style.FILL
-        paint.color = Color.BLACK
-        canvas.drawRect(
-            leftX,
-            startY - rowHeight,
-            leftX + 110f,
-            startY,
-            paint
-        )
+// ✅ Con esto el bloque derecho se pega al margen derecho y queda un “hueco” al centro
+    val rightX = pageWidth.toFloat() - margin - rightBlockWidth
 
-        // Texto label
-        paint.color = Color.WHITE
-        paint.textSize = 9f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textAlign = Paint.Align.LEFT
-        canvas.drawText(label, leftX + 4f, startY - 5f, paint)
+    val rowH = 16f
+    val rowGap = 3f
 
-        // Texto valor
-        paint.color = Color.BLACK
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        paint.textAlign = Paint.Align.LEFT
-        canvas.drawText(value, leftX + 115f, startY - 5f, paint)
+// ✅ Label más angosto para que el valor tenga más espacio
+    val gap = 8f // separación entre el bloque negro y la celda del valor
+    val labelW = 95f
+    val paddingX = 6f
 
-        return startY + 6f
+    val borderColor = Color.DKGRAY
+    val labelBg = Color.BLACK   // ✅ NEGRO real (como todo tu PDF)
+
+    fun drawInfoRow(
+        x: Float,
+        yTop: Float,
+        label: String,
+        value: String,
+        blockW: Float
+    ): Float {
+
+        val rowH = 18f
+        val rowGap = 6f
+
+        // 🔧 Ajusta estos 3 para afinar el look
+        val labelW = 135f          // más ancho para que no se corte “Nombre del Cliente:”
+        val gapW = 8f              // separación blanca entre negro y la celda del valor
+        val paddingX = 6f
+
+        val yBottom = yTop + rowH
+
+        val valueX = x + labelW + gapW
+        val valueW = blockW - labelW - gapW
+
+        // ---------- 1) BLOQUE NEGRO (solo fill, SIN borde) ----------
+        val p = paint
+        p.style = Paint.Style.FILL
+        p.color = Color.BLACK
+        canvas.drawRect(x, yTop, x + labelW, yBottom, p)
+
+        // Texto del label (blanco bold)
+        p.color = Color.WHITE
+        p.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        p.textSize = 9f
+        p.textAlign = Paint.Align.LEFT
+        val textY = yTop + rowH / 2f - (p.descent() + p.ascent()) / 2f
+        canvas.drawText(label, x + paddingX, textY, p)
+
+        // ---------- 2) CELDA VALOR (fondo blanco + borde delgado) ----------
+        p.style = Paint.Style.FILL
+        p.color = Color.WHITE
+        canvas.drawRect(valueX, yTop, valueX + valueW, yBottom, p)
+
+        p.style = Paint.Style.STROKE
+        p.color = Color.BLACK          // ✅ nada de gris
+        p.strokeWidth = 0.6f           // ✅ borde delgado
+        canvas.drawRect(valueX, yTop, valueX + valueW, yBottom, p)
+
+        // Texto del valor (negro normal) con CLIP para que no invada otras celdas
+        p.style = Paint.Style.FILL
+        p.color = Color.BLACK
+        p.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        p.textSize = 9f
+
+        canvas.save()
+        canvas.clipRect(valueX + 2f, yTop + 1f, valueX + valueW - 2f, yBottom - 1f)
+        canvas.drawText(value, valueX + paddingX, textY, p)
+        canvas.restore()
+
+        return yBottom + rowGap
     }
 
-    y = drawLabelValue("Nombre del Cliente:", cotizacion.clienteNombre, y)
-    y = drawLabelValue("Dirección:", cotizacion.ubicacion, y + 10f)
 
-    val rightBlockX = rightX + 10f
-    var rightY = 140f
 
-    fun drawRightRow(label: String, value: String, startY: Float): Float {
-        val rowHeight = 18f
+// Misma altura para ambos bloques
+    var leftY = y
+    var rightY = y
 
-        paint.color = Color.BLACK
-        paint.style = Paint.Style.FILL
-        canvas.drawRect(
-            rightBlockX,
-            startY - rowHeight,
-            rightBlockX + 110f,
-            startY,
-            paint
-        )
+// IZQUIERDA
+    leftY = drawInfoRow(leftX, leftY, "Nombre del Cliente:", cotizacion.clienteNombre, leftBlockWidth)
+    leftY = drawInfoRow(leftX, leftY, "Dirección:", cotizacion.ubicacion, leftBlockWidth)
 
-        // Label
-        paint.color = Color.WHITE
-        paint.textSize = 9f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textAlign = Paint.Align.LEFT
-        canvas.drawText(label, rightBlockX + 4f, startY - 5f, paint)
-
-        // Valor
-        paint.color = Color.BLACK
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        paint.textAlign = Paint.Align.LEFT
-        canvas.drawText(value, rightBlockX + 115f, startY - 5f, paint)
-
-        return startY + 6f
-    }
-
+// DERECHA
     val metrajeFinal = cotizacion.ventanas.sumOf { it.areaM2 }
+    rightY = drawInfoRow(rightX, rightY, "Especialista:", cotizacion.especialista, rightBlockWidth)
+    rightY = drawInfoRow(rightX, rightY, "Fecha:", cotizacion.fecha, rightBlockWidth)
+    rightY = drawInfoRow(rightX, rightY, "Metraje Total:", "%.2f m²".format(metrajeFinal), rightBlockWidth)
 
-    // 1) Especialista
-    rightY = drawRightRow("Especialista:", cotizacion.especialista, rightY)
+// ✅ Arrancamos la tabla debajo del bloque más largo (sin estorbar)
+    y = maxOf(leftY, rightY) + 12f
 
-    // 2) Fecha
-    rightY = drawRightRow("Fecha:", cotizacion.fecha, rightY + 10f)
 
-    // 3) Metraje final
-    rightY = drawRightRow(
-        "Metraje Total:",
-        "%.2f m²".format(metrajeFinal),
-        rightY + 10f
-    )
-
-    y = maxOf(y, rightY) + 30f
 
     // =================== ENCABEZADO TABLA ===================
     fun drawTableHeader(startY: Float): Float {
@@ -733,7 +745,7 @@ fun generarPdfCotizacion(
             drawHeader(canvas)
 
             // Nuevo inicio de tabla en esta página
-            y = 130f
+            y = 95f
             y = drawTableHeader(y)
 
             paint.textSize = bodyTextSize
@@ -966,7 +978,7 @@ fun generarPdfCotizacion(
     val tituloExtra = 18f
     val neededHeight = tituloExtra + condicionesLineas.size * condLineHeight
 
-    val margenSobreFooterCond = 130f
+    val margenSobreFooterCond = 56.5f
     val condicionesTop = minOf(
         resumenTop,
         footerTop - neededHeight - margenSobreFooterCond
@@ -974,7 +986,7 @@ fun generarPdfCotizacion(
 
     paint.textAlign = Paint.Align.LEFT
     paint.color = Color.BLACK
-    paint.textSize = 9f
+    paint.textSize = 8.5f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
 
     var condicionesY = condicionesTop + 12f
@@ -985,7 +997,7 @@ fun generarPdfCotizacion(
         paint
     )
 
-    paint.textSize = 7f
+    paint.textSize = 6.5f
     paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
     condicionesY += condLineHeight
 
@@ -1049,7 +1061,7 @@ fun generarPdfCotizacion(
 
     pdfDocument.finishPage(page)
 
-    // ---------- GUARDAR ARCHIVO ----------
+// ---------- GUARDAR ARCHIVO ----------
     val docsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
     if (docsDir == null) {
         pdfDocument.close()
@@ -1060,11 +1072,8 @@ fun generarPdfCotizacion(
         docsDir.mkdirs()
     }
 
-    val timeStamp = LocalDateTime.now().format(
-        DateTimeFormatter.ofPattern("yyyyMMdd")
-    )
-
-    val fileName = "Cotizacion_${timeStamp}.pdf"
+    val timeStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+    val fileName = "Cotizacion_${timeStamp}_${System.currentTimeMillis()}.pdf"
     val file = File(docsDir, fileName)
 
     return try {
@@ -1072,6 +1081,18 @@ fun generarPdfCotizacion(
             pdfDocument.writeTo(out)
         }
         pdfDocument.close()
+
+        // ✅ ENCOLAR ANTES DE REGRESAR
+        UploadQueueStorage.enqueue(
+            context,
+            PendingUpload(
+                id = java.util.UUID.randomUUID().toString(),
+                cotizacionId = cotizacion.id.toString(),
+                filePath = file.absolutePath,
+                status = "PENDING"
+            )
+        )
+
         file
     } catch (e: IOException) {
         e.printStackTrace()

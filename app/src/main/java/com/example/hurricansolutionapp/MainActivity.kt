@@ -2,7 +2,15 @@ package com.example.hurricansolutionapp
 
 import android.os.Bundle
 import android.widget.Toast
+import kotlinx.coroutines.launch
+import java.net.UnknownHostException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import androidx.activity.compose.BackHandler
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import java.io.File
 import androidx.compose.material.icons.filled.DateRange
 import androidx.activity.compose.setContent
@@ -56,6 +64,8 @@ sealed class AppScreen {
     object Login : AppScreen()
     object Home : AppScreen()
     object Historial : AppScreen()
+    object PendingUploads : AppScreen()
+
     data class Form(val cotizacionInicial: Cotizacion? = null) : AppScreen()
     data class Resumen(
         val cotizacion: Cotizacion,
@@ -79,14 +89,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation() {
     val context = LocalContext.current
-
-    // Estado completo del scroll del historial
+    val scope = rememberCoroutineScope()
     val historialListState = rememberLazyListState()
 
     var currentScreen by remember {
         mutableStateOf<AppScreen>(
             if (SessionManager.isLoggedIn(context)) AppScreen.Home else AppScreen.Login
         )
+    }
+
+    BackHandler(enabled = currentScreen != AppScreen.Home && currentScreen != AppScreen.Login) {
+        currentScreen = when (val s = currentScreen) {
+            is AppScreen.PendingUploads -> AppScreen.Home
+            is AppScreen.Historial -> AppScreen.Home
+            is AppScreen.Form -> AppScreen.Home
+
+            is AppScreen.Resumen -> {
+                if (s.desdeHistorial) AppScreen.Historial
+                else AppScreen.Form(s.cotizacion) // ✅ aquí estaba el error
+            }
+
+            else -> AppScreen.Home
+        }
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -96,20 +120,15 @@ fun AppNavigation() {
 
                 is AppScreen.Login -> {
                     LoginScreen(
-                        onLoginSuccess = {
-                            currentScreen = AppScreen.Home
-                        }
+                        onLoginSuccess = { currentScreen = AppScreen.Home }
                     )
                 }
 
                 is AppScreen.Home -> {
                     HomeScreen(
-                        onNuevaCotizacion = {
-                            currentScreen = AppScreen.Form()
-                        },
-                        onVerHistorial = {
-                            currentScreen = AppScreen.Historial
-                        },
+                        onNuevaCotizacion = { currentScreen = AppScreen.Form() },
+                        onVerHistorial = { currentScreen = AppScreen.Historial },
+                        onVerPendientes = { currentScreen = AppScreen.PendingUploads },
                         onLogout = {
                             SessionManager.logout(context)
                             currentScreen = AppScreen.Login
@@ -117,10 +136,18 @@ fun AppNavigation() {
                     )
                 }
 
-                is AppScreen.Form -> {
-                    BackHandler {
-                        currentScreen = AppScreen.Home
+                is AppScreen.PendingUploads -> PendingUploadsScreen(
+                    onBack = { currentScreen = AppScreen.Home },
+                    onRemove = { id -> UploadQueueStorage.remove(context, id) },
+                    onRetryUpload = { item ->
+                        if (!isOnline(context)) return@PendingUploadsScreen
+                        UploadRepository.uploadOne(context, item)
                     }
+                )
+
+
+                is AppScreen.Form -> {
+                    BackHandler { currentScreen = AppScreen.Home }
 
                     CotizacionFormScreen(
                         cotizacionInicial = screen.cotizacionInicial,
@@ -142,6 +169,7 @@ fun AppNavigation() {
                         onVolverAHistorial = { currentScreen = AppScreen.Historial }
                     )
                 }
+
                 is AppScreen.Historial -> {
                     HistorialScreen(
                         listState = historialListState,
@@ -170,7 +198,7 @@ fun HistorialScreen(
     onBack: () -> Unit,
     onVerDetalle: (Cotizacion) -> Unit
 ) {
-
+    BackHandler { onBack() }  // ✅ AQUÍ, al inicio
     val context = LocalContext.current
     var cotizaciones by remember { mutableStateOf(obtenerCotizacionesLocal(context)) }
 
@@ -188,6 +216,7 @@ fun HistorialScreen(
                 }
             )
         }
+
     ) { innerPadding ->
 
         if (cotizaciones.isEmpty()) {
@@ -477,50 +506,89 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        val scope = rememberCoroutineScope()
+        var loading by remember { mutableStateOf(false) }
+        var errorMsg by remember { mutableStateOf<String?>(null) }
+
         Button(
             onClick = {
+                errorMsg = null
+
+// 1) Si NO hay sesión guardada, entonces sí exige internet para loguearse
+                if (!SessionManager.isLoggedIn(context) && !isOnline(context)) {
+                    errorMsg = "No hay conexión a internet. Conéctate para iniciar sesión."
+                    return@Button
+                }
+
                 if (correo.isBlank() || password.isBlank()) {
-                    Toast.makeText(
-                        context,
-                        "Ingresa correo y contraseña.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(context, "Ingresa correo y contraseña.", Toast.LENGTH_LONG).show()
                     return@Button
                 }
 
-                // 🔐 Login por correo
-                val user = AuthRepository.login(correo, password)
+                scope.launch {
+                    try {
+                        loading = true
 
-                if (user == null) {
-                    Toast.makeText(
-                        context,
-                        "Correo o contraseña incorrectos.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    return@Button
+                        val user = AuthRepository.login(correo, password)
+
+                        SessionManager.login(
+                            context = context,
+                            userId = user.userId,
+                            nombre = user.nombre,
+                            role = user.role
+                        )
+
+                        Toast.makeText(context, "Bienvenido ${user.nombre}", Toast.LENGTH_SHORT).show()
+                        onLoginSuccess()
+
+                    } catch (e: Exception) {
+
+                        val msg = (e.message ?: "").lowercase()
+
+                        val userFriendly = when {
+                            // 🔐 Credenciales incorrectas
+                            msg.contains("invalid login credentials") ||
+                                    msg.contains("invalid_credentials") ||
+                                    msg.contains("invalid_grant") -> "Usuario o contraseña incorrectos."
+
+                            // ⛔ Usuario inactivo (si tú lanzas ese error)
+                            msg.contains("usuario inactivo") -> "Tu usuario está inactivo. Contacta al administrador."
+
+                            // 🌐 Sin internet / red caída
+                            e is UnknownHostException ||
+                                    e is ConnectException ||
+                                    e is SocketTimeoutException ||
+                                    msg.contains("unable to resolve host") ||
+                                    msg.contains("failed to connect") ||
+                                    msg.contains("timeout") ||
+                                    msg.contains("http request") -> "No hay conexión a internet. Verifica tu red e intenta de nuevo."
+
+
+                            else -> "Ocurrió un error al iniciar sesión. Intenta de nuevo."
+                        }
+
+                        errorMsg = userFriendly
+
+                    } finally {
+                        loading = false
+                    }
                 }
-
-                // 🧠 Guardamos en sesión el NOMBRE (no el correo)
-                SessionManager.login(
-                    context = context,
-                    nombreEspecialista = user.nombre
-                )
-
-                Toast.makeText(
-                    context,
-                    "Bienvenido ${user.nombre}",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                onLoginSuccess()
             },
+            enabled = !loading,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            Text(text = "INICIAR SESIÓN")
+            Text(text = if (loading) "ENTRANDO..." else "INICIAR SESIÓN")
         }
-
+        if (errorMsg != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = errorMsg!!,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 
@@ -528,10 +596,18 @@ fun LoginScreen(
 fun HomeScreen(
     onNuevaCotizacion: () -> Unit,
     onVerHistorial: () -> Unit,
+    onVerPendientes: () -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
     val nombreEspecialista = SessionManager.getEspecialista(context)
+    val online = isOnline(context)
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // contador simple (se recalcula cuando entras a Home; suficiente para compilar y mostrar)
+    val pendientesCount = remember {
+        UploadQueueStorage.getAll(context).count { it.status == "PENDING" || it.status == "ERROR" }
+    }
 
     Column(
         modifier = Modifier
@@ -539,7 +615,6 @@ fun HomeScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
         Text(
             text = "Bienvenido, $nombreEspecialista",
             style = MaterialTheme.typography.headlineSmall
@@ -568,16 +643,45 @@ fun HomeScreen(
             Text("Ver cotizaciones guardadas")
         }
 
+        OutlinedButton(
+            onClick = onVerPendientes,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+        ) {
+            Text("Pendientes de subir${if (pendientesCount > 0) " ($pendientesCount)" else ""}")
+        }
+
         Spacer(modifier = Modifier.weight(1f))
 
         TextButton(
-            onClick = onLogout,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            onClick = { if (online) showLogoutDialog = true },
+            enabled = online
         ) {
-            Text("Cerrar sesión")
+            Text(
+                text = if (online) "Cerrar sesión" else "Sin internet (bloqueado)"
+            )
+        }
+
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("Cerrar sesión") },
+                text = { Text("¿Seguro que quieres cerrar sesión?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    }) { Text("Sí") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) { Text("Cancelar") }
+                }
+            )
         }
     }
 }
+
 
 private fun filtrarNumeroDecimal(input: String): String =
     input.filter { it.isDigit() || it == '.' }
@@ -2082,4 +2186,10 @@ fun ResumenScreen(
             }
         }
     }
+}
+private fun isOnline(context: android.content.Context): Boolean {
+    val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
+    val network = cm.activeNetwork ?: return false
+    val caps = cm.getNetworkCapabilities(network) ?: return false
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }

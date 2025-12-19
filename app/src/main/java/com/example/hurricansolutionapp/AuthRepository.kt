@@ -1,39 +1,60 @@
+@file:OptIn(kotlinx.serialization.InternalSerializationApi::class)
+
 package com.example.hurricansolutionapp
 
-// Usuario que se loguea en la app
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
 data class UsuarioApp(
-    val correo: String,     // se usa para iniciar sesión
-    val nombre: String,     // nombre que se mostrará en "Bienvenido, ..."
-    val password: String
+    val correo: String,
+    val nombre: String,
+    val role: String,
+    val userId: String
+)
+@Serializable
+data class ProfileRow(
+    val id: String,
+    val name: String,
+    val role: String,
+    @SerialName("is_active") val isActive: Boolean = true
 )
 
 object AuthRepository {
 
-    // 🔒 Aquí defines a tus especialistas
-    // Cambia correos / nombres / contraseñas como tú quieras
-    private val usuarios = listOf(
-        UsuarioApp(
-            correo = "Fernando",
-            nombre = "Fernando Loria Fernandez",
-            password = "1234"
-        ),
-        UsuarioApp(
-            correo = "Derek@hurricanesolution.com",
-            nombre = "Derek Idrahim Hernandez Rios",
-            password = "Derek.13.0804"
-        ),
-        UsuarioApp(
-            correo = "Marco@hurricanesolution.com",
-            nombre = "Marco Alejandro Canche Kantun",
-            password = "MarcoHS7111"
-        )
-    )
+    suspend fun login(correo: String, password: String): UsuarioApp {
+        val client = SupabaseClientProvider.client
 
-    fun login(correo: String, password: String): UsuarioApp? {
-        val correoNormalizado = correo.trim().lowercase()
-        return usuarios.firstOrNull { user ->
-            user.correo.lowercase() == correoNormalizado &&
-                    user.password == password
+        client.auth.signInWith(Email) {
+            email = correo.trim()
+            this.password = password
         }
+
+        val userId = client.auth.currentUserOrNull()?.id
+            ?: throw IllegalStateException("No se pudo obtener el usuario actual.")
+
+        val profile = client
+            .from("profiles")
+            .select {
+                filter { eq("id", userId) }
+            }
+            .decodeSingle<ProfileRow>()
+
+        if (!profile.isActive) {
+            throw Exception("Usuario desactivado. Contacta al administrador.")
+        }
+
+        return UsuarioApp(
+            correo = correo.trim(),
+            nombre = profile.name,
+            role = profile.role,
+            userId = userId
+        )
+    }
+
+    suspend fun logout() {
+        SupabaseClientProvider.client.auth.signOut()
     }
 }

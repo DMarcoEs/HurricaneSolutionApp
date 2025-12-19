@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21"
 }
 
 android {
@@ -43,6 +44,12 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation("io.github.jan-tennert.supabase:supabase-kt:2.4.3")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.4.3")
+    implementation("io.github.jan-tennert.supabase:storage-kt:2.4.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:2.4.3")
+    implementation("io.ktor:ktor-client-okhttp:2.3.12")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

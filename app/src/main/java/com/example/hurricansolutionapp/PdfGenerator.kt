@@ -521,7 +521,7 @@ fun generarPdfCotizacion(
     // HEADER
     drawHeader(canvas)
 
-    // =================== TÍTULO Y CAJA DE FOLIO ===================
+    // =================== TÍTULO Y CAJA DE FOLIO ===================,
     // Título "COTIZACIÓN DE PROYECTO" centrado
     paint.color = Color.BLACK
     paint.textSize = 16f

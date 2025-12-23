@@ -2,6 +2,22 @@ package com.example.hurricansolutionapp
 
 import android.os.Bundle
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Brush
+import com.example.hurricansolutionapp.HomeScreen
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import java.util.Locale
+import androidx.compose.ui.unit.dp
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.fadeOut
 import kotlinx.coroutines.launch
 import java.net.UnknownHostException
 import java.net.ConnectException
@@ -10,13 +26,11 @@ import androidx.activity.compose.BackHandler
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import java.io.File
 import androidx.compose.material.icons.filled.DateRange
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -27,7 +41,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.filled.ArrowForward
@@ -38,8 +51,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.res.painterResource
-import androidx.compose.material3.Icon
-import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Phone
@@ -54,8 +65,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import com.example.hurricansolutionapp.ui.theme.HurricanSolutionAppTheme
@@ -106,7 +115,7 @@ fun AppNavigation() {
 
             is AppScreen.Resumen -> {
                 if (s.desdeHistorial) AppScreen.Historial
-                else AppScreen.Form(s.cotizacion) // ✅ aquí estaba el error
+                else AppScreen.Form(s.cotizacion)
             }
 
             else -> AppScreen.Home
@@ -116,77 +125,111 @@ fun AppNavigation() {
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
 
-            when (val screen = currentScreen) {
+            AnimatedContent(
+                targetState = currentScreen,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(450)) togetherWith
+                            fadeOut(animationSpec = tween(450))
+                },
+                label = "screen-transition"
+            ) { screen ->
 
-                is AppScreen.Login -> {
-                    LoginScreen(
-                        onLoginSuccess = { currentScreen = AppScreen.Home }
-                    )
-                }
+                when (screen) {
 
-                is AppScreen.Home -> {
-                    HomeScreen(
-                        onNuevaCotizacion = { currentScreen = AppScreen.Form() },
-                        onVerHistorial = { currentScreen = AppScreen.Historial },
-                        onVerPendientes = { currentScreen = AppScreen.PendingUploads },
-                        onLogout = {
-                            SessionManager.logout(context)
-                            currentScreen = AppScreen.Login
-                        }
-                    )
-                }
-
-                is AppScreen.PendingUploads -> PendingUploadsScreen(
-                    onBack = { currentScreen = AppScreen.Home },
-                    onRemove = { id -> UploadQueueStorage.remove(context, id) },
-                    onRetryUpload = { item ->
-                        if (!isOnline(context)) return@PendingUploadsScreen
-                        UploadRepository.uploadOne(context, item)
+                    is AppScreen.Login -> {
+                        LoginScreen(
+                            onLoginSuccess = { currentScreen = AppScreen.Home }
+                        )
                     }
-                )
 
+                    is AppScreen.Home -> {
 
-                is AppScreen.Form -> {
-                    BackHandler { currentScreen = AppScreen.Home }
+                        // 1) Estado del modo oscuro (solo para Home por ahora)
+                        var isDarkMode by rememberSaveable { mutableStateOf(true) }
 
-                    CotizacionFormScreen(
-                        cotizacionInicial = screen.cotizacionInicial,
-                        onCotizacionGenerada = { nueva ->
-                            currentScreen = AppScreen.Resumen(
-                                cotizacion = nueva,
-                                desdeHistorial = false
-                            )
+                        // 2) Datos del usuario
+                        val userFirstName = remember {
+                            SessionManager.getEspecialista(context)
+                                .trim()
+                                .split("\\s+".toRegex())
+                                .firstOrNull()
+                                ?: "Usuario"
                         }
-                    )
-                }
 
-                is AppScreen.Resumen -> {
-                    ResumenScreen(
-                        cotizacion = screen.cotizacion,
-                        desdeHistorial = screen.desdeHistorial,
-                        onVolverAInicio = { currentScreen = AppScreen.Home },
-                        onVolverAEditar = { currentScreen = AppScreen.Form(screen.cotizacion) },
-                        onVolverAHistorial = { currentScreen = AppScreen.Historial }
-                    )
-                }
+                        // 3) Contador pendientes
+                        val pendingCount = remember {
+                            UploadQueueStorage.getAll(context)
+                                .count { it.status == "PENDING" || it.status == "ERROR" }
+                        }
 
-                is AppScreen.Historial -> {
-                    HistorialScreen(
-                        listState = historialListState,
+                        // 4) HomeScreen NUEVO (el del diseño)
+                        HomeScreen(
+                            userFirstName = userFirstName,
+                            pendingCount = pendingCount,
+                            isDarkMode = isDarkMode,
+                            onToggleDarkMode = { isDarkMode = !isDarkMode },
+
+                            onNuevaCotizacion = { currentScreen = AppScreen.Form(cotizacionInicial = null) },
+                            onVerCotizaciones = { currentScreen = AppScreen.Historial },
+                            onPendientes = { currentScreen = AppScreen.PendingUploads },
+
+                            onCerrarSesion = {
+                                SessionManager.logout(context)
+                                currentScreen = AppScreen.Login
+                            }
+                        )
+                    }
+
+                    is AppScreen.PendingUploads -> PendingUploadsScreen(
                         onBack = { currentScreen = AppScreen.Home },
-                        onVerDetalle = { cotizacionSeleccionada ->
-                            currentScreen = AppScreen.Resumen(
-                                cotizacion = cotizacionSeleccionada,
-                                desdeHistorial = true
-                            )
+                        onRemove = { id -> UploadQueueStorage.remove(context, id) },
+                        onRetryUpload = { item ->
+                            if (!isOnline(context)) return@PendingUploadsScreen
+                            UploadRepository.uploadOne(context, item)
                         }
                     )
+
+                    is AppScreen.Form -> {
+                        BackHandler { currentScreen = AppScreen.Home }
+
+                        CotizacionFormScreen(
+                            cotizacionInicial = screen.cotizacionInicial,
+                            onCotizacionGenerada = { nueva ->
+                                currentScreen = AppScreen.Resumen(
+                                    cotizacion = nueva,
+                                    desdeHistorial = false
+                                )
+                            }
+                        )
+                    }
+
+                    is AppScreen.Resumen -> {
+                        ResumenScreen(
+                            cotizacion = screen.cotizacion,
+                            desdeHistorial = screen.desdeHistorial,
+                            onVolverAInicio = { currentScreen = AppScreen.Home },
+                            onVolverAEditar = { currentScreen = AppScreen.Form(screen.cotizacion) },
+                            onVolverAHistorial = { currentScreen = AppScreen.Historial }
+                        )
+                    }
+
+                    is AppScreen.Historial -> {
+                        HistorialScreen(
+                            listState = historialListState,
+                            onBack = { currentScreen = AppScreen.Home },
+                            onVerDetalle = { cotizacionSeleccionada ->
+                                currentScreen = AppScreen.Resumen(
+                                    cotizacion = cotizacionSeleccionada,
+                                    desdeHistorial = true
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 }
-
 // -----------------------------------------------------
 // Historial
 // -----------------------------------------------------
@@ -463,225 +506,371 @@ fun LoginScreen(
     var correo by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    Column(
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            // ✅ Fondo más negro, sin “azul”
+            .background(Color(0xFF050505))
+            .padding(horizontal = 24.dp)
     ) {
-
-        Text(
-            text = "Hurricane Solution",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Text(
-            text = "Inicia sesión para continuar",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-
-        OutlinedTextField(
-            value = correo,
-            onValueChange = { correo = it },
-            label = { Text("Correo electrónico") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Contraseña") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            visualTransformation = PasswordVisualTransformation(),
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        val scope = rememberCoroutineScope()
-        var loading by remember { mutableStateOf(false) }
-        var errorMsg by remember { mutableStateOf<String?>(null) }
-
-        Button(
-            onClick = {
-                errorMsg = null
-
-// 1) Si NO hay sesión guardada, entonces sí exige internet para loguearse
-                if (!SessionManager.isLoggedIn(context) && !isOnline(context)) {
-                    errorMsg = "No hay conexión a internet. Conéctate para iniciar sesión."
-                    return@Button
-                }
-
-                if (correo.isBlank() || password.isBlank()) {
-                    Toast.makeText(context, "Ingresa correo y contraseña.", Toast.LENGTH_LONG).show()
-                    return@Button
-                }
-
-                scope.launch {
-                    try {
-                        loading = true
-
-                        val user = AuthRepository.login(correo, password)
-
-                        SessionManager.login(
-                            context = context,
-                            userId = user.userId,
-                            nombre = user.nombre,
-                            role = user.role
-                        )
-
-                        Toast.makeText(context, "Bienvenido ${user.nombre}", Toast.LENGTH_SHORT).show()
-                        onLoginSuccess()
-
-                    } catch (e: Exception) {
-
-                        val msg = (e.message ?: "").lowercase()
-
-                        val userFriendly = when {
-                            // 🔐 Credenciales incorrectas
-                            msg.contains("invalid login credentials") ||
-                                    msg.contains("invalid_credentials") ||
-                                    msg.contains("invalid_grant") -> "Usuario o contraseña incorrectos."
-
-                            // ⛔ Usuario inactivo (si tú lanzas ese error)
-                            msg.contains("usuario inactivo") -> "Tu usuario está inactivo. Contacta al administrador."
-
-                            // 🌐 Sin internet / red caída
-                            e is UnknownHostException ||
-                                    e is ConnectException ||
-                                    e is SocketTimeoutException ||
-                                    msg.contains("unable to resolve host") ||
-                                    msg.contains("failed to connect") ||
-                                    msg.contains("timeout") ||
-                                    msg.contains("http request") -> "No hay conexión a internet. Verifica tu red e intenta de nuevo."
-
-
-                            else -> "Ocurrió un error al iniciar sesión. Intenta de nuevo."
-                        }
-
-                        errorMsg = userFriendly
-
-                    } finally {
-                        loading = false
-                    }
-                }
-            },
-            enabled = !loading,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
+                .fillMaxSize()
+                .padding(vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(text = if (loading) "ENTRANDO..." else "INICIAR SESIÓN")
-        }
-        if (errorMsg != null) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = errorMsg!!,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium
+
+            Image(
+                painter = painterResource(id = R.drawable.hurricane_solution_blanco),
+                contentDescription = "Logo Hurricane Solution",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth(0.90f)
+                    .height(120.dp)
+                    .padding(bottom = 18.dp)
             )
+
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                color = Color(0xB10F1116),
+                tonalElevation = 0.dp,
+                shadowElevation = 10.dp,
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+
+                    // ✅ Menos separación entre título y subtítulo
+                    Text(
+                        text = "Bienvenido de nuevo",
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+
+                    Text(
+                        text = "Inicia sesión para continuar",
+                        color = Color.White.copy(alpha = 0.75f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = (0).dp)
+                    )
+
+                    Divider(
+                        color = Color.White.copy(alpha = 0.12f),
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = correo,
+                        onValueChange = { correo = it },
+                        label = { Text("Correo electrónico") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.White.copy(alpha = 0.85f),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
+                            focusedLabelColor = Color.White.copy(alpha = 0.85f),
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.65f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White
+                        )
+                    )
+
+                    // ✅ separación más pareja entre campos
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Contraseña") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = (0).dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.White.copy(alpha = 0.85f),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
+                            focusedLabelColor = Color.White.copy(alpha = 0.85f),
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.65f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White
+                        )
+                    )
+
+                    Button(
+                        onClick = {
+                            errorMsg = null
+
+                            if (!SessionManager.isLoggedIn(context) && !isOnline(context)) {
+                                errorMsg = "No hay conexión a internet. Conéctate para iniciar sesión."
+                                return@Button
+                            }
+
+                            if (correo.isBlank() || password.isBlank()) {
+                                Toast.makeText(context, "Ingresa correo y contraseña.", Toast.LENGTH_LONG).show()
+                                return@Button
+                            }
+
+                            scope.launch {
+                                try {
+                                    loading = true
+
+                                    val user = AuthRepository.login(correo, password)
+
+                                    SessionManager.login(
+                                        context = context,
+                                        userId = user.userId,
+                                        nombre = user.nombre,
+                                        role = user.role
+                                    )
+
+                                    Toast.makeText(context, "Bienvenido ${user.nombre}", Toast.LENGTH_SHORT).show()
+                                    onLoginSuccess()
+
+                                } catch (e: Exception) {
+
+                                    val msg = (e.message ?: "").lowercase()
+
+                                    val userFriendly = when {
+                                        msg.contains("invalid login credentials") ||
+                                                msg.contains("invalid_credentials") ||
+                                                msg.contains("invalid_grant") -> "Usuario o contraseña incorrectos."
+
+                                        msg.contains("usuario inactivo") -> "Tu usuario está inactivo. Contacta al administrador."
+
+                                        e is UnknownHostException ||
+                                                e is ConnectException ||
+                                                e is SocketTimeoutException ||
+                                                msg.contains("unable to resolve host") ||
+                                                msg.contains("failed to connect") ||
+                                                msg.contains("timeout") ||
+                                                msg.contains("http request") -> "No hay conexión a internet. Verifica tu red e intenta de nuevo."
+
+                                        else -> "Ocurrió un error al iniciar sesión. Intenta de nuevo."
+                                    }
+
+                                    errorMsg = userFriendly
+
+                                } finally {
+                                    loading = false
+                                }
+                            }
+
+                        },
+                        enabled = !loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .padding(top = 2.dp),
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE6E6E6),
+                            contentColor = Color(0xFF0C0F18),
+                            disabledContainerColor = Color(0xFFBDBDBD),
+                            disabledContentColor = Color(0xFF0C0F18)
+                        )
+                    ) {
+                        Text(
+                            text = if (loading) "ENTRANDO..." else "INICIAR SESIÓN",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+
+                    if (errorMsg != null) {
+                        Text(
+                            text = errorMsg!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    // ✅ Texto final centrado como el de tu compañero
+                    Text(
+                        text = "¿Problemas para iniciar sesión?\nContacta al administrador.",
+                        color = Color.White.copy(alpha = 0.75f),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun StatCard(
+    title: String,
+    value: String,
+    isDark: Boolean,
+    cardColor: Color,
+    borderColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.height(84.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = cardColor.copy(alpha = if (isDark) 0.95f else 1f),
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = if (isDark) 8.dp else 3.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(title, color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            Text(value, color = if (isDark) Color.White else Color(0xFF111318), fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-fun HomeScreen(
-    onNuevaCotizacion: () -> Unit,
-    onVerHistorial: () -> Unit,
-    onVerPendientes: () -> Unit,
-    onLogout: () -> Unit
+private fun BigActionCard(
+    title: String,
+    subtitle: String,
+    leading: String,
+    isDark: Boolean,
+    cardColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    val nombreEspecialista = SessionManager.getEspecialista(context)
-    val online = isOnline(context)
-    var showLogoutDialog by remember { mutableStateOf(false) }
-
-    // contador simple (se recalcula cuando entras a Home; suficiente para compilar y mostrar)
-    val pendientesCount = remember {
-        UploadQueueStorage.getAll(context).count { it.status == "PENDING" || it.status == "ERROR" }
-    }
-
-    Column(
+    Surface(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .fillMaxWidth()
+            .height(120.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = cardColor,
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = if (isDark) 12.dp else 6.dp
     ) {
-        Text(
-            text = "Bienvenido, $nombreEspecialista",
-            style = MaterialTheme.typography.headlineSmall
-        )
-
-        Text(
-            text = "Selecciona una opción:",
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        Button(
-            onClick = onNuevaCotizacion,
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Nueva cotización")
-        }
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = if (isDark) 0.35f else 0.06f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(leading, color = if (isDark) Color.White else Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
 
-        OutlinedButton(
-            onClick = onVerHistorial,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Text("Ver cotizaciones guardadas")
-        }
+            Spacer(Modifier.width(14.dp))
 
-        OutlinedButton(
-            onClick = onVerPendientes,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Text("Pendientes de subir${if (pendientesCount > 0) " ($pendientesCount)" else ""}")
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        TextButton(
-            onClick = { if (online) showLogoutDialog = true },
-            enabled = online
-        ) {
-            Text(
-                text = if (online) "Cerrar sesión" else "Sin internet (bloqueado)"
-            )
-        }
-
-        if (showLogoutDialog) {
-            AlertDialog(
-                onDismissRequest = { showLogoutDialog = false },
-                title = { Text("Cerrar sesión") },
-                text = { Text("¿Seguro que quieres cerrar sesión?") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showLogoutDialog = false
-                        onLogout()
-                    }) { Text("Sí") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showLogoutDialog = false }) { Text("Cancelar") }
-                }
-            )
+            Column {
+                Text(
+                    title,
+                    color = if (isDark) Color.White else Color(0xFF111318),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    color = (if (isDark) Color.White else Color(0xFF111318)).copy(alpha = 0.60f),
+                    fontSize = 13.sp
+                )
+            }
         }
     }
 }
 
+@Composable
+private fun SmallActionCard(
+    title: String,
+    subtitle: String,
+    leading: String,
+    trailing: String,
+    isDark: Boolean,
+    cardColor: Color,
+    borderColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(78.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        color = cardColor,
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = if (isDark) 10.dp else 4.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = if (isDark) 0.30f else 0.06f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(leading)
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = if (isDark) Color.White else Color(0xFF111318),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    subtitle,
+                    color = (if (isDark) Color.White else Color(0xFF111318)).copy(alpha = 0.60f),
+                    fontSize = 12.sp
+                )
+            }
+
+            if (trailing.isNotBlank()) {
+                Text(
+                    trailing,
+                    color = (if (isDark) Color.White else Color(0xFF111318)).copy(alpha = 0.70f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+// Fecha simple en español
+private fun getSpanishDate(): String {
+    val locale = Locale("es", "MX")
+    val sdf = java.text.SimpleDateFormat("EEEE, d 'de' MMMM", locale)
+    val text = sdf.format(java.util.Date())
+    return text.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+}
 
 private fun filtrarNumeroDecimal(input: String): String =
     input.filter { it.isDigit() || it == '.' }

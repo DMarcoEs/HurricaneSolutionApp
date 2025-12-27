@@ -44,6 +44,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("io.github.jan-tennert.supabase:supabase-kt:2.4.3")
     implementation("io.github.jan-tennert.supabase:postgrest-kt:2.4.3")
     implementation("io.github.jan-tennert.supabase:storage-kt:2.4.3")

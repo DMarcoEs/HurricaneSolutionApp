@@ -13,6 +13,14 @@ const val HS875_DEFAULT_PRICE = 150.0
 const val HS1250_DEFAULT_PRICE = 180.0
 const val HS1500_DEFAULT_PRICE = 210.0
 
+// 🔹 Estado del formulario para UNA medida (lo que escribes antes de convertirlo a Ventana)
+data class VentanaFormState(
+    var descripcion: String = "",
+    var alto: String = "",
+    var ancho: String = "",
+    var adecuacion: String = "No", // "No" / "Sí" (o el texto que uses)
+)
+
 // 🔹 Medida individual (ventana / área a proteger)
 data class Ventana(
     val descripcion: String,
@@ -33,9 +41,47 @@ data class Ventana(
             TipoProducto.HS875 -> HS875_DEFAULT_PRICE
             TipoProducto.HS1250 -> HS1250_DEFAULT_PRICE
             TipoProducto.HS1500 -> HS1500_DEFAULT_PRICE
-            TipoProducto.PERSONALIZADO -> precioM2  // usa el precio personalizado que capturaste
+            TipoProducto.PERSONALIZADO -> precioM2 // usa el precio personalizado que capturaste
         }
         return areaM2 * precio
+    }
+}
+
+// 🔹 Draft (lo que vas llenando Cliente -> Medidas)
+data class CotizacionDraft(
+    var nombre: String = "",
+    var telefono: String = "",
+    var ciudad: String = "",
+    var colonia: String = "",
+    var direccionDetalle: String = "",
+    var fecha: String = "",
+
+    // medidas (form)
+    var ventanasForm: MutableList<VentanaFormState> = mutableListOf(),
+
+    // config medidas
+    var tipoMontaje: String = "Flush Mount",
+    var productosSeleccionados: MutableList<TipoProducto> = mutableListOf(TipoProducto.HS875),
+
+    // descuento
+    var aplicaDescuento: Boolean = false,
+    var descuentoTexto: String = "0"
+) {
+    fun clear() {
+        nombre = ""
+        telefono = ""
+        ciudad = ""
+        colonia = ""
+        direccionDetalle = ""
+        fecha = ""
+
+        ventanasForm = mutableListOf()
+
+        tipoMontaje = "Flush Mount"
+        productosSeleccionados = mutableListOf(TipoProducto.HS875)
+
+        aplicaDescuento = false
+        descuentoTexto = "0"
     }
 }
 
@@ -57,7 +103,7 @@ data class Cotizacion(
     // Total usando SOLO el producto principal
     val subtotal: Double get() = ventanas.sumOf { it.subtotal }
 
-    val iva: Double get() = 0.0        // por ahora sin IVA
+    val iva: Double get() = 0.0 // por ahora sin IVA
     val total: Double get() = subtotal
 
     // Total por producto usando los precios por m² de cada tipo

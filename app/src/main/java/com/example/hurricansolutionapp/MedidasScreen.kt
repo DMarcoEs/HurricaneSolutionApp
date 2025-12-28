@@ -7,12 +7,15 @@ fun MedidasScreen(
     draft: CotizacionDraft,
     onDraftChange: (CotizacionDraft) -> Unit,
     onBack: () -> Unit,
-    onContinuarResumen: (Cotizacion) -> Unit
+    onContinuarResumen: (Cotizacion) -> Unit,
+    isDarkMode: Boolean // ✅ Agregar este parámetro
 ) {
-    CotizacionFormScreen(
+    // ✅ Cambiar a CotizacionesFormScreen (plural)
+    CotizacionesFormScreen(
         draft = draft,
         onDraftChange = onDraftChange,
         onContinuarResumen = onContinuarResumen,
-        onBack = onBack
+        onBack = onBack,
+        isDarkMode = isDarkMode // ✅ Pasar el estado del tema
     )
 }

@@ -18,8 +18,12 @@ data class VentanaFormState(
     var descripcion: String = "",
     var alto: String = "",
     var ancho: String = "",
-    var adecuacion: String = "No", // "No" / "Sí" (o el texto que uses)
+    var adecuacion: String = "No",
+    var tipoMontaje: String = "Flush Mount",
+    var adecuacionDetalle: String = ""   // ✅ NUEVO
 )
+
+
 
 // 🔹 Medida individual (ventana / área a proteger)
 data class Ventana(
@@ -57,7 +61,11 @@ data class CotizacionDraft(
     var fecha: String = "",
 
     // medidas (form)
-    var ventanasForm: MutableList<VentanaFormState> = mutableListOf(),
+// medidas (form)
+// IMPORTANTE: debe iniciar con al menos 1 elemento para que la UI no crashee
+// cuando el usuario escriba (evita IndexOutOfBounds en la primera medida).
+    var ventanasForm: MutableList<VentanaFormState> = mutableListOf(VentanaFormState()),
+
 
     // config medidas
     var tipoMontaje: String = "Flush Mount",
@@ -75,7 +83,7 @@ data class CotizacionDraft(
         direccionDetalle = ""
         fecha = ""
 
-        ventanasForm = mutableListOf()
+        ventanasForm = mutableListOf(VentanaFormState())
 
         tipoMontaje = "Flush Mount"
         productosSeleccionados = mutableListOf(TipoProducto.HS875)

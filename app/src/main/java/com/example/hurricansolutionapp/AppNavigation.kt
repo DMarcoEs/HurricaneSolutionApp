@@ -7,6 +7,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import kotlinx.coroutines.CoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 @Composable
@@ -20,6 +24,7 @@ fun AppNavigation(
     online: Boolean
 ) {
     val start = if (SessionManager.isLoggedIn(context)) Routes.HOME else Routes.LOGIN
+    var cotizacionActual by remember { mutableStateOf<Cotizacion?>(null) }
 
     NavHost(
         navController = navController,
@@ -82,12 +87,38 @@ fun AppNavigation(
         }
 
         composable(Routes.MEDIDAS) {
-            CotizacionFormScreen(
+            MedidasScreen(
                 draft = cotizacionDraft,
-                onDraftChange = { /* Lógica */ },
+                isDarkMode = isDarkMode, // ✅ Pasar isDarkMode
+                onDraftChange = { /* Tu lógica de cambio */ },
                 onBack = { navController.popBackStack() },
-                onContinuarResumen = { /* Lógica */ }
+                onContinuarResumen = { cotizacion ->
+                    cotizacionActual = cotizacion
+                    navController.navigate(Routes.RESUMEN)
+                }
             )
+        }
+
+        composable(Routes.RESUMEN) {
+            val cot = cotizacionActual
+            if (cot != null) {
+                ResumenScreen(
+                    cotizacion = cot,
+                    desdeHistorial = false,
+                    onVolverAInicio = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.HOME) { inclusive = true }
+                        }
+                    },
+                    onVolverAEditar = { navController.popBackStack() },
+                    onVolverAHistorial = { navController.navigate(Routes.HISTORIAL) }
+                )
+            } else {
+                // Si por alguna razón entra sin datos, lo mandamos a Home
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.HOME) { inclusive = true }
+                }
+            }
         }
 
         // ✅ Pantalla real: Historial

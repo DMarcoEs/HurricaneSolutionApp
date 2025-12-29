@@ -22,14 +22,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
-            var isDarkMode by remember { mutableStateOf(true) }
+
+            // ✅ Leer el tema guardado desde SharedPreferences
+            var isDarkMode by remember { mutableStateOf(SessionManager.isDarkMode(context)) }
+
             val navController = rememberNavController()
             val cotizacionDraft = remember { CotizacionDraft() }
 
             var online by remember { mutableStateOf(isOnline(context)) }
 
             DisposableEffect(Unit) {
-                val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                val cm =
+                    context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
                 val callback = object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
                         scope.launch { online = true }
@@ -54,7 +58,11 @@ class MainActivity : ComponentActivity() {
                     scope = scope,
                     cotizacionDraft = cotizacionDraft,
                     isDarkMode = isDarkMode,
-                    setDarkMode = { isDarkMode = it },
+                    setDarkMode = { newValue ->
+                        isDarkMode = newValue
+                        // ✅ Guardar el tema en SharedPreferences
+                        SessionManager.setDarkMode(context, newValue)
+                    },
                     online = online
                 )
             }

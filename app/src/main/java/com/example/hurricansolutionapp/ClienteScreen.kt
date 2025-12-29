@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 fun ClienteScreen(
     draft: CotizacionDraft,
     isDarkMode: Boolean,
+    currentStep: Int = 1,   // ✅ Nuevo parámetro
+    totalSteps: Int = 3,    // ✅ Nuevo parámetro
     onBack: () -> Unit,
     onContinuar: () -> Unit
 ) {
@@ -44,23 +46,22 @@ fun ClienteScreen(
     var colonia by rememberSaveable { mutableStateOf(draft.colonia) }
     var direccionDetalle by rememberSaveable { mutableStateOf(draft.direccionDetalle) }
 
-    // ✅ Detecta si el usuario ya escribió algo
     val hayCambios = nombre.isNotBlank()
             || telefono.isNotBlank()
             || ciudad.isNotBlank()
             || colonia.isNotBlank()
             || direccionDetalle.isNotBlank()
 
-    // ✅ Back físico / gesto del celular
     BackHandler(enabled = true) {
         if (hayCambios) showExitDialog = true else onBack()
     }
 
     val isFormValid = nombre.isNotBlank() && telefono.isNotBlank() && ciudad.isNotBlank()
 
-    val surface = if (isDarkMode) Color(0xFF09090B) else Color.White
+    // ✅ Colores BLACK MODE (negro puro, no azul)
+    val surface = if (isDarkMode) Color(0xFF0A0A0A) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
-    val textMuted = if (isDarkMode) Color(0xFF71717A) else Color(0xFF9CA3AF)
+    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF6F7F8)
 
@@ -92,7 +93,7 @@ fun ClienteScreen(
                     }
                 )
 
-                // Stepper
+                // ✅ STEPPER DINÁMICO
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -100,25 +101,37 @@ fun ClienteScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        Modifier
-                            .width(24.dp)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(if (isDarkMode) Color.White else Color.Black)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier.size(6.dp)
-                            .clip(CircleShape)
-                            .background(textMuted.copy(alpha = 0.4f))
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier.size(6.dp)
-                            .clip(CircleShape)
-                            .background(textMuted.copy(alpha = 0.4f))
-                    )
+                    repeat(totalSteps) { step ->
+                        val isCurrentStep = step + 1 == currentStep
+                        val isPastStep = step + 1 < currentStep
+
+                        Box(
+                            modifier = if (isCurrentStep) {
+                                Modifier
+                                    .width(24.dp)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(if (isDarkMode) Color.White else Color.Black)
+                            } else {
+                                Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isPastStep) {
+                                            if (isDarkMode) Color.White.copy(alpha = 0.6f) else Color.Black.copy(
+                                                alpha = 0.6f
+                                            )
+                                        } else {
+                                            textMuted.copy(alpha = 0.4f)
+                                        }
+                                    )
+                            }
+                        )
+
+                        if (step < totalSteps - 1) {
+                            Spacer(Modifier.width(6.dp))
+                        }
+                    }
                 }
             }
         },
@@ -279,11 +292,11 @@ fun ClienteScreen(
         }
     }
 
-    // ✅ Dialog de salida (solo si hay cambios)
+    // Dialog de salida
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            containerColor = if (isDarkMode) Color(0xFF09090B) else Color.White,
+            containerColor = if (isDarkMode) Color(0xFF0A0A0A) else Color.White,
             titleContentColor = if (isDarkMode) Color.White else Color(0xFF111418),
             textContentColor = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563),
             title = { Text("Salir de la cotización") },
@@ -291,7 +304,6 @@ fun ClienteScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // ⚠️ Importante: draft.clear() debe existir
                         draft.clear()
                         showExitDialog = false
                         onBack()
@@ -302,17 +314,20 @@ fun ClienteScreen(
                 Row {
                     TextButton(
                         onClick = {
-                            // ✅ Guardar borrador ANTES de salir
                             draft.nombre = nombre
                             draft.telefono = telefono
                             draft.ciudad = ciudad
                             draft.colonia = colonia
                             draft.direccionDetalle = direccionDetalle
-
                             showExitDialog = false
                             onBack()
                         }
-                    ) { Text("Salir sin borrar", color = if (isDarkMode) Color.White else Color.Black) }
+                    ) {
+                        Text(
+                            "Salir sin borrar",
+                            color = if (isDarkMode) Color.White else Color.Black
+                        )
+                    }
 
                     Spacer(Modifier.width(8.dp))
 
@@ -348,32 +363,24 @@ fun StitchField(
     val scaleAnim by infiniteTransition.animateFloat(
         initialValue = 0.85f,
         targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            tween(1200, easing = EaseInOutSine),
-            RepeatMode.Reverse
-        ),
+        animationSpec = infiniteRepeatable(tween(1200, easing = EaseInOutSine), RepeatMode.Reverse),
         label = "scale"
     )
-
     val floatAnim by infiniteTransition.animateFloat(
         initialValue = -2f,
         targetValue = 2f,
-        animationSpec = infiniteRepeatable(
-            tween(1000, easing = EaseInOutSine),
-            RepeatMode.Reverse
-        ),
+        animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOutSine), RepeatMode.Reverse),
         label = "float"
     )
-
     val phoneShake by infiniteTransition.animateFloat(
         initialValue = -8f,
         targetValue = 8f,
-        animationSpec = infiniteRepeatable(
-            tween(150, easing = LinearEasing),
-            RepeatMode.Reverse
-        ),
+        animationSpec = infiniteRepeatable(tween(150, easing = LinearEasing), RepeatMode.Reverse),
         label = "shake"
     )
+
+    val inputBg = if (isDarkMode) Color(0xFF18181B) else Color(0xFFF1F3F5)
+    val inputBorder = if (isDarkMode) Color(0xFF3F3F46) else border.copy(alpha = 0.5f)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -383,11 +390,8 @@ fun StitchField(
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-
         OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            readOnly = readOnly,
+            value = value, onValueChange = onValueChange, readOnly = readOnly,
             placeholder = { Text(hint, color = Color.Gray.copy(alpha = 0.6f)) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -397,9 +401,9 @@ fun StitchField(
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = surface,
-                unfocusedContainerColor = if (isDarkMode) surface else Color(0xFFF1F3F5),
+                unfocusedContainerColor = inputBg,
                 focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
-                unfocusedBorderColor = border.copy(alpha = 0.5f),
+                unfocusedBorderColor = inputBorder,
                 focusedTextColor = textPrimary,
                 unfocusedTextColor = textPrimary
             ),
@@ -413,13 +417,11 @@ fun StitchField(
                             .background(if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB))
                             .graphicsLayer {
                                 if (isFocused && !readOnly) {
-                                    if (isLocate) {
-                                        scaleX = scaleAnim
-                                        scaleY = scaleAnim
-                                    } else if (isPhone) {
-                                        rotationZ = phoneShake
-                                    } else {
-                                        translationY = floatAnim
+                                    when {
+                                        isLocate -> {
+                                            scaleX = scaleAnim; scaleY = scaleAnim
+                                        }; isPhone -> rotationZ = phoneShake; else -> translationY =
+                                        floatAnim
                                     }
                                 }
                             },

@@ -8,14 +8,17 @@ fun MedidasScreen(
     onDraftChange: (CotizacionDraft) -> Unit,
     onBack: () -> Unit,
     onContinuarResumen: (Cotizacion) -> Unit,
-    isDarkMode: Boolean // ✅ Agregar este parámetro
+    isDarkMode: Boolean,
+    currentStep: Int = 2,  // ✅ Paso actual por defecto
+    totalSteps: Int = 3    // ✅ Total de pasos por defecto
 ) {
-    // ✅ Cambiar a CotizacionesFormScreen (plural)
     CotizacionesFormScreen(
         draft = draft,
         onDraftChange = onDraftChange,
         onContinuarResumen = onContinuarResumen,
         onBack = onBack,
-        isDarkMode = isDarkMode // ✅ Pasar el estado del tema
+        isDarkMode = isDarkMode,
+        currentStep = currentStep,
+        totalSteps = totalSteps
     )
 }

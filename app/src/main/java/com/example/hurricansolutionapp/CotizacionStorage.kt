@@ -45,21 +45,28 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         put("clienteNombre", cotizacion.clienteNombre)
         put("clienteTelefono", cotizacion.clienteTelefono)
         put("ubicacion", cotizacion.ubicacion)
+        put("ciudad", cotizacion.ciudad)
         put("especialista", cotizacion.especialista)
         put("fecha", cotizacion.fecha)
         put("producto", cotizacion.producto.name)
 
-        // 🔹 lista de productos
+        // Lista de productos
         val productosArray = JSONArray()
         cotizacion.productos.forEach { p ->
             productosArray.put(p.name)
         }
         put("productos", productosArray)
 
-        // 🔹 descuento en dólares por m²
+        // Descuentos por sistema (en dólares por m²)
+        put("descuentoHS875", cotizacion.descuentoHS875)
+        put("descuentoHS1250", cotizacion.descuentoHS1250)
+        put("descuentoHS1500", cotizacion.descuentoHS1500)
+
+        // Legacy
         put("descuentoDolaresPorM2", cotizacion.descuentoDolaresPorM2)
         put("tipoMontaje", cotizacion.tipoMontaje)
-        // 🔹 ventanas
+
+        // Ventanas
         val ventanasArray = JSONArray()
         cotizacion.ventanas.forEach { v ->
             val vObj = JSONObject().apply {
@@ -67,6 +74,8 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
                 put("alto", v.alto)
                 put("ancho", v.ancho)
                 put("precioM2", v.precioM2)
+                put("adecuacion", v.adecuacion)
+                put("tipoMontaje", v.tipoMontaje)
             }
             ventanasArray.put(vObj)
         }
@@ -98,6 +107,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         val clienteNombre = obj.optString("clienteNombre", "")
         val clienteTelefono = obj.optString("clienteTelefono", "")
         val ubicacion = obj.optString("ubicacion", "")
+        val ciudad = obj.optString("ciudad", "")
         val especialista = obj.optString("especialista", "")
         val fecha = obj.optString("fecha", "")
 
@@ -118,9 +128,13 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
                 listOf(producto)
             }
 
-        // 🔹 leemos el descuento guardado
-        val descuentoDolaresPorM2 = obj.optDouble("descuentoDolaresPorM2", 0.0)
+        // Descuentos por sistema
+        val descuentoHS875 = obj.optDouble("descuentoHS875", 0.0)
+        val descuentoHS1250 = obj.optDouble("descuentoHS1250", 0.0)
+        val descuentoHS1500 = obj.optDouble("descuentoHS1500", 0.0)
 
+        // Legacy
+        val descuentoDolaresPorM2 = obj.optDouble("descuentoDolaresPorM2", 0.0)
         val tipoMontaje = obj.optString("tipoMontaje", "Flush Mount")
 
         val ventanasJson = obj.optJSONArray("ventanas") ?: JSONArray()
@@ -131,13 +145,17 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             val alto = vObj.optDouble("alto", 0.0)
             val ancho = vObj.optDouble("ancho", 0.0)
             val precioM2 = vObj.optDouble("precioM2", HS875_DEFAULT_PRICE)
+            val adecuacion = vObj.optString("adecuacion", "No")
+            val ventanaTipoMontaje = vObj.optString("tipoMontaje", tipoMontaje)
 
             ventanas.add(
                 Ventana(
                     descripcion = descripcion,
                     alto = alto,
                     ancho = ancho,
-                    precioM2 = precioM2
+                    precioM2 = precioM2,
+                    adecuacion = adecuacion,
+                    tipoMontaje = ventanaTipoMontaje
                 )
             )
         }
@@ -148,10 +166,14 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             clienteNombre = clienteNombre,
             clienteTelefono = clienteTelefono,
             ubicacion = ubicacion,
+            ciudad = ciudad,
             especialista = especialista,
             fecha = fecha,
             producto = producto,
             productos = productos,
+            descuentoHS875 = descuentoHS875,
+            descuentoHS1250 = descuentoHS1250,
+            descuentoHS1500 = descuentoHS1500,
             descuentoDolaresPorM2 = descuentoDolaresPorM2,
             tipoMontaje = tipoMontaje,
             ventanas = ventanas
@@ -159,7 +181,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         resultado.add(cotizacion)
     }
 
-    // opcional: orden inverso (más recientes primero)
+    // Orden inverso (más recientes primero)
     return resultado.reversed()
 }
 
@@ -183,4 +205,18 @@ fun borrarCotizacionLocal(context: Context, id: Long) {
     prefs.edit()
         .putString(KEY_COTIZACIONES, nuevoArray.toString())
         .apply()
+}
+
+/**
+ * Obtiene una cotización por ID
+ */
+fun obtenerCotizacionPorId(context: Context, id: Long): Cotizacion? {
+    return obtenerCotizacionesLocal(context).find { it.id == id }
+}
+
+/**
+ * Obtiene una cotización por folio
+ */
+fun obtenerCotizacionPorFolio(context: Context, folio: String): Cotizacion? {
+    return obtenerCotizacionesLocal(context).find { it.folio == folio }
 }

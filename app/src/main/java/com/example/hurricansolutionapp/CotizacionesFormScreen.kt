@@ -195,10 +195,16 @@ fun CotizacionesFormScreen(
                 shadowElevation = 8.dp
             ) {
                 if (!primeraConfirmada) {
+                    // CORREGIDO: El botón ahora guarda la medida actual Y agrega una nueva vacía
                     Button(
                         onClick = {
                             if (validarMedidaActual()) {
-                                syncDraft(); primeraConfirmada = true
+                                syncDraft()
+                                primeraConfirmada = true
+                                // Agregar nueva medida vacía y mover al siguiente índice
+                                ventanas.add(VentanaFormState())
+                                indexActual = ventanas.lastIndex
+                                syncDraft()
                             }
                         },
                         modifier = Modifier
@@ -313,9 +319,8 @@ fun CotizacionesFormScreen(
                                         .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                                 }
 
-                                // ✅ NO generamos folio aquí, se genera al GUARDAR en ResumenScreen
                                 val cotizacion = Cotizacion(
-                                    folio = "", // Se genera al guardar
+                                    folio = "",
                                     clienteNombre = draft.nombre.trim(),
                                     clienteTelefono = draft.telefono.trim(),
                                     ubicacion = listOf(
@@ -326,8 +331,8 @@ fun CotizacionesFormScreen(
                                     ciudad = draft.ciudad.trim(),
                                     especialista = especialista,
                                     fecha = fecha,
-                                    producto = TipoProducto.HS875, // Default, se selecciona en Resumen
-                                    productos = listOf(TipoProducto.HS875), // Default, se selecciona en Resumen
+                                    producto = TipoProducto.HS875,
+                                    productos = listOf(TipoProducto.HS875),
                                     tipoMontaje = draft.tipoMontaje,
                                     ventanas = ventanasValidas
                                 )

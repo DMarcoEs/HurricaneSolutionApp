@@ -931,11 +931,14 @@ fun generarPdfCotizacion(
         }
         pdfDocument.close()
 
+        // ✅ ENCOLAR ANTES DE REGRESAR
         UploadQueueStorage.enqueue(
             context,
             PendingUpload(
                 id = java.util.UUID.randomUUID().toString(),
                 cotizacionId = cotizacion.id.toString(),
+                clienteNombre = cotizacion.clienteNombre,
+                createdByNombre = SessionManager.getNombre(context),// ✅ AQUÍ
                 filePath = file.absolutePath,
                 status = "PENDING"
             )

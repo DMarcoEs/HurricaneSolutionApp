@@ -93,8 +93,7 @@ fun AppNavigation(
         composable(Routes.HOME) {
             HomeScreen(
                 userFirstName = SessionManager.getNombre(context),
-                pendingCount = UploadQueueStorage.getAll(context)
-                    .filter { it.status != "DONE" }.size,
+                pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
 
@@ -197,10 +196,16 @@ fun AppNavigation(
                     },
                     onVolverAEditar = {
                         if (desdeHistorial) {
-                            // Si viene del historial, volver al historial
-                            navController.popBackStack()
+                            // 1. Cargamos la cotización actual en el borrador (draft)
+                            cotizacionActual?.let { cotizacionDraft.cargarDesdeCotizacion(it) }
+
+                            // 2. Navegamos a la pantalla de captura de medidas
+                            navController.navigate(Routes.MEDIDAS) {
+                                // Limpiamos el historial para evitar volver al resumen al darle "atrás"
+                                popUpTo(Routes.HISTORIAL) { inclusive = false }
+                            }
                         } else {
-                            // Si es nueva cotización, volver a medidas
+                            // Si es una cotización nueva que aún no se guarda, solo regresamos
                             navController.popBackStack()
                         }
                     },
@@ -234,7 +239,6 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() },
                 onVerDetalle = { cotizacion ->
-                    // ✅ Cuando haces click en una cotización, se abre el ResumenScreen
                     cotizacionActual = cotizacion
                     desdeHistorial = true
                     navController.navigate(Routes.RESUMEN)
@@ -253,6 +257,8 @@ fun AppNavigation(
             popExitTransition = { popExitTransition() }
         ) {
             PendingUploadsScreen(
+                isDarkMode = isDarkMode,
+                isOnline = online,
                 onBack = { navController.popBackStack() },
                 onRetryUpload = { pending ->
                     scope.launch {

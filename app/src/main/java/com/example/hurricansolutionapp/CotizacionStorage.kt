@@ -14,8 +14,9 @@ private fun getPrefs(context: Context): SharedPreferences {
 
 /**
  * Guarda o actualiza una cotización en SharedPreferences.
+ * Si es una actualización (id existente), se actualiza el campo updatedAt.
  */
-fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
+fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion, esActualizacion: Boolean = false) {
     val prefs = getPrefs(context)
 
     val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
@@ -29,13 +30,23 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         cotizacion.id
     }
 
-    // Copiamos todas las cotizaciones excepto la que tenga el mismo id (para actualizarla)
+    // Determinar si es actualización buscando si el ID ya existe
+    var existeAntes = false
     for (i in 0 until array.length()) {
         val obj = array.getJSONObject(i)
         val idExistente = obj.optLong("id", -1L)
-        if (idExistente != idParaGuardar) {
+        if (idExistente == idParaGuardar) {
+            existeAntes = true
+        } else {
             nuevoArray.put(obj)
         }
+    }
+
+    // Si es actualización o existía antes, actualizar timestamp
+    val updatedAtFinal = if (esActualizacion || existeAntes) {
+        System.currentTimeMillis()
+    } else {
+        cotizacion.updatedAt
     }
 
     // Objeto JSON de la nueva/actualizada cotización
@@ -65,6 +76,9 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
         // Legacy
         put("descuentoDolaresPorM2", cotizacion.descuentoDolaresPorM2)
         put("tipoMontaje", cotizacion.tipoMontaje)
+
+        // Timestamp de actualización
+        put("updatedAt", updatedAtFinal)
 
         // Ventanas
         val ventanasArray = JSONArray()
@@ -137,6 +151,9 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         val descuentoDolaresPorM2 = obj.optDouble("descuentoDolaresPorM2", 0.0)
         val tipoMontaje = obj.optString("tipoMontaje", "Flush Mount")
 
+        // Timestamp de actualización
+        val updatedAt = obj.optLong("updatedAt", 0L)
+
         val ventanasJson = obj.optJSONArray("ventanas") ?: JSONArray()
         val ventanas = mutableListOf<Ventana>()
         for (j in 0 until ventanasJson.length()) {
@@ -176,7 +193,8 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             descuentoHS1500 = descuentoHS1500,
             descuentoDolaresPorM2 = descuentoDolaresPorM2,
             tipoMontaje = tipoMontaje,
-            ventanas = ventanas
+            ventanas = ventanas,
+            updatedAt = updatedAt
         )
         resultado.add(cotizacion)
     }
@@ -219,4 +237,11 @@ fun obtenerCotizacionPorId(context: Context, id: Long): Cotizacion? {
  */
 fun obtenerCotizacionPorFolio(context: Context, folio: String): Cotizacion? {
     return obtenerCotizacionesLocal(context).find { it.folio == folio }
+}
+
+/**
+ * Actualiza una cotización existente y marca como editada
+ */
+fun actualizarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
+    guardarCotizacionLocal(context, cotizacion, esActualizacion = true)
 }

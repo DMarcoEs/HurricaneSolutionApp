@@ -32,42 +32,39 @@ object UploadRepository {
             return
         }
 
-        fun slug(input: String): String {
+        /**
+         * Formatea el nombre para que sea profesional:
+         * - Primera letra de cada palabra en mayúscula
+         * - Sin acentos
+         * - Espacios reemplazados por guión bajo
+         */
+        fun formatName(input: String): String {
             val normalized = Normalizer.normalize(input, Normalizer.Form.NFD)
                 .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")  // quita acentos
+
             return normalized
-                .lowercase(Locale.getDefault())
-                .replace("[^a-z0-9]+".toRegex(), "_")                        // todo lo raro a _
-                .trim('_')
-                .take(60)                                                    // evita nombres gigantes
+                .trim()
+                .split("\\s+".toRegex())  // dividir por espacios
+                .filter { it.isNotBlank() }
+                .joinToString("_") { word ->
+                    word.lowercase(Locale.getDefault())
+                        .replaceFirstChar { it.uppercase() }  // Primera letra mayúscula
+                }
+                .replace("[^A-Za-z0-9_]+".toRegex(), "")  // quitar caracteres raros
+                .take(50)  // limitar longitud
         }
 
-        // Ruta en el bucket: <userId>/<nombreArchivo>
-        // Fecha (día) a partir de createdAt
-        val diaFmt = DateTimeFormatter.ofPattern("dd_MMM_yyyy", Locale("es", "ES"))
+        // Formatear nombre del cliente: "erick hernandez rios" → "Erick_Hernandez_Rios"
+        val clienteFormateado = formatName(item.clienteNombre ?: "Cliente")
 
-        val dia = Instant.ofEpochMilli(item.createdAt)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
-            .format(diaFmt)
+        // Folio ya viene en formato correcto: "MC-0004"
+        val folio = item.cotizacionId.ifBlank { "SIN_FOLIO" }
 
+        // Nombre final: Cotizacion_Erick_Hernandez_Rios_MC-0004.pdf
+        val fileName = "Cotizacion_${clienteFormateado}_${folio}.pdf"
 
-// Partes del nombre
-        val cliente = slug(item.clienteNombre ?: "cliente")
-        val usuario = slug(
-            (item.createdByNombre ?: SessionManager.getNombre(context))
-                .ifBlank { "usuario" }
-        )
-        val id = slug(item.cotizacionId)
-
-// Nombre final del archivo (lo que verás en Supabase)
-        val fileName =
-            "Cotizacion_${cliente}_dia_${dia}_ID_${id}.pdf"
-
-
-// Ruta en el bucket: <userId>/<fileName>
+        // Ruta en el bucket: <userId>/<fileName>
         val remotePath = "$userId/$fileName"
-
 
         try {
             val bytes = file.readBytes()
@@ -80,7 +77,7 @@ object UploadRepository {
                 .upload(
                     path = remotePath,
                     data = bytes,
-                    upsert = true
+                    upsert = true  // Si existe, lo reemplaza (útil para ediciones)
                 )
 
             UploadQueueStorage.markDone(context, item.id)

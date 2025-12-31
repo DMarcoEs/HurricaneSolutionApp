@@ -106,159 +106,6 @@ fun generarPdfCotizacion(
         return lines
     }
 
-    // === FIX: evitar colisión Condiciones (resultado con nombres) ===
-    data class CondicionesRenderResult(
-        val page: PdfDocument.Page,
-        val canvas: Canvas,
-        val yFinal: Float,
-        val pageNumber: Int
-    )
-
-    fun calcularAltoCondiciones(
-        condiciones: List<String>,
-        maxWidth: Float,
-        paintRef: Paint,
-        condLineHeight: Float
-    ): Float {
-        var linesCount = 0
-
-        condiciones.forEachIndexed { idx, text ->
-            val numberPrefix = "${idx + 1}.- "
-            val numberWidth = paintRef.measureText(numberPrefix)
-            val maxTextWidth = (maxWidth - numberWidth).coerceAtLeast(10f)
-
-            val words = text.split(" ")
-            var current = ""
-            val lines = mutableListOf<String>()
-
-            for (w in words) {
-                val candidate = if (current.isEmpty()) w else "$current $w"
-                if (paintRef.measureText(candidate) > maxTextWidth) {
-                    if (current.isNotEmpty()) lines.add(current)
-                    current = w
-                } else {
-                    current = candidate
-                }
-            }
-            if (current.isNotEmpty()) lines.add(current)
-
-            linesCount += if (lines.isEmpty()) 1 else lines.size
-        }
-
-        // +1 línea del título "Condiciones Comerciales:"
-        return (1 + linesCount) * condLineHeight
-    }
-
-    fun drawCondicionesPaginadas(
-        pdfDocument: PdfDocument,
-        pageWidth: Int,
-        pageHeight: Int,
-        margin: Float,
-        bottomBarHeight: Float,
-        drawHeaderFn: (Canvas) -> Unit,
-        drawFooterFn: (Canvas) -> Unit,
-        condicionesLeft: Float,
-        maxCondicionesWidth: Float,
-        condiciones: List<String>,
-        startY: Float,
-        footerLimitY: Float,
-        paintRef: Paint,
-        condLineHeight: Float,
-        mutPage: PdfDocument.Page,
-        mutCanvas: Canvas,
-        mutPageNumber: Int
-    ): CondicionesRenderResult {
-
-        var page = mutPage
-        var canvas = mutCanvas
-        var pageNumber = mutPageNumber
-        var y = startY
-
-        fun newPage() {
-            drawFooterFn(canvas)
-            pdfDocument.finishPage(page)
-
-            pageNumber++
-            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
-            page = pdfDocument.startPage(pageInfo)
-            canvas = page.canvas
-            drawHeaderFn(canvas)
-            y = 95f
-        }
-
-        paintRef.textAlign = Paint.Align.LEFT
-
-        // Si no cabe ni el título, nueva página
-        if (y + condLineHeight > footerLimitY) newPage()
-
-        // Título
-        paintRef.color = Color.BLACK
-        paintRef.textSize = 8.5f
-        paintRef.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("Condiciones Comerciales:", condicionesLeft, y, paintRef)
-        y += condLineHeight
-
-        // Texto
-        paintRef.textSize = 6.5f
-        paintRef.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
-
-        fun drawConditionWithNumber(localIndex: Int, text: String, baselineY: Float): Float {
-            val numberPrefix = "$localIndex.- "
-            val numberWidth = paintRef.measureText(numberPrefix)
-            val maxTextWidth = (maxCondicionesWidth - numberWidth).coerceAtLeast(10f)
-
-            val words = text.split(" ")
-            val lines = mutableListOf<String>()
-            var current = ""
-
-            for (w in words) {
-                val candidate = if (current.isEmpty()) w else "$current $w"
-                if (paintRef.measureText(candidate) > maxTextWidth) {
-                    if (current.isNotEmpty()) lines.add(current)
-                    current = w
-                } else {
-                    current = candidate
-                }
-            }
-            if (current.isNotEmpty()) lines.add(current)
-
-            var yy = baselineY
-            if (lines.isNotEmpty()) {
-                canvas.drawText(numberPrefix, condicionesLeft, yy, paintRef)
-                canvas.drawText(lines[0], condicionesLeft + numberWidth, yy, paintRef)
-                yy += condLineHeight
-                for (i in 1 until lines.size) {
-                    canvas.drawText(lines[i], condicionesLeft + numberWidth, yy, paintRef)
-                    yy += condLineHeight
-                }
-            } else {
-                canvas.drawText(numberPrefix + text, condicionesLeft, yy, paintRef)
-                yy += condLineHeight
-            }
-            return yy
-        }
-
-        condiciones.forEachIndexed { idx, linea ->
-            // Si lo siguiente no cabe, nueva página
-            if (y + condLineHeight > footerLimitY) {
-                newPage()
-                // Título de continuación (opcional)
-                paintRef.textSize = 8.0f
-                paintRef.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                canvas.drawText("Condiciones Comerciales (cont.):", condicionesLeft, y, paintRef)
-                y += condLineHeight
-                paintRef.textSize = 6.5f
-                paintRef.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
-            }
-
-            y = drawConditionWithNumber(idx + 1, linea, y)
-        }
-
-        return CondicionesRenderResult(page, canvas, y, pageNumber)
-    }
-
-
-
     // ======================= ENCABEZADO (LOGOS + LEMA) =======================
     fun drawHeader(canvas: Canvas) {
         try {
@@ -475,120 +322,6 @@ fun generarPdfCotizacion(
         drawSocialIcon(iconFacebook, socialX)
     }
 
-    val condicionesLineas = listOf(
-        "Precios cotizados en Dólares Americanos.",
-        "Los precios ya incluyen IVA.",
-        "Para pago en Moneda Nacional aplicará el T.C. vigente al día de pago según Banco de México.",
-        "Se requiere 50% anticipo para la programación de instalación.",
-        "No hay reembolso por Cancelación después de 3 días del pago de anticipo.",
-        "Vigencia de la cotización: 15 días.",
-        "El precio incluye instalación dentro de la zona continental de Quintana Roo. Para proyectos ubicados fuera de esta zona se hará un cargo extra por concepto de viáticos.",
-        "Las medidas contempladas en esta propuesta pueden variar después de la rectificación.",
-        "La instalación se programará con base en la agenda y todo proyecto entrará a una fila de instalación. Los tiempos de instalación serán de acuerdo a las fechas que se tengan programadas. En caso de existir algún espacio disponible antes del periodo máximo, se le notificará al cliente.",
-        "Aplicará la garantía de acuerdo al Sistema Contratado y siempre y cuando se cumplan los cuidados y recomendaciones entregadas al término de la instalación.",
-        "Los descuentos concedidos en esta cotización podrán modificarse si el metraje total disminuye o se cancela alguna área.",
-        "El costo de adecuaciones o modificaciones estructurales como instalación de PTR o cajillos en prefabricados NO ESTÁN INCLUIDOS."
-    )
-
-    fun drawCondicionesAboveFooter(canvas: Canvas, boxLeftLocal: Float) {
-        val condicionesLeft = margin
-        val condicionesRight = boxLeftLocal - 12f
-        val maxCondicionesWidth = condicionesRight - condicionesLeft
-
-        // Si no hay espacio horizontal, no dibujar (evita crashes raros)
-        if (maxCondicionesWidth < 120f) return
-
-        val footerTop = pageHeight.toFloat() - bottomBarHeight
-
-        // Estilo
-        val titleSize = 8.5f
-        val bodySize = 6.5f
-        val condLineHeight = 7.5f
-
-        // Medición (wrap)
-        val tmpPaint = Paint(paint).apply {
-            textSize = bodySize
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
-            textAlign = Paint.Align.LEFT
-        }
-
-        fun countWrappedLines(index: Int, text: String): Int {
-            val numberPrefix = "${index}.- "
-            val numberWidth = tmpPaint.measureText(numberPrefix)
-            val maxTextWidth = (maxCondicionesWidth - numberWidth).coerceAtLeast(10f)
-
-            val words = text.split(" ")
-            var current = ""
-            val lines = mutableListOf<String>()
-            for (w in words) {
-                val candidate = if (current.isEmpty()) w else "$current $w"
-                if (tmpPaint.measureText(candidate) > maxTextWidth) {
-                    if (current.isNotEmpty()) lines.add(current)
-                    current = w
-                } else current = candidate
-            }
-            if (current.isNotEmpty()) lines.add(current)
-            return maxOf(1, lines.size)
-        }
-
-        val totalBodyLines = condicionesLineas.mapIndexed { i, t -> countWrappedLines(i + 1, t) }.sum()
-        val totalLines = 1 + totalBodyLines // +1 por el título
-        val blockHeight = totalLines * condLineHeight + 4f
-
-        // Top del bloque (pegado arriba del footer)
-        val topY = footerTop - blockHeight - 6f
-        var y = topY + 12f
-
-        // Título
-        paint.textAlign = Paint.Align.LEFT
-        paint.color = Color.BLACK
-        paint.textSize = titleSize
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("Condiciones Comerciales:", condicionesLeft, y, paint)
-        y += condLineHeight
-
-        // Cuerpo
-        paint.textSize = bodySize
-        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
-
-        fun drawConditionWithNumber(idx: Int, text: String, startY: Float): Float {
-            val numberPrefix = "$idx.- "
-            val numberWidth = paint.measureText(numberPrefix)
-            val maxTextWidth = (maxCondicionesWidth - numberWidth).coerceAtLeast(10f)
-
-            val words = text.split(" ")
-            val lines = mutableListOf<String>()
-            var current = ""
-
-            for (w in words) {
-                val candidate = if (current.isEmpty()) w else "$current $w"
-                if (paint.measureText(candidate) > maxTextWidth) {
-                    if (current.isNotEmpty()) lines.add(current)
-                    current = w
-                } else current = candidate
-            }
-            if (current.isNotEmpty()) lines.add(current)
-
-            var yy = startY
-            canvas.drawText(numberPrefix, condicionesLeft, yy, paint)
-            canvas.drawText(lines.firstOrNull().orEmpty(), condicionesLeft + numberWidth, yy, paint)
-            yy += condLineHeight
-
-            for (i in 1 until lines.size) {
-                canvas.drawText(lines[i], condicionesLeft + numberWidth, yy, paint)
-                yy += condLineHeight
-            }
-            return yy
-        }
-
-        condicionesLineas.forEachIndexed { i, linea ->
-            y = drawConditionWithNumber(i + 1, linea, y)
-        }
-    }
-
-
-
-
     // ======================= PRODUCTOS SELECCIONADOS =======================
     // CORREGIDO: Ahora lee correctamente los productos de la cotización
     val productosSeleccionados: List<TipoProducto> = run {
@@ -625,11 +358,6 @@ fun generarPdfCotizacion(
     val colPriceW = colPricesTotalW / priceColumnsCount
 
     val startPreciosX = tableLeft + colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW
-
-    val labelWidthResumen = 110f
-    val boxLeftFixed = startPreciosX - labelWidthResumen
-
-
 
     // ======================= PRE-CÁLCULO DE FILAS =======================
     data class RowLayout(
@@ -883,12 +611,7 @@ fun generarPdfCotizacion(
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     paint.textAlign = Paint.Align.CENTER
 
-    // Reservamos espacio para Condiciones + Footer en TODAS las páginas
-    val footerTopGlobal = pageHeight.toFloat() - bottomBarHeight
-    val condicionesReserva = 120f
-    val maxTableBottomPerPage = footerTopGlobal - condicionesReserva - 10f
-
-
+    val maxTableBottomPerPage = pageHeight - bottomBarHeight - 20f
 
     // ======================= DIBUJAR FILAS =======================
     filas.forEachIndexed { index, rowLayout ->
@@ -896,11 +619,8 @@ fun generarPdfCotizacion(
         val extraNeeded = if (isLastRow) extraSpaceNeededLastPage else 0f
 
         if (y + rowLayout.height + extraNeeded > maxTableBottomPerPage) {
-            drawCondicionesAboveFooter(canvas, boxLeftFixed)
-
             drawFooter(canvas)
             pdfDocument.finishPage(page)
-
 
             pageNumber++
             pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
@@ -992,7 +712,7 @@ fun generarPdfCotizacion(
             (subtotalProducto - descuentoImporte).coerceAtLeast(0.0)
         }
 
-    val labelWidth = labelWidthResumen
+    val labelWidth = 110f
     val boxLeft = startPreciosX - labelWidth
     val boxRight = tableRight
 
@@ -1003,8 +723,7 @@ fun generarPdfCotizacion(
     val totalResumenRows = 5
     val bloqueAltura = rowHeightResumen * totalResumenRows
 
-    val footerTopGlobal2 = pageHeight.toFloat() - bottomBarHeight
-
+    val footerTop = pageHeight.toFloat() - bottomBarHeight
 
     val margenSobreFooter = 10f
     val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - bloqueAltura
@@ -1012,15 +731,21 @@ fun generarPdfCotizacion(
     val espacioEntreTablaYResumen = 20f
     val resumenTop = maxOf(y + espacioEntreTablaYResumen, resumenTopDesdeAbajo)
 
+    // Calcular dónde termina el bloque de resumen (para alinear condiciones)
+    val resumenBottom = resumenTop + bloqueAltura
+
     var filaTop = resumenTop
+    var isFirstRow = true
 
     fun drawResumenDataRow(
         label: String,
         getTextForCol: (Int, TipoProducto) -> String,
-        boldLabel: Boolean
+        boldLabel: Boolean,
+        isLastRow: Boolean = false
     ) {
         val filaBottom = filaTop + rowHeightResumen
 
+        // Celda negra con el label
         paint.style = Paint.Style.FILL
         paint.color = Color.BLACK
         canvas.drawRect(boxLeft, filaTop, boxLeft + labelWidth, filaBottom, paint)
@@ -1035,14 +760,35 @@ fun generarPdfCotizacion(
 
         canvas.drawText(label, boxLeft + 4f, filaBottom - 4f, paint)
 
+        // Celdas de valores - CORREGIDO: Dibujar borde que NO sobresalga
         productosSeleccionados.forEachIndexed { index, producto ->
             val left = boxLeft + labelWidth + index * valueColumnWidth
             val right = left + valueColumnWidth
 
-            paint.style = Paint.Style.STROKE
-            paint.color = Color.BLACK
+            // Dibujar fondo blanco primero
+            paint.style = Paint.Style.FILL
+            paint.color = Color.WHITE
             canvas.drawRect(left, filaTop, right, filaBottom, paint)
 
+            // Dibujar bordes internos (no el borde superior de la primera fila ni inferior de la última)
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.BLACK
+            paint.strokeWidth = 0.5f
+
+            // Borde izquierdo siempre
+            canvas.drawLine(left, filaTop, left, filaBottom, paint)
+            // Borde derecho siempre
+            canvas.drawLine(right, filaTop, right, filaBottom, paint)
+            // Borde superior solo si NO es la primera fila
+            if (!isFirstRow) {
+                canvas.drawLine(left, filaTop, right, filaTop, paint)
+            }
+            // Borde inferior solo si ES la última fila
+            if (isLastRow) {
+                canvas.drawLine(left, filaBottom, right, filaBottom, paint)
+            }
+
+            // Texto del valor
             paint.style = Paint.Style.FILL
             paint.color = Color.BLACK
             paint.textAlign = Paint.Align.RIGHT
@@ -1055,11 +801,12 @@ fun generarPdfCotizacion(
         }
 
         filaTop = filaBottom
+        isFirstRow = false
     }
 
-    // FILA 1: Sub total
+    // FILA 1: Subtotal
     drawResumenDataRow(
-        label = "Sub total",
+        label = "Subtotal",
         getTextForCol = { _, producto ->
             val subtotalProducto = totalesPorProducto[producto] ?: 0.0
             "$ " + "%,.2f".format(subtotalProducto)
@@ -1067,7 +814,18 @@ fun generarPdfCotizacion(
         boldLabel = true
     )
 
-// FILA 2: Descuento (%)
+    // FILA 2: Total IVA sin descuento
+    drawResumenDataRow(
+        label = "Total IVA sin descuento",
+        getTextForCol = { _, producto ->
+            val subtotalProducto = totalesPorProducto[producto] ?: 0.0
+            val subtotalConIvaSinDesc = subtotalProducto * (1.0 + IVA_RATE)
+            "$ " + "%,.2f".format(subtotalConIvaSinDesc)
+        },
+        boldLabel = false
+    )
+
+    // FILA 3: Descuento (%)
     drawResumenDataRow(
         label = "Descuento",
         getTextForCol = { _, producto ->
@@ -1077,9 +835,9 @@ fun generarPdfCotizacion(
         boldLabel = false
     )
 
-// FILA 3: Sub total con descuento (SIN IVA)
+    // FILA 4: Subtotal con descuento
     drawResumenDataRow(
-        label = "Sub total con descuento",
+        label = "Subtotal con descuento",
         getTextForCol = { _, producto ->
             val subtotalConDescSinIva = preciosFinalesPorProducto[producto] ?: 0.0
             "$ " + "%,.2f".format(subtotalConDescSinIva)
@@ -1087,37 +845,127 @@ fun generarPdfCotizacion(
         boldLabel = true
     )
 
-// FILA 4: IVA (calculado sobre el subtotal con descuento)
+    // FILA 5: Precio Final con IVA
     drawResumenDataRow(
-        label = "IVA",
-        getTextForCol = { _, producto ->
-            val precioSinIva = preciosFinalesPorProducto[producto] ?: 0.0
-            val iva = precioSinIva * IVA_RATE
-            "$ " + "%,.2f".format(iva)
-        },
-        boldLabel = false
-    )
-
-// FILA 5: Precio final con IVA
-    drawResumenDataRow(
-        label = "Precio final con IVA",
+        label = "Precio Final con IVA",
         getTextForCol = { _, producto ->
             val precioSinIva = preciosFinalesPorProducto[producto] ?: 0.0
             val precioConIva = precioSinIva * (1.0 + IVA_RATE)
             "$ " + "%,.2f".format(precioConIva)
         },
-        boldLabel = true
+        boldLabel = true,
+        isLastRow = true  // Última fila - dibuja borde inferior
     )
 
+    // ======================= CONDICIONES COMERCIALES =======================
+    // ALINEADO: Las condiciones deben empezar y terminar alineadas con el bloque de precios
+    val condicionesLeft = margin
+    val condicionesRight = boxLeft - 10f
+    val maxCondicionesWidth = condicionesRight - condicionesLeft
 
+    val condicionesLineas = listOf(
+        "Precios cotizados en Dólares Americanos.",
+        "Los precios ya incluyen IVA.",
+        "Para pago en Moneda Nacional aplicará el T.C. vigente al día de pago según Banco de México.",
+        "Se requiere 50% anticipo para la programación de instalación.",
+        "No hay reembolso por Cancelación después de 3 días del pago de anticipo.",
+        "Vigencia de la cotización: 15 días.",
+        "El precio incluye instalación dentro de la zona continental de Quintana Roo. Para proyectos fuera de esta zona se hará un cargo extra.",
+        "Las medidas contempladas pueden variar después de la rectificación.",
+        "La instalación se programará con base en la agenda.",
+        "Aplicará la garantía de acuerdo al Sistema Contratado.",
+        "Los descuentos podrán modificarse si el metraje total disminuye.",
+        "El costo de adecuaciones estructurales NO ESTÁN INCLUIDOS."
+    )
 
+    // Calcular cuántas líneas totales necesitamos (incluyendo wrapping)
+    paint.textSize = 5f
+    paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
 
+    var totalLineasEstimadas = 1 // Título
+    condicionesLineas.forEach { linea ->
+        val numberPrefix = "XX.- "
+        val numberWidth = paint.measureText(numberPrefix)
+        val maxTextWidth = maxCondicionesWidth - numberWidth
+        val words = linea.split(" ")
+        var current = ""
+        var lineCount = 0
+        for (word in words) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (paint.measureText(candidate) > maxTextWidth) {
+                if (current.isNotEmpty()) lineCount++
+                current = word
+            } else {
+                current = candidate
+            }
+        }
+        if (current.isNotEmpty()) lineCount++
+        totalLineasEstimadas += lineCount
+    }
 
-    drawCondicionesAboveFooter(canvas, boxLeftFixed)
+    // Calcular altura de línea para que todo quepa en el bloque de precios
+    val alturaDisponible = bloqueAltura - 10f // 10f para el título
+    val condLineHeightCalculated = (alturaDisponible / totalLineasEstimadas).coerceIn(4.5f, 6.5f)
+
+    paint.textAlign = Paint.Align.LEFT
+    paint.color = Color.BLACK
+    paint.textSize = 6.5f
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+
+    // Empezar a la misma altura que el bloque de precios
+    var condicionesY = resumenTop + 8f
+    canvas.drawText("Condiciones Comerciales:", condicionesLeft, condicionesY, paint)
+
+    paint.textSize = 5f
+    paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
+    condicionesY += condLineHeightCalculated + 2f
+
+    fun drawConditionWithNumber(index: Int, text: String, startY: Float): Float {
+        val numberPrefix = "$index.- "
+        val numberWidth = paint.measureText(numberPrefix)
+        val maxTextWidth = maxCondicionesWidth - numberWidth
+
+        val words = text.split(" ")
+        val lines = mutableListOf<String>()
+        var current = ""
+
+        for (word in words) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (paint.measureText(candidate) > maxTextWidth) {
+                if (current.isNotEmpty()) {
+                    lines.add(current)
+                }
+                current = word
+            } else {
+                current = candidate
+            }
+        }
+        if (current.isNotEmpty()) lines.add(current)
+
+        var currentY = startY
+
+        if (lines.isNotEmpty()) {
+            canvas.drawText(numberPrefix, condicionesLeft, currentY, paint)
+            canvas.drawText(lines[0], condicionesLeft + numberWidth, currentY, paint)
+            currentY += condLineHeightCalculated
+
+            for (i in 1 until lines.size) {
+                canvas.drawText(lines[i], condicionesLeft + numberWidth, currentY, paint)
+                currentY += condLineHeightCalculated
+            }
+        }
+        return currentY
+    }
+
+    condicionesLineas.forEachIndexed { index, linea ->
+        // Solo dibujar si no nos pasamos del límite
+        if (condicionesY < resumenBottom - condLineHeightCalculated) {
+            condicionesY = drawConditionWithNumber(index + 1, linea, condicionesY)
+        }
+    }
 
     drawFooter(canvas)
     pdfDocument.finishPage(page)
-
 
     // ======================= GUARDAR ARCHIVO =======================
     val docsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
@@ -1140,14 +988,13 @@ fun generarPdfCotizacion(
         }
         pdfDocument.close()
 
-        // ✅ ENCOLAR ANTES DE REGRESAR
         UploadQueueStorage.enqueue(
             context,
             PendingUpload(
                 id = java.util.UUID.randomUUID().toString(),
-                cotizacionId = cotizacion.id.toString(),
+                cotizacionId = cotizacion.folio.ifBlank { cotizacion.id.toString() },  // Usar folio como ID
                 clienteNombre = cotizacion.clienteNombre,
-                createdByNombre = SessionManager.getNombre(context),// ✅ AQUÍ
+                createdByNombre = cotizacion.especialista,
                 filePath = file.absolutePath,
                 status = "PENDING"
             )

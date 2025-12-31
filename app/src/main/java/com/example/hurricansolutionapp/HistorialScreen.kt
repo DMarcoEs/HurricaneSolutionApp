@@ -10,13 +10,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +40,10 @@ fun HistorialScreen(
     val context = LocalContext.current
     var cotizaciones by remember { mutableStateOf(obtenerCotizacionesLocal(context)) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Estado para el diálogo de confirmación
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var cotizacionAEliminar by remember { mutableStateOf<Cotizacion?>(null) }
 
     val cotizacionesFiltradas = remember(cotizaciones, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -66,6 +70,94 @@ fun HistorialScreen(
             maximumFractionDigits = 2
         }
         return "$${format.format(amount)}"
+    }
+
+    // Diálogo de confirmación para eliminar
+    if (showDeleteDialog && cotizacionAEliminar != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteDialog = false
+                cotizacionAEliminar = null
+            },
+            containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
+            icon = {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Eliminar cotización",
+                    color = textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "¿Estás seguro de que deseas eliminar esta cotización?",
+                        color = textMuted,
+                        fontSize = 14.sp
+                    )
+                    if (cotizacionAEliminar?.folio?.isNotBlank() == true) {
+                        Text(
+                            "Folio: #${cotizacionAEliminar?.folio}",
+                            color = textPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Text(
+                        "Cliente: ${cotizacionAEliminar?.clienteNombre}",
+                        color = textPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Esta acción no se puede deshacer.",
+                        color = Color(0xFFEF4444),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        cotizacionAEliminar?.let { cot ->
+                            borrarCotizacionLocal(context, cot.id)
+                            cotizaciones = obtenerCotizacionesLocal(context)
+                            Toast.makeText(context, "Cotización eliminada", Toast.LENGTH_SHORT).show()
+                        }
+                        showDeleteDialog = false
+                        cotizacionAEliminar = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Eliminar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        cotizacionAEliminar = null
+                    },
+                    border = BorderStroke(1.dp, border),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Cancelar", color = textPrimary, fontWeight = FontWeight.Medium)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -190,20 +282,16 @@ fun HistorialScreen(
                         onPdf = {
                             val pdf = generarPdfCotizacion(context, c)
                             if (pdf != null) verPdf(context, pdf)
-                            else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT)
-                                .show()
+                            else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
                         },
                         onCompartir = {
                             val pdf = generarPdfCotizacion(context, c)
                             if (pdf != null) compartirPdf(context, pdf)
-                            else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT)
-                                .show()
+                            else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
                         },
                         onEliminar = {
-                            borrarCotizacionLocal(context, c.id)
-                            cotizaciones = obtenerCotizacionesLocal(context)
-                            Toast.makeText(context, "Cotización eliminada", Toast.LENGTH_SHORT)
-                                .show()
+                            cotizacionAEliminar = c
+                            showDeleteDialog = true
                         }
                     )
                 }
@@ -241,7 +329,6 @@ private fun CotizacionCard(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            // Header: Folio + Número de cotización
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -262,12 +349,7 @@ private fun CotizacionCard(
                                 )
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text(
-                                "#${cotizacion.folio}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = textMuted
-                            )
+                            Text("#${cotizacion.folio}", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = textMuted)
                         }
                         Spacer(Modifier.height(8.dp))
                     }
@@ -282,25 +364,26 @@ private fun CotizacionCard(
                     )
 
                     Spacer(Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.CalendarToday,
-                            contentDescription = null,
-                            tint = textMuted,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                            cotizacion.fecha,
-                            color = textMuted,
-                            fontSize = 12.sp
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.CalendarToday, contentDescription = null, tint = textMuted, modifier = Modifier.size(12.dp))
+                        Text(cotizacion.fecha, color = textMuted, fontSize = 12.sp)
+                    }
+
+                    // Mostrar badge de editado si aplica
+                    if (cotizacion.fueEditada()) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(11.dp))
+                            Text(
+                                text = "Editado ${cotizacion.getUpdatedAtFormatted()}",
+                                color = Color(0xFFF59E0B),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
 
-                // Número de cotización (esquina superior derecha)
                 Box(
                     modifier = Modifier
                         .background(
@@ -309,92 +392,40 @@ private fun CotizacionCard(
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(
-                        "#$numeroOrden",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimary
-                    )
+                    Text("#$numeroOrden", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // Info de medidas
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Default.Straighten,
-                    contentDescription = null,
-                    tint = textMuted,
-                    modifier = Modifier.size(16.dp)
-                )
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Straighten, contentDescription = null, tint = textMuted, modifier = Modifier.size(16.dp))
                 Column {
                     Row {
-                        Text(
-                            "No. de Medidas: ",
-                            color = textMuted,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            "${cotizacion.ventanas.size}",
-                            color = textPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("No. de Medidas: ", color = textMuted, fontSize = 13.sp)
+                        Text("${cotizacion.ventanas.size}", color = textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text(
-                        "Total del área del proyecto: ${
-                            String.format(
-                                "%.2f",
-                                cotizacion.areaTotal
-                            )
-                        } m²",
-                        color = textMuted,
-                        fontSize = 12.sp
-                    )
+                    Text("Total del área del proyecto: ${String.format("%.2f", cotizacion.areaTotal)} m²", color = textMuted, fontSize = 12.sp)
                 }
             }
 
             Spacer(Modifier.height(12.dp))
 
-            // Precios por sistema (sin icono)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                 cotizacion.productos.forEachIndexed { index, producto ->
                     val total = cotizacion.totalConDescuento(producto)
                     val isLast = index == cotizacion.productos.lastIndex
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "${producto.etiquetaCorta}:",
-                            color = textMuted,
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            formatMoney(total),
-                            color = textPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text("${producto.etiquetaCorta}:", color = textMuted, fontSize = 12.sp)
+                        Text(formatMoney(total), color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
 
-                    if (!isLast) {
-                        HorizontalDivider(
-                            color = border.copy(0.3f),
-                            modifier = Modifier.padding(vertical = 0.dp)
-                        )
-                    }
+                    if (!isLast) HorizontalDivider(color = border.copy(0.3f), modifier = Modifier.padding(vertical = 0.dp))
                 }
             }
 
@@ -402,81 +433,38 @@ private fun CotizacionCard(
             HorizontalDivider(color = border.copy(0.5f))
             Spacer(Modifier.height(16.dp))
 
-            // Botones: PDF | Compartir | Eliminar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onPdf,
-                    modifier = Modifier
-                        .weight(2f)
-                        .height(44.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isDarkMode) Color.White else Color.Black
-                    ),
+                    modifier = Modifier.weight(2f).height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Icon(
-                        Icons.Default.PictureAsPdf,
-                        contentDescription = null,
-                        tint = if (isDarkMode) Color.Black else Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(
-                        "PDF",
-                        color = if (isDarkMode) Color.Black else Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text("PDF", color = if (isDarkMode) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 OutlinedButton(
                     onClick = onCompartir,
-                    modifier = Modifier
-                        .weight(2f)
-                        .height(44.dp),
+                    modifier = Modifier.weight(2f).height(44.dp),
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
-                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)),
                     border = BorderStroke(0.dp, Color.Transparent)
                 ) {
-                    Icon(
-                        Icons.Default.Share,
-                        contentDescription = null,
-                        tint = textPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Compartir",
-                        color = textPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Icon(Icons.Default.Share, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Enviar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 OutlinedButton(
                     onClick = onEliminar,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp),
+                    modifier = Modifier.weight(1f).height(44.dp),
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isDarkMode) Color(0xFF450A0A).copy(0.3f) else Color(
-                            0xFFFEF2F2
-                        )
-                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = if (isDarkMode) Color(0xFF450A0A).copy(0.3f) else Color(0xFFFEF2F2)),
                     border = BorderStroke(0.dp, Color.Transparent)
                 ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Eliminar",
-                        tint = Color(0xFFEF4444),
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
                 }
             }
         }

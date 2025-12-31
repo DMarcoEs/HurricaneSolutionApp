@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
@@ -41,10 +42,13 @@ fun ResumenScreen(
     onVolverAHistorial: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var guardado by rememberSaveable { mutableStateOf(desdeHistorial) }
     var pdfFile by remember { mutableStateOf<File?>(null) }
     var folioGenerado by rememberSaveable { mutableStateOf(cotizacion.folio) }
+    var subiendoPdf by remember { mutableStateOf(false) }
+    var mensajeSubida by remember { mutableStateOf<String?>(null) }
 
     var hs875Selected by rememberSaveable {
         mutableStateOf(if (desdeHistorial) cotizacion.productos.contains(TipoProducto.HS875) else true)
@@ -60,22 +64,13 @@ fun ResumenScreen(
         mutableStateOf(if (desdeHistorial) (cotizacion.descuentoHS875 > 0 || cotizacion.descuentoHS1250 > 0 || cotizacion.descuentoHS1500 > 0) else false)
     }
     var descuentoHS875 by rememberSaveable {
-        mutableStateOf(
-            if (desdeHistorial && cotizacion.descuentoHS875 > 0) cotizacion.descuentoHS875.toInt()
-                .toString() else ""
-        )
+        mutableStateOf(if (desdeHistorial && cotizacion.descuentoHS875 > 0) cotizacion.descuentoHS875.toInt().toString() else "")
     }
     var descuentoHS1250 by rememberSaveable {
-        mutableStateOf(
-            if (desdeHistorial && cotizacion.descuentoHS1250 > 0) cotizacion.descuentoHS1250.toInt()
-                .toString() else ""
-        )
+        mutableStateOf(if (desdeHistorial && cotizacion.descuentoHS1250 > 0) cotizacion.descuentoHS1250.toInt().toString() else "")
     }
     var descuentoHS1500 by rememberSaveable {
-        mutableStateOf(
-            if (desdeHistorial && cotizacion.descuentoHS1500 > 0) cotizacion.descuentoHS1500.toInt()
-                .toString() else ""
-        )
+        mutableStateOf(if (desdeHistorial && cotizacion.descuentoHS1500 > 0) cotizacion.descuentoHS1500.toInt().toString() else "")
     }
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
@@ -138,9 +133,32 @@ fun ResumenScreen(
             else -> "0"
         }
         val descuento = if (aplicaDescuento) getDescuentoValidado(producto, descuentoTexto) else 0.0
-        val precioFinal =
-            (producto.getPrecioVenta() - descuento).coerceAtLeast(producto.getPrecioBase())
+        val precioFinal = (producto.getPrecioVenta() - descuento).coerceAtLeast(producto.getPrecioBase())
         return cotizacion.ventanas.sumOf { it.areaM2 * precioFinal }
+    }
+
+    // FUNCIÓN PARA OBTENER O GENERAR PDF (FIX para historial)
+    fun obtenerOGenerarPdf(): File? {
+        if (pdfFile != null && pdfFile!!.exists()) {
+            return pdfFile
+        }
+
+        val cotizacionParaPdf = if (desdeHistorial) {
+            cotizacion.copy(
+                productos = productosSeleccionados.ifEmpty { cotizacion.productos },
+                descuentoHS875 = if (aplicaDescuento) getDescuentoValidado(TipoProducto.HS875, descuentoHS875) else cotizacion.descuentoHS875,
+                descuentoHS1250 = if (aplicaDescuento) getDescuentoValidado(TipoProducto.HS1250, descuentoHS1250) else cotizacion.descuentoHS1250,
+                descuentoHS1500 = if (aplicaDescuento) getDescuentoValidado(TipoProducto.HS1500, descuentoHS1500) else cotizacion.descuentoHS1500
+            )
+        } else {
+            cotizacion
+        }
+
+        val pdf = generarPdfCotizacion(context, cotizacionParaPdf)
+        if (pdf != null) {
+            pdfFile = pdf
+        }
+        return pdf
     }
 
     BackHandler {
@@ -155,16 +173,9 @@ fun ResumenScreen(
         containerColor = bg,
         topBar = {
             Column(modifier = Modifier.background(surface)) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = surface,
-                    shadowElevation = 2.dp
-                ) {
+                Surface(modifier = Modifier.fillMaxWidth(), color = surface, shadowElevation = 2.dp) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -177,93 +188,36 @@ fun ResumenScreen(
                             },
                             modifier = Modifier.size(40.dp)
                         ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_chevron_left),
-                                contentDescription = "Atrás",
-                                tint = textPrimary
-                            )
+                            Icon(painter = painterResource(id = R.drawable.ic_chevron_left), contentDescription = "Atrás", tint = textPrimary)
                         }
                         Spacer(Modifier.weight(1f))
-                        Text(
-                            "RESUMEN DE COTIZACIÓN",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = textPrimary,
-                            letterSpacing = 0.5.sp
-                        )
+                        Text("RESUMEN DE COTIZACIÓN", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = textPrimary, letterSpacing = 0.5.sp)
                         Spacer(Modifier.weight(1f))
                         Spacer(Modifier.size(40.dp))
                     }
                 }
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(surface)
-                        .padding(vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().background(surface).padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)
-                            )
-                    )
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)))
                     Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)
-                            )
-                    )
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)))
                     Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier
-                            .width(24.dp)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(if (isDarkMode) Color.White else Color.Black)
-                    )
+                    Box(Modifier.width(24.dp).height(6.dp).clip(RoundedCornerShape(50)).background(if (isDarkMode) Color.White else Color.Black))
                 }
             }
         },
         bottomBar = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = surface.copy(alpha = 0.95f),
-                shadowElevation = 8.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = surface.copy(alpha = 0.95f), shadowElevation = 8.dp) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (productosSeleccionados.isNotEmpty()) {
                         productosSeleccionados.forEach { producto ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "TOTAL ${producto.etiquetaCorta}",
-                                    color = textMuted,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                                Text(
-                                    formatMoney(calcularTotal(producto)),
-                                    color = textPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Black
-                                )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("TOTAL ${producto.etiquetaCorta}", color = textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                Text(formatMoney(calcularTotal(producto)), color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Black)
                             }
                         }
                         Spacer(Modifier.height(8.dp))
@@ -273,16 +227,11 @@ fun ResumenScreen(
                         Button(
                             onClick = {
                                 if (productosSeleccionados.isEmpty()) {
-                                    Toast.makeText(
-                                        context,
-                                        "Selecciona al menos un sistema",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    Toast.makeText(context, "Selecciona al menos un sistema", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
 
-                                val especialista =
-                                    cotizacion.especialista.ifBlank { "Especialista" }
+                                val especialista = cotizacion.especialista.ifBlank { "Especialista" }
                                 val folioFinal = if (folioGenerado.isBlank()) {
                                     FolioManager.nextFolioForEspecialista(context, especialista)
                                 } else {
@@ -294,138 +243,91 @@ fun ResumenScreen(
                                     folio = folioFinal,
                                     productos = productosSeleccionados,
                                     producto = productosSeleccionados.first(),
-                                    descuentoHS875 = if (aplicaDescuento) getDescuentoValidado(
-                                        TipoProducto.HS875,
-                                        descuentoHS875
-                                    ) else 0.0,
-                                    descuentoHS1250 = if (aplicaDescuento) getDescuentoValidado(
-                                        TipoProducto.HS1250,
-                                        descuentoHS1250
-                                    ) else 0.0,
-                                    descuentoHS1500 = if (aplicaDescuento) getDescuentoValidado(
-                                        TipoProducto.HS1500,
-                                        descuentoHS1500
-                                    ) else 0.0
+                                    descuentoHS875 = if (aplicaDescuento) getDescuentoValidado(TipoProducto.HS875, descuentoHS875) else 0.0,
+                                    descuentoHS1250 = if (aplicaDescuento) getDescuentoValidado(TipoProducto.HS1250, descuentoHS1250) else 0.0,
+                                    descuentoHS1500 = if (aplicaDescuento) getDescuentoValidado(TipoProducto.HS1500, descuentoHS1500) else 0.0
                                 )
 
                                 guardarCotizacionLocal(context, cotizacionFinal)
 
-                                val pdf = generarPdfCotizacion(context, cotizacionFinal)
+                                // Usar el AutoUploadManager para generar y subir automáticamente
+                                subiendoPdf = true
+                                val pdf = AutoUploadManager.generarYSubirPdf(
+                                    context = context,
+                                    cotizacion = cotizacionFinal,
+                                    scope = scope,
+                                    onPdfGenerated = { file ->
+                                        pdfFile = file
+                                        guardado = true
+                                    },
+                                    onUploadComplete = { success, error ->
+                                        subiendoPdf = false
+                                        mensajeSubida = if (success) {
+                                            "PDF subido correctamente"
+                                        } else if (error?.contains("Sin conexión") == true) {
+                                            "Guardado localmente - Se subirá cuando haya internet"
+                                        } else {
+                                            "Guardado - Error al subir: quedará pendiente"
+                                        }
+                                    }
+                                )
+
                                 if (pdf != null) {
-                                    pdfFile = pdf
-                                    guardado = true
-                                    Toast.makeText(
-                                        context,
-                                        "Cotización guardada",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    Toast.makeText(context, "Cotización guardada", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Error al generar PDF",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    subiendoPdf = false
+                                    Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(
-                                Icons.Default.PictureAsPdf,
-                                contentDescription = null,
-                                tint = if (isDarkMode) Color.Black else Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Text(
-                                "GUARDAR Y GENERAR PDF",
-                                color = if (isDarkMode) Color.Black else Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                letterSpacing = 0.5.sp
-                            )
+                            Text("GUARDAR Y GENERAR PDF", color = if (isDarkMode) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.5.sp)
                         }
                     } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
-                                onClick = { pdfFile?.let { compartirPdf(context, it) } },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
+                                onClick = {
+                                    val pdf = obtenerOGenerarPdf()
+                                    if (pdf != null) compartirPdf(context, pdf)
+                                    else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.weight(1.2f).height(48.dp),
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(
-                                    1.5.dp,
-                                    if (isDarkMode) Color.White else Color.Black
-                                )
+                                border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
                             ) {
-                                Icon(
-                                    Icons.Default.Share,
-                                    null,
-                                    tint = textPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Default.Share, null, tint = textPrimary, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "Compartir",
-                                    color = textPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("Enviar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
 
                             Button(
-                                onClick = { pdfFile?.let { verPdf(context, it) } },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
+                                onClick = {
+                                    val pdf = obtenerOGenerarPdf()
+                                    if (pdf != null) verPdf(context, pdf)
+                                    else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.weight(1f).height(48.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.PictureAsPdf,
-                                    null,
-                                    tint = if (isDarkMode) Color.Black else Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Default.PictureAsPdf, null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "PDF",
-                                    color = if (isDarkMode) Color.Black else Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("PDF", color = if (isDarkMode) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
 
                             OutlinedButton(
                                 onClick = onVolverAEditar,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
+                                modifier = Modifier.weight(1f).height(48.dp),
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(
-                                    1.5.dp,
-                                    if (isDarkMode) Color.White else Color.Black
-                                )
+                                border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
                             ) {
-                                Icon(
-                                    Icons.Default.Edit,
-                                    null,
-                                    tint = textPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Icon(Icons.Default.Edit, null, tint = textPrimary, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "Editar",
-                                    color = textPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("Editar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -434,131 +336,40 @@ fun ResumenScreen(
         }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             item {
-                StitchCard(
-                    title = "DATOS DEL CLIENTE",
-                    icon = Icons.Default.Person,
-                    isDarkMode = isDarkMode,
-                    surface = surface,
-                    headerBg = headerBg,
-                    border = border,
-                    accentBorder = accentBorder,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted
-                ) {
+                StitchCard(title = "DATOS DEL CLIENTE", icon = Icons.Default.Person, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        ClienteDataRow(
-                            "Nombre",
-                            cotizacion.clienteNombre,
-                            textMuted,
-                            textPrimary,
-                            border
-                        )
-                        ClienteDataRow(
-                            "Teléfono",
-                            cotizacion.clienteTelefono,
-                            textMuted,
-                            textPrimary,
-                            border
-                        )
-                        ClienteDataRow(
-                            "Ciudad",
-                            cotizacion.ciudad.ifBlank {
-                                cotizacion.ubicacion.split(",").firstOrNull() ?: ""
-                            },
-                            textMuted,
-                            textPrimary,
-                            border,
-                            showDivider = false
-                        )
+                        ClienteDataRow("Nombre", cotizacion.clienteNombre, textMuted, textPrimary, border)
+                        ClienteDataRow("Teléfono", cotizacion.clienteTelefono, textMuted, textPrimary, border)
+                        ClienteDataRow("Ciudad", cotizacion.ciudad.ifBlank { cotizacion.ubicacion.split(",").firstOrNull() ?: "" }, textMuted, textPrimary, border, showDivider = false)
                     }
                 }
             }
 
             item {
-                StitchCard(
-                    title = "APERTURAS",
-                    icon = Icons.Default.Straighten,
-                    isDarkMode = isDarkMode,
-                    surface = surface,
-                    headerBg = headerBg,
-                    border = border,
-                    accentBorder = accentBorder,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted
-                ) {
+                StitchCard(title = "APERTURAS", icon = Icons.Default.Straighten, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted) {
                     Column {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(if (isDarkMode) Color(0xFF1F1F1F) else Color.Black)
-                                .padding(vertical = 24.dp), contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxWidth().background(if (isDarkMode) Color(0xFF1F1F1F) else Color.Black).padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "ÁREA TOTAL",
-                                    color = Color(0xFF9CA3AF),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 2.sp
-                                )
+                                Text("ÁREA TOTAL", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                                 Spacer(Modifier.height(4.dp))
-                                Text(
-                                    formatArea(cotizacion.areaTotal),
-                                    color = Color.White,
-                                    fontSize = 36.sp,
-                                    fontWeight = FontWeight.Black
-                                )
+                                Text(formatArea(cotizacion.areaTotal), color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
                             }
                         }
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(headerBg)
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "APERTURAS (${cotizacion.ventanas.size})",
-                                color = textMuted,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
+                        Row(modifier = Modifier.fillMaxWidth().background(headerBg).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("APERTURAS (${cotizacion.ventanas.size})", color = textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         }
 
-                        Box(modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 300.dp)) {
+                        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
                             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                                 cotizacion.ventanas.forEachIndexed { index, ventana ->
-                                    AperturaItem(
-                                        index + 1,
-                                        ventana,
-                                        productosSeleccionados,
-                                        aplicaDescuento,
-                                        descuentoHS875,
-                                        descuentoHS1250,
-                                        descuentoHS1500,
-                                        isDarkMode,
-                                        textPrimary,
-                                        textMuted,
-                                        border,
-                                        ::formatMoney,
-                                        ::getDescuentoValidado
-                                    )
-                                    if (index < cotizacion.ventanas.lastIndex) HorizontalDivider(
-                                        color = border.copy(0.5f)
-                                    )
+                                    AperturaItemSimple(index + 1, ventana, isDarkMode, textPrimary, textMuted, border)
+                                    if (index < cotizacion.ventanas.lastIndex) HorizontalDivider(color = border.copy(0.5f))
                                 }
                             }
                         }
@@ -567,46 +378,12 @@ fun ResumenScreen(
             }
 
             item {
-                StitchCard(
-                    title = "TIPO DE SISTEMA",
-                    icon = Icons.Default.Category,
-                    isDarkMode = isDarkMode,
-                    surface = surface,
-                    headerBg = headerBg,
-                    border = border,
-                    accentBorder = accentBorder,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            SystemCard(
-                                "HS-875",
-                                hs875Selected,
-                                { hs875Selected = !hs875Selected },
-                                isDarkMode,
-                                Modifier.weight(1f)
-                            )
-                            SystemCard(
-                                "HS-1250",
-                                hs1250Selected,
-                                { hs1250Selected = !hs1250Selected },
-                                isDarkMode,
-                                Modifier.weight(1f)
-                            )
-                            SystemCard(
-                                "HS-1500",
-                                hs1500Selected,
-                                { hs1500Selected = !hs1500Selected },
-                                isDarkMode,
-                                Modifier.weight(1f)
-                            )
+                StitchCard(title = "TIPO DE SISTEMA", icon = Icons.Default.Category, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SystemCard("HS-875", hs875Selected, { hs875Selected = !hs875Selected }, isDarkMode, Modifier.weight(1f))
+                            SystemCard("HS-1250", hs1250Selected, { hs1250Selected = !hs1250Selected }, isDarkMode, Modifier.weight(1f))
+                            SystemCard("HS-1500", hs1500Selected, { hs1500Selected = !hs1500Selected }, isDarkMode, Modifier.weight(1f))
                         }
                     }
                 }
@@ -614,116 +391,21 @@ fun ResumenScreen(
 
             item {
                 StitchCard(
-                    title = "DESCUENTOS",
-                    icon = Icons.Default.Percent,
-                    isDarkMode = isDarkMode,
-                    surface = surface,
-                    headerBg = headerBg,
-                    border = border,
-                    accentBorder = accentBorder,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted,
+                    title = "DESCUENTOS", icon = Icons.Default.Percent, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted,
                     headerContent = {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .border(1.dp, border, RoundedCornerShape(6.dp))
-                                .background(if (isDarkMode) Color.Black else Color.White)
-                                .padding(2.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(
-                                        if (!aplicaDescuento) (if (isDarkMode) Color(0xFF374151) else Color.Black) else Color.Transparent
-                                    )
-                                    .clickable { aplicaDescuento = false }
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    "No",
-                                    color = if (!aplicaDescuento) Color.White else textMuted,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(
-                                        if (aplicaDescuento) (if (isDarkMode) Color(0xFF374151) else Color.Black) else Color.Transparent
-                                    )
-                                    .clickable { aplicaDescuento = true }
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    "Sí",
-                                    color = if (aplicaDescuento) Color.White else textMuted,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        DescuentoToggleButton(aplicaDescuento, { aplicaDescuento = !aplicaDescuento }, isDarkMode, textMuted, border)
                     }
                 ) {
-                    AnimatedVisibility(
-                        visible = aplicaDescuento,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            if (hs875Selected) DiscountInputField(
-                                "HS-875",
-                                descuentoHS875,
-                                {
-                                    descuentoHS875 = validarInputDescuento(
-                                        it,
-                                        TipoProducto.HS875.getMaxDescuento()
-                                    )
-                                },
-                                isDarkMode,
-                                textPrimary,
-                                border
-                            )
-                            if (hs1250Selected) DiscountInputField(
-                                "HS-1250",
-                                descuentoHS1250,
-                                {
-                                    descuentoHS1250 = validarInputDescuento(
-                                        it,
-                                        TipoProducto.HS1250.getMaxDescuento()
-                                    )
-                                },
-                                isDarkMode,
-                                textPrimary,
-                                border
-                            )
-                            if (hs1500Selected) DiscountInputField(
-                                "HS-1500",
-                                descuentoHS1500,
-                                {
-                                    descuentoHS1500 = validarInputDescuento(
-                                        it,
-                                        TipoProducto.HS1500.getMaxDescuento()
-                                    )
-                                },
-                                isDarkMode,
-                                textPrimary,
-                                border
-                            )
+                    AnimatedVisibility(visible = aplicaDescuento, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            if (hs875Selected) DiscountInputField("HS-875", descuentoHS875, { descuentoHS875 = validarInputDescuento(it, TipoProducto.HS875.getMaxDescuento()) }, isDarkMode, textPrimary, border)
+                            if (hs1250Selected) DiscountInputField("HS-1250", descuentoHS1250, { descuentoHS1250 = validarInputDescuento(it, TipoProducto.HS1250.getMaxDescuento()) }, isDarkMode, textPrimary, border)
+                            if (hs1500Selected) DiscountInputField("HS-1500", descuentoHS1500, { descuentoHS1500 = validarInputDescuento(it, TipoProducto.HS1500.getMaxDescuento()) }, isDarkMode, textPrimary, border)
                         }
                     }
 
                     if (!aplicaDescuento) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                             Text("Sin descuentos aplicados", color = textMuted, fontSize = 14.sp)
                         }
                     }
@@ -735,81 +417,79 @@ fun ResumenScreen(
     }
 }
 
+// Toggle de Descuentos mejorado - Compacto y toda el área clickeable
 @Composable
-private fun StitchCard(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isDarkMode: Boolean,
-    surface: Color,
-    headerBg: Color,
-    border: Color,
-    accentBorder: Color,
-    textPrimary: Color,
-    textMuted: Color,
-    badge: String? = null,
-    headerContent: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit
-) {
+private fun DescuentoToggleButton(aplicaDescuento: Boolean, onToggle: () -> Unit, isDarkMode: Boolean, textMuted: Color, border: Color) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = surface,
-        shape = RoundedCornerShape(0.dp),
-        shadowElevation = 2.dp
+        onClick = onToggle,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)),
+        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB),
+        shape = RoundedCornerShape(6.dp)
     ) {
+        Row(modifier = Modifier.padding(2.dp)) {
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                    .background(if (!aplicaDescuento) (if (isDarkMode) Color.White else Color.Black) else Color.Transparent)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text("No", color = if (!aplicaDescuento) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                    .background(if (aplicaDescuento) (if (isDarkMode) Color.White else Color.Black) else Color.Transparent)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text("Sí", color = if (aplicaDescuento) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// AperturaItem SIMPLIFICADO (sin precios HS)
+@Composable
+private fun AperturaItemSimple(index: Int, ventana: Ventana, isDarkMode: Boolean, textPrimary: Color, textMuted: Color, border: Color) {
+    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(if (isDarkMode) Color(0xFF374151) else Color(0xFFF3F4F6)), contentAlignment = Alignment.Center) {
+            Text(String.format("%02d", index), color = textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Text(ventana.descripcion, color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text("${String.format("%.2f", ventana.alto)}m x ${String.format("%.2f", ventana.ancho)}m", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.border(1.dp, border, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                    Text(ventana.tipoMontaje, color = textMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                }
+                Text("|", color = textMuted.copy(0.5f), fontSize = 10.sp)
+                Text(String.format("%.2f m²", ventana.areaM2), color = textMuted, fontSize = 10.sp)
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("ADECUACIONES:", color = textMuted.copy(0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                val tieneAdecuacion = ventana.adecuacion != "No" && ventana.adecuacion.isNotBlank()
+                Box(modifier = Modifier.background(if (tieneAdecuacion) (if (isDarkMode) Color.White else Color.Black) else Color.Transparent, RoundedCornerShape(4.dp)).border(1.dp, if (tieneAdecuacion) Color.Transparent else border.copy(0.3f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                    Text(if (tieneAdecuacion) "Sí, ${ventana.adecuacion}" else "No", color = if (tieneAdecuacion) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StitchCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isDarkMode: Boolean, surface: Color, headerBg: Color, border: Color, accentBorder: Color, textPrimary: Color, textMuted: Color, badge: String? = null, headerContent: @Composable (() -> Unit)? = null, content: @Composable () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = surface, shape = RoundedCornerShape(0.dp), shadowElevation = 2.dp) {
         Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            Box(modifier = Modifier
-                .width(4.dp)
-                .fillMaxHeight()
-                .background(accentBorder))
+            Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(accentBorder))
             Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(headerBg)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            icon,
-                            contentDescription = null,
-                            tint = textPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            title,
-                            color = textMuted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
+                Row(modifier = Modifier.fillMaxWidth().background(headerBg).padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(icon, contentDescription = null, tint = textPrimary, modifier = Modifier.size(20.dp))
+                        Text(title, color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        badge?.let {
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        Color.Black,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    it,
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        badge?.let { Box(modifier = Modifier.background(Color.Black, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) { Text(it, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp) } }
                         headerContent?.invoke()
                     }
                 }
@@ -821,227 +501,28 @@ private fun StitchCard(
 }
 
 @Composable
-private fun ClienteDataRow(
-    label: String,
-    value: String,
-    textMuted: Color,
-    textPrimary: Color,
-    border: Color,
-    showDivider: Boolean = true
-) {
+private fun ClienteDataRow(label: String, value: String, textMuted: Color, textPrimary: Color, border: Color, showDivider: Boolean = true) {
     Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, color = textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(
-                value,
-                color = textPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f, false)
-            )
+            Text(value, color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.weight(1f, false))
         }
         if (showDivider) HorizontalDivider(color = border.copy(0.3f))
     }
 }
 
 @Composable
-private fun AperturaItem(
-    index: Int,
-    ventana: Ventana,
-    productosSeleccionados: List<TipoProducto>,
-    aplicaDescuento: Boolean,
-    descuentoHS875: String,
-    descuentoHS1250: String,
-    descuentoHS1500: String,
-    isDarkMode: Boolean,
-    textPrimary: Color,
-    textMuted: Color,
-    border: Color,
-    formatMoney: (Double) -> String,
-    getDescuentoValidado: (TipoProducto, String) -> Double
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (isDarkMode) Color(0xFF374151) else Color(0xFFF3F4F6)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                String.format("%02d", index),
-                color = textMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    ventana.descripcion,
-                    color = textPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "${String.format("%.2f", ventana.alto)}m x ${
-                        String.format(
-                            "%.2f",
-                            ventana.ancho
-                        )
-                    }m", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            if (productosSeleccionados.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    productosSeleccionados.forEach { producto ->
-                        val descuentoTexto = when (producto) {
-                            TipoProducto.HS875 -> descuentoHS875; TipoProducto.HS1250 -> descuentoHS1250; TipoProducto.HS1500 -> descuentoHS1500; else -> "0"
-                        }
-                        val descuento = if (aplicaDescuento) getDescuentoValidado(
-                            producto,
-                            descuentoTexto
-                        ) else 0.0
-                        Text(
-                            "${producto.etiquetaCorta}: ${
-                                formatMoney(
-                                    ventana.subtotalConDescuento(
-                                        producto,
-                                        descuento
-                                    )
-                                )
-                            }", color = textMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .border(1.dp, border, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        ventana.tipoMontaje,
-                        color = textMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                Text("|", color = textMuted.copy(0.5f), fontSize = 10.sp)
-                Text(String.format("%.2f m²", ventana.areaM2), color = textMuted, fontSize = 10.sp)
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "ADECUACIONES:",
-                    color = textMuted.copy(0.7f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
-                val tieneAdecuacion = ventana.adecuacion != "No" && ventana.adecuacion.isNotBlank()
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (tieneAdecuacion) (if (isDarkMode) Color.White else Color.Black) else Color.Transparent,
-                            RoundedCornerShape(4.dp)
-                        )
-                        .border(
-                            1.dp,
-                            if (tieneAdecuacion) Color.Transparent else border.copy(0.3f),
-                            RoundedCornerShape(4.dp)
-                        )
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        if (tieneAdecuacion) "Sí, ${ventana.adecuacion}" else "No",
-                        color = if (tieneAdecuacion) (if (isDarkMode) Color.Black else Color.White) else textMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    }
-}
+private fun SystemCard(label: String, selected: Boolean, onClick: () -> Unit, isDarkMode: Boolean, modifier: Modifier = Modifier) {
+    val backgroundColor = when { selected && isDarkMode -> Color.White; selected -> Color.Black; isDarkMode -> Color(0xFF18181B); else -> Color.White }
+    val contentColor = when { selected && isDarkMode -> Color.Black; selected -> Color.White; isDarkMode -> Color(0xFF71717A); else -> Color(0xFF6B7280) }
+    val borderColor = when { selected -> Color.Transparent; isDarkMode -> Color(0xFF374151); else -> Color(0xFFE5E7EB) }
 
-@Composable
-private fun SystemCard(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    isDarkMode: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val backgroundColor = when {
-        selected && isDarkMode -> Color.White; selected -> Color.Black; isDarkMode -> Color(
-            0xFF18181B
-        ); else -> Color.White
-    }
-    val contentColor = when {
-        selected && isDarkMode -> Color.Black; selected -> Color.White; isDarkMode -> Color(
-            0xFF71717A
-        ); else -> Color(0xFF6B7280)
-    }
-    val borderColor = when {
-        selected -> Color.Transparent; isDarkMode -> Color(0xFF374151); else -> Color(0xFFE5E7EB)
-    }
-
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(70.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = backgroundColor,
-        border = if (!selected) BorderStroke(1.dp, borderColor) else null,
-        shadowElevation = if (selected) 4.dp else 1.dp
-    ) {
+    Surface(onClick = onClick, modifier = modifier.height(70.dp), shape = RoundedCornerShape(12.dp), color = backgroundColor, border = if (!selected) BorderStroke(1.dp, borderColor) else null, shadowElevation = if (selected) 4.dp else 1.dp) {
         Box(contentAlignment = Alignment.Center) {
             Text(label, color = contentColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (selected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .background(if (isDarkMode) Color.Black else Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = if (isDarkMode) Color.White else Color.Black,
-                        modifier = Modifier.size(12.dp)
-                    )
+                Box(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(18.dp).clip(CircleShape).background(if (isDarkMode) Color.Black else Color.White), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = if (isDarkMode) Color.White else Color.Black, modifier = Modifier.size(12.dp))
                 }
             }
         }
@@ -1049,52 +530,10 @@ private fun SystemCard(
 }
 
 @Composable
-private fun DiscountInputField(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    isDarkMode: Boolean,
-    textPrimary: Color,
-    border: Color
-) {
+private fun DiscountInputField(label: String, value: String, onValueChange: (String) -> Unit, isDarkMode: Boolean, textPrimary: Color, border: Color) {
     Column {
-        Text(
-            label,
-            color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
-        )
+        Text(label, color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = {
-                Text(
-                    "0",
-                    color = if (isDarkMode) Color(0xFF6B7280) else Color(0xFF9CA3AF)
-                )
-            },
-            leadingIcon = {
-                Text(
-                    "$",
-                    color = textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = if (isDarkMode) Color(0xFF1F1F1F) else Color.White,
-                unfocusedContainerColor = if (isDarkMode) Color(0xFF1F1F1F) else Color.White,
-                focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
-                unfocusedBorderColor = border,
-                focusedTextColor = textPrimary,
-                unfocusedTextColor = textPrimary
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true
-        )
+        OutlinedTextField(value = value, onValueChange = onValueChange, placeholder = { Text("0", color = if (isDarkMode) Color(0xFF6B7280) else Color(0xFF9CA3AF)) }, leadingIcon = { Text("$", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = if (isDarkMode) Color(0xFF1F1F1F) else Color.White, unfocusedContainerColor = if (isDarkMode) Color(0xFF1F1F1F) else Color.White, focusedBorderColor = if (isDarkMode) Color.White else Color.Black, unfocusedBorderColor = border, focusedTextColor = textPrimary, unfocusedTextColor = textPrimary), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
     }
 }

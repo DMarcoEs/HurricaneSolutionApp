@@ -94,6 +94,8 @@ data class Ventana(
 // DRAFT DE COTIZACIÓN (lo que se va llenando paso a paso)
 // ═══════════════════════════════════════════════════════════════════════════════
 data class CotizacionDraft(
+    var id: Long = 0L,  // Para edición
+    var folio: String = "",  // Para edición
     var nombre: String = "",
     var telefono: String = "",
     var ciudad: String = "",
@@ -111,6 +113,8 @@ data class CotizacionDraft(
     var descuentoHS1500: Double = 0.0
 ) {
     fun clear() {
+        id = 0L
+        folio = ""
         nombre = ""
         telefono = ""
         ciudad = ""
@@ -133,6 +137,49 @@ data class CotizacionDraft(
         TipoProducto.HS1500 -> descuentoHS1500
         TipoProducto.PERSONALIZADO -> 0.0
     }
+
+    /**
+     * Llena el draft con los datos de una cotización existente (para edición)
+     */
+    fun cargarDesdeCotizacion(cotizacion: Cotizacion) {
+        id = cotizacion.id
+        folio = cotizacion.folio
+        nombre = cotizacion.clienteNombre
+        telefono = cotizacion.clienteTelefono
+        ciudad = cotizacion.ciudad
+
+        // Extraer colonia y dirección de ubicación
+        val partes = cotizacion.ubicacion.split(",").map { it.trim() }
+        colonia = partes.getOrNull(1) ?: ""
+        direccionDetalle = partes.getOrNull(2) ?: ""
+
+        fecha = cotizacion.fecha
+        tipoMontaje = cotizacion.tipoMontaje
+        productosSeleccionados = cotizacion.productos.toMutableList()
+
+        // Cargar descuentos
+        descuentoHS875 = cotizacion.descuentoHS875
+        descuentoHS1250 = cotizacion.descuentoHS1250
+        descuentoHS1500 = cotizacion.descuentoHS1500
+        aplicaDescuento = descuentoHS875 > 0 || descuentoHS1250 > 0 || descuentoHS1500 > 0
+
+        // Convertir ventanas a formularios
+        ventanasForm = cotizacion.ventanas.map { v ->
+            VentanaFormState(
+                descripcion = v.descripcion,
+                alto = String.format("%.2f", v.alto),
+                ancho = String.format("%.2f", v.ancho),
+                adecuacion = if (v.adecuacion == "No" || v.adecuacion.isBlank()) "No" else "Sí",
+                tipoMontaje = v.tipoMontaje,
+                adecuacionDetalle = if (v.adecuacion != "No" && v.adecuacion.isNotBlank()) v.adecuacion else ""
+            )
+        }.toMutableList()
+    }
+
+    /**
+     * Verifica si este draft es una edición de una cotización existente
+     */
+    fun esEdicion(): Boolean = id > 0L || folio.isNotBlank()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -156,7 +203,9 @@ data class Cotizacion(
     val descuentoHS1250: Double = 0.0,
     val descuentoHS1500: Double = 0.0,
     // Legacy
-    val descuentoDolaresPorM2: Double = 0.0
+    val descuentoDolaresPorM2: Double = 0.0,
+    // NUEVO: Timestamp de última actualización
+    val updatedAt: Long = 0L
 ) {
     val areaTotal: Double get() = ventanas.sumOf { it.areaM2 }
     val subtotal: Double get() = ventanas.sumOf { it.subtotal }
@@ -186,4 +235,18 @@ data class Cotizacion(
 
     // Productos ordenados de menor a mayor precio
     fun productosOrdenados(): List<TipoProducto> = productos.sortedBy { it.getPrecioVenta() }
+
+    /**
+     * Verifica si esta cotización fue editada después de crearse
+     */
+    fun fueEditada(): Boolean = updatedAt > 0L
+
+    /**
+     * Obtiene la fecha de actualización formateada
+     */
+    fun getUpdatedAtFormatted(): String {
+        if (updatedAt == 0L) return ""
+        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+        return sdf.format(java.util.Date(updatedAt))
+    }
 }

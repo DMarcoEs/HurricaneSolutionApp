@@ -1,15 +1,26 @@
 package com.example.hurricansolutionapp
 
 object Routes {
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // RUTAS COMUNES
+    // ═══════════════════════════════════════════════════════════════════════════════
     const val LOGIN = "login"
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // RUTAS ESPECIALISTA
+    // ═══════════════════════════════════════════════════════════════════════════════
     const val HOME = "home"
     const val CLIENTE = "cliente"
     const val MEDIDAS = "medidas"
-
-    // Flujo de cotización
     const val RESUMEN = "resumen"
-
-    // Botones del Home
     const val HISTORIAL = "historial"
     const val PENDIENTES = "pendientes"
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // RUTAS ADMINISTRADOR
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const val ADMIN_HOME = "admin_home"
+    const val ADMIN_PRECIOS = "admin_precios"
+    const val ADMIN_COTIZACIONES = "admin_cotizaciones"
+    const val ADMIN_EMPLEADOS = "admin_empleados"
 }

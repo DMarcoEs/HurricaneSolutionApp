@@ -1,5 +1,6 @@
 package com.example.hurricansolutionapp
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -23,6 +24,8 @@ import kotlinx.coroutines.launch
 import java.net.UnknownHostException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+
+private const val TAG = "LoginScreen"
 
 @Composable
 fun LoginScreen(
@@ -89,7 +92,7 @@ fun LoginScreen(
                         modifier = Modifier.padding(top = 0.dp)
                     )
 
-                    Divider(
+                    HorizontalDivider(
                         color = Color.White.copy(alpha = 0.12f),
                         thickness = 1.dp,
                         modifier = Modifier.padding(vertical = 2.dp)
@@ -153,8 +156,10 @@ fun LoginScreen(
                             scope.launch {
                                 try {
                                     loading = true
+                                    Log.d(TAG, "Iniciando login para: $correo")
 
                                     val user = AuthRepository.login(correo, password)
+                                    Log.d(TAG, "Login exitoso: ${user.nombre}, role: ${user.role}")
 
                                     SessionManager.login(
                                         context = context,
@@ -167,6 +172,9 @@ fun LoginScreen(
                                     onLoginSuccess()
 
                                 } catch (e: Exception) {
+                                    // LOG DEL ERROR REAL
+                                    Log.e(TAG, "Error en login: ${e.javaClass.simpleName}: ${e.message}", e)
+
                                     val msg = (e.message ?: "").lowercase()
 
                                     val userFriendly = when {
@@ -174,7 +182,16 @@ fun LoginScreen(
                                                 msg.contains("invalid_credentials") ||
                                                 msg.contains("invalid_grant") -> "Usuario o contraseña incorrectos."
 
-                                        msg.contains("usuario inactivo") -> "Tu usuario está inactivo. Contacta al administrador."
+                                        msg.contains("usuario desactivado") ||
+                                                msg.contains("usuario inactivo") -> "Tu usuario está inactivo. Contacta al administrador."
+
+                                        msg.contains("row-level security") ||
+                                                msg.contains("rls") ||
+                                                msg.contains("policy") -> "Error de permisos en la base de datos. Contacta al administrador."
+
+                                        msg.contains("no rows") ||
+                                                msg.contains("not found") ||
+                                                msg.contains("0 rows") -> "No se encontró el perfil del usuario. Contacta al administrador."
 
                                         e is UnknownHostException ||
                                                 e is ConnectException ||
@@ -184,7 +201,10 @@ fun LoginScreen(
                                                 msg.contains("timeout") ||
                                                 msg.contains("http request") -> "No hay conexión a internet. Verifica tu red e intenta de nuevo."
 
-                                        else -> "Ocurrió un error al iniciar sesión. Intenta de nuevo."
+                                        else -> {
+                                            // Mostrar error técnico para diagnóstico
+                                            "Error: ${e.message?.take(100) ?: "Desconocido"}"
+                                        }
                                     }
 
                                     errorMsg = userFriendly

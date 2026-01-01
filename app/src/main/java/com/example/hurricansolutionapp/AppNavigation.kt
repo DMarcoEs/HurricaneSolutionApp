@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,12 +17,11 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ANIMACIONES DE TRANSICIÓN - MÁS SUAVES (tipo fade, menos "cambio de pantalla")
+// ANIMACIONES DE TRANSICIÓN
 // ═══════════════════════════════════════════════════════════════════════════════
 
 private const val ANIMATION_DURATION = 350
 
-// Animación de entrada: fade + slide sutil
 private fun enterTransition(): EnterTransition {
     return fadeIn(
         animationSpec = tween(ANIMATION_DURATION)
@@ -31,21 +31,18 @@ private fun enterTransition(): EnterTransition {
     )
 }
 
-// Animación de salida: fade out sutil
 private fun exitTransition(): ExitTransition {
     return fadeOut(
         animationSpec = tween(ANIMATION_DURATION / 2)
     )
 }
 
-// Animación de entrada al volver: fade
 private fun popEnterTransition(): EnterTransition {
     return fadeIn(
         animationSpec = tween(ANIMATION_DURATION)
     )
 }
 
-// Animación de salida al volver: fade + slide sutil
 private fun popExitTransition(): ExitTransition {
     return fadeOut(
         animationSpec = tween(ANIMATION_DURATION / 2)
@@ -65,9 +62,25 @@ fun AppNavigation(
     setDarkMode: (Boolean) -> Unit,
     online: Boolean
 ) {
-    val start = if (SessionManager.isLoggedIn(context)) Routes.HOME else Routes.LOGIN
+    // Determinar pantalla inicial basada en rol
+    val userRole = SessionManager.getRole(context)
+    val isAdmin = userRole == "ADMIN"
+
+    val start = when {
+        !SessionManager.isLoggedIn(context) -> Routes.LOGIN
+        isAdmin -> Routes.ADMIN_HOME
+        else -> Routes.HOME
+    }
+
     var cotizacionActual by remember { mutableStateOf<Cotizacion?>(null) }
     var desdeHistorial by remember { mutableStateOf(false) }
+
+    // Cargar precios al iniciar (para todos los usuarios)
+    LaunchedEffect(Unit) {
+        if (SessionManager.isLoggedIn(context)) {
+            PriceManager.loadPrices()
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -79,7 +92,16 @@ fun AppNavigation(
         composable(Routes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Routes.HOME) {
+                    // Cargar precios después del login
+                    scope.launch {
+                        PriceManager.loadPrices()
+                    }
+
+                    // Navegar según el rol
+                    val role = SessionManager.getRole(context)
+                    val destination = if (role == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+
+                    navController.navigate(destination) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -88,7 +110,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // HOME
+        // HOME (ESPECIALISTA)
         // ═══════════════════════════════════════════════════════════════════
         composable(Routes.HOME) {
             HomeScreen(
@@ -124,6 +146,97 @@ fun AppNavigation(
                         }
                     }
                 }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN HOME
+        // ═══════════════════════════════════════════════════════════════════
+        composable(Routes.ADMIN_HOME) {
+            AdminHomeScreen(
+                adminName = SessionManager.getNombre(context),
+                pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
+                isDarkMode = isDarkMode,
+                onToggleDarkMode = { setDarkMode(!isDarkMode) },
+                // Funciones de especialista
+                onNuevaCotizacion = {
+                    cotizacionDraft.clear()
+                    desdeHistorial = false
+                    navController.navigate(Routes.CLIENTE)
+                },
+                onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
+                onPendientes = { navController.navigate(Routes.PENDIENTES) },
+                // Funciones de admin
+                onConfigurePrecios = { navController.navigate(Routes.ADMIN_PRECIOS) },
+                onVerTodasCotizaciones = { navController.navigate(Routes.ADMIN_COTIZACIONES) },
+                onVerEmpleados = { navController.navigate(Routes.ADMIN_EMPLEADOS) },
+                // Logout
+                logoutEnabled = online,
+                onCerrarSesion = {
+                    scope.launch {
+                        if (!isOnline(context)) return@launch
+
+                        try {
+                            AuthRepository.logout()
+                        } catch (_: Exception) {
+                            return@launch
+                        }
+
+                        SessionManager.logout(context)
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.ADMIN_HOME) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN - CONFIGURAR PRECIOS
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_PRECIOS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            ConfigurarPreciosScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN - VER COTIZACIONES
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_COTIZACIONES,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminCotizacionesScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN - GESTIONAR EMPLEADOS
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_EMPLEADOS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminEmpleadosScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -196,16 +309,8 @@ fun AppNavigation(
                     },
                     onVolverAEditar = {
                         if (desdeHistorial) {
-                            // 1. Cargamos la cotización actual en el borrador (draft)
-                            cotizacionActual?.let { cotizacionDraft.cargarDesdeCotizacion(it) }
-
-                            // 2. Navegamos a la pantalla de captura de medidas
-                            navController.navigate(Routes.MEDIDAS) {
-                                // Limpiamos el historial para evitar volver al resumen al darle "atrás"
-                                popUpTo(Routes.HISTORIAL) { inclusive = false }
-                            }
+                            navController.popBackStack()
                         } else {
-                            // Si es una cotización nueva que aún no se guarda, solo regresamos
                             navController.popBackStack()
                         }
                     },

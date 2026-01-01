@@ -1,19 +1,21 @@
 package com.example.hurricansolutionapp
 
 import android.content.Context
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Manager para subida automática de PDFs.
+ * Manager para subida automática de PDFs Y sincronización de cotizaciones con Supabase.
  * Cuando se genera un PDF, automáticamente intenta subirlo si hay conexión.
+ * También sincroniza los datos de la cotización a Supabase para que el Admin pueda verlos.
  */
 object AutoUploadManager {
 
     /**
-     * Genera el PDF y automáticamente intenta subirlo.
+     * Genera el PDF, guarda la cotización en Supabase, y sube el PDF.
      *
      * @param context Contexto de la aplicación
      * @param cotizacion La cotización a generar
@@ -40,7 +42,17 @@ object AutoUploadManager {
         // Notificar que el PDF se generó
         onPdfGenerated?.invoke(pdfFile)
 
-        // 2. Si hay conexión, intentar subir inmediatamente
+        // 2. Sincronizar cotización a Supabase (para que Admin pueda ver)
+        scope.launch(Dispatchers.IO) {
+            try {
+                sincronizarCotizacionASupabase(context, cotizacion, pdfFile.absolutePath)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // No fallamos si la sincronización falla - al menos quedó local
+            }
+        }
+
+        // 3. Si hay conexión, intentar subir PDF inmediatamente
         if (isOnline(context)) {
             scope.launch(Dispatchers.IO) {
                 try {
@@ -60,6 +72,17 @@ object AutoUploadManager {
 
                         val success = updated?.status == "DONE"
                         val error = updated?.lastError
+
+                        // Si el PDF se subió, actualizar la ruta en Supabase
+                        if (success && cotizacion.folio.isNotBlank()) {
+                            try {
+                                val userId = SessionManager.getUserId(context)
+                                val pdfRemotePath = "$userId/Cotizacion_${cotizacion.folio}.pdf"
+                                actualizarPdfPathEnSupabase(cotizacion.folio, pdfRemotePath)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
 
                         withContext(Dispatchers.Main) {
                             onUploadComplete?.invoke(success, error)
@@ -81,6 +104,78 @@ object AutoUploadManager {
         }
 
         return pdfFile
+    }
+
+    /**
+     * Sincroniza una cotización a Supabase para que el Admin pueda verla.
+     */
+    private suspend fun sincronizarCotizacionASupabase(
+        context: Context,
+        cotizacion: Cotizacion,
+        pdfLocalPath: String?
+    ) {
+        val userId = SessionManager.getUserId(context)
+        if (userId.isBlank()) return
+
+        // Convertir ventanas al modelo de inserción
+        val ventanasInsert = cotizacion.ventanas.map { v ->
+            VentanaInsert(
+                descripcion = v.descripcion,
+                alto = v.alto,
+                ancho = v.ancho,
+                precioM2 = v.precioM2,
+                adecuacion = v.adecuacion,
+                tipoMontaje = v.tipoMontaje
+            )
+        }
+
+        // Calcular totales
+        val totales = mutableMapOf<String, Double>()
+        cotizacion.productos.forEach { producto ->
+            val total = cotizacion.totalConDescuento(producto)
+            totales[producto.name] = total
+        }
+
+        // Crear objeto para insertar en Supabase
+        val cotizacionInsert = CotizacionInsert(
+            folio = cotizacion.folio,
+            userId = userId,
+            especialistaNombre = cotizacion.especialista,
+            clienteNombre = cotizacion.clienteNombre,
+            clienteTelefono = cotizacion.clienteTelefono,
+            ciudad = cotizacion.ciudad,
+            ubicacion = cotizacion.ubicacion,
+            fecha = cotizacion.fecha,
+            productos = cotizacion.productos.map { it.name },
+            tipoMontaje = cotizacion.tipoMontaje,
+            areaTotal = cotizacion.areaTotal,
+            descuentoHs875 = cotizacion.descuentoHS875,
+            descuentoHs1250 = cotizacion.descuentoHS1250,
+            descuentoHs1500 = cotizacion.descuentoHS1500,
+            totales = totales,
+            ventanas = ventanasInsert,
+            pdfPath = null // Se actualiza después cuando se sube el PDF
+        )
+
+        // Guardar en Supabase
+        AdminRepository.saveCotizacion(cotizacionInsert)
+    }
+
+    /**
+     * Actualiza el path del PDF en Supabase después de que se sube.
+     */
+    private suspend fun actualizarPdfPathEnSupabase(folio: String, pdfPath: String) {
+        try {
+            val client = SupabaseClientProvider.client
+            client.from("cotizaciones")
+                .update(mapOf("pdf_path" to pdfPath)) {
+                    filter {
+                        eq("folio", folio)
+                    }
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /**
@@ -133,5 +228,75 @@ object AutoUploadManager {
      */
     fun limpiarCompletados(context: Context) {
         UploadQueueStorage.clearDone(context)
+    }
+
+    /**
+     * Sincroniza todas las cotizaciones locales que aún no están en Supabase.
+     * Útil para migrar datos existentes.
+     */
+    fun sincronizarCotizacionesLocales(
+        context: Context,
+        scope: CoroutineScope,
+        onComplete: ((Int, Int) -> Unit)? = null // (sincronizadas, errores)
+    ) {
+        if (!isOnline(context)) {
+            onComplete?.invoke(0, 0)
+            return
+        }
+
+        scope.launch(Dispatchers.IO) {
+            var sincronizadas = 0
+            var errores = 0
+
+            val cotizacionesLocales = obtenerCotizacionesLocal(context)
+            val userId = SessionManager.getUserId(context)
+
+            if (userId.isBlank()) {
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(0, cotizacionesLocales.size)
+                }
+                return@launch
+            }
+
+            for (cotizacion in cotizacionesLocales) {
+                if (cotizacion.folio.isBlank()) continue
+
+                try {
+                    // Verificar si ya existe en Supabase
+                    val existe = verificarExisteEnSupabase(cotizacion.folio)
+
+                    if (!existe) {
+                        sincronizarCotizacionASupabase(context, cotizacion, null)
+                        sincronizadas++
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    errores++
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke(sincronizadas, errores)
+            }
+        }
+    }
+
+    private suspend fun verificarExisteEnSupabase(folio: String): Boolean {
+        return try {
+            if (folio.isBlank()) return false
+
+            val client = SupabaseClientProvider.client
+            val result = client.from("cotizaciones")
+                .select {
+                    filter {
+                        eq("folio", folio)
+                    }
+                }
+                .decodeList<CotizacionRemota>()
+
+            result.isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
     }
 }

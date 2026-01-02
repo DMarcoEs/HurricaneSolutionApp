@@ -75,10 +75,20 @@ object AdminRepository {
         return withContext(Dispatchers.IO) {
             try {
                 val client = SupabaseClientProvider.client
-                client.from("cotizaciones")
+                android.util.Log.d("AdminRepository", "Obteniendo cotizaciones...")
+
+                val result = client.from("cotizaciones")
                     .select()
                     .decodeList<CotizacionRemota>()
+
+                android.util.Log.d("AdminRepository", "Cotizaciones obtenidas: ${result.size}")
+                result.forEach { cot ->
+                    android.util.Log.d("AdminRepository", "  - ${cot.folio}: ${cot.clienteNombre}")
+                }
+
+                result
             } catch (e: Exception) {
+                android.util.Log.e("AdminRepository", "Error obteniendo cotizaciones: ${e.message}", e)
                 e.printStackTrace()
                 emptyList()
             }

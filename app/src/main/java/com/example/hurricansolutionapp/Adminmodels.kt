@@ -68,50 +68,52 @@ data class AppConfigUpdate(
 @Serializable
 data class CotizacionRemota(
     val id: Long? = null,
-    val folio: String,
+    val folio: String = "",
 
     @SerialName("user_id")
-    val userId: String,
+    val userId: String = "",
 
     @SerialName("especialista_nombre")
-    val especialistaNombre: String,
+    val especialistaNombre: String = "",
 
     @SerialName("cliente_nombre")
-    val clienteNombre: String,
+    val clienteNombre: String = "",
 
     @SerialName("cliente_telefono")
     val clienteTelefono: String? = null,
 
     val ubicacion: String? = null,
     val ciudad: String? = null,
-    val fecha: String,
+    val fecha: String = "",
     val productos: List<String> = listOf("HS875"),
 
     @SerialName("tipo_montaje")
-    val tipoMontaje: String = "Flush Mount",
+    val tipoMontaje: String? = "Flush Mount",
 
     @SerialName("area_total")
     val areaTotal: Double = 0.0,
 
     @SerialName("descuento_hs875")
-    val descuentoHs875: Double = 0.0,
+    val descuentoHs875: Double? = 0.0,
 
     @SerialName("descuento_hs1250")
-    val descuentoHs1250: Double = 0.0,
+    val descuentoHs1250: Double? = 0.0,
 
     @SerialName("descuento_hs1500")
-    val descuentoHs1500: Double = 0.0,
+    val descuentoHs1500: Double? = 0.0,
 
     @SerialName("total_hs875")
-    val totalHs875: Double = 0.0,
+    val totalHs875: Double? = 0.0,
 
     @SerialName("total_hs1250")
-    val totalHs1250: Double = 0.0,
+    val totalHs1250: Double? = 0.0,
 
     @SerialName("total_hs1500")
-    val totalHs1500: Double = 0.0,
+    val totalHs1500: Double? = 0.0,
 
-    val ventanas: String = "[]", // JSON string
+    val totales: Map<String, Double>? = null,
+
+    val ventanas: kotlinx.serialization.json.JsonElement? = null, // Puede ser array o string
 
     @SerialName("pdf_path")
     val pdfPath: String? = null,
@@ -163,7 +165,17 @@ data class CotizacionInsert(
     @SerialName("descuento_hs1500")
     val descuentoHs1500: Double = 0.0,
 
-    // Totales como objeto JSON
+    // Totales individuales (columnas separadas en la tabla)
+    @SerialName("total_hs875")
+    val totalHs875: Double = 0.0,
+
+    @SerialName("total_hs1250")
+    val totalHs1250: Double = 0.0,
+
+    @SerialName("total_hs1500")
+    val totalHs1500: Double = 0.0,
+
+    // Totales como objeto JSON (respaldo)
     val totales: Map<String, Double> = emptyMap(),
 
     // Ventanas como lista de objetos JSON

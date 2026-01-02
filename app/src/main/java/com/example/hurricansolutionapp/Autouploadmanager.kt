@@ -129,11 +129,22 @@ object AutoUploadManager {
             )
         }
 
-        // Calcular totales
+        // Calcular totales (map para JSONB y valores individuales)
         val totales = mutableMapOf<String, Double>()
+        var totalHs875 = 0.0
+        var totalHs1250 = 0.0
+        var totalHs1500 = 0.0
+
         cotizacion.productos.forEach { producto ->
             val total = cotizacion.totalConDescuento(producto)
             totales[producto.name] = total
+
+            when (producto) {
+                TipoProducto.HS875 -> totalHs875 = total
+                TipoProducto.HS1250 -> totalHs1250 = total
+                TipoProducto.HS1500 -> totalHs1500 = total
+                else -> { /* PERSONALIZADO u otros - no hacer nada */ }
+            }
         }
 
         // Crear objeto para insertar en Supabase
@@ -152,6 +163,9 @@ object AutoUploadManager {
             descuentoHs875 = cotizacion.descuentoHS875,
             descuentoHs1250 = cotizacion.descuentoHS1250,
             descuentoHs1500 = cotizacion.descuentoHS1500,
+            totalHs875 = totalHs875,
+            totalHs1250 = totalHs1250,
+            totalHs1500 = totalHs1500,
             totales = totales,
             ventanas = ventanasInsert,
             pdfPath = null // Se actualiza después cuando se sube el PDF

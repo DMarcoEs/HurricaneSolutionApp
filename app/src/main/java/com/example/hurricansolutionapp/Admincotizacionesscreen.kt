@@ -574,9 +574,9 @@ private fun AdminCotizacionCard(
 
                 // Mostrar el total más alto
                 val maxTotal = maxOf(
-                    cotizacion.totalHs875,
-                    cotizacion.totalHs1250,
-                    cotizacion.totalHs1500
+                    cotizacion.totalHs875 ?: 0.0,
+                    cotizacion.totalHs1250 ?: 0.0,
+                    cotizacion.totalHs1500 ?: 0.0
                 )
                 if (maxTotal > 0) {
                     Text(

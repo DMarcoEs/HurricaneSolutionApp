@@ -35,9 +35,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.alpha
-
-
-
+// NUEVOS IMPORTS PARA LIFECYCLE
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 // COLORES ZINC (Extraídos de tu archivo de diseño Stich)
 val Zinc950 = Color(0xFF09090B)
@@ -65,9 +66,31 @@ fun HomeScreen(
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Zinc400 else Color(0xFF6B7280)
 
-    LaunchedEffect(Unit) {
-        verificarPreciosActualizados()
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VERIFICACIÓN DE PRECIOS - Cada vez que la pantalla se hace visible
+    // ═══════════════════════════════════════════════════════════════════════════
+    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // Cada vez que la pantalla se hace visible, verificar precios
+                scope.launch {
+                    try {
+                        PriceManager.checkForUpdates()
+                    } catch (e: Exception) {
+                        // Silencioso - no mostrar error al usuario
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
+    // ═══════════════════════════════════════════════════════════════════════════
 
     Column(
         modifier = Modifier
@@ -83,13 +106,15 @@ fun HomeScreen(
         // 1. TOP BAR CON LOGO DINÁMICO Y BOTÓN CON PROFUNDIDAD REAL
         TopBar(isDarkMode, onToggleDarkMode, card, border, textPrimary)
 
-        PreciosActualizadosBanner(
-            isDarkMode = isDarkMode
-        )
+        // ═══════════════════════════════════════════════════════════════════════
+        // BANNER DE PRECIOS ACTUALIZADOS
+        // ═══════════════════════════════════════════════════════════════════════
+        PreciosActualizadosBanner(isDarkMode = isDarkMode)
+        // ═══════════════════════════════════════════════════════════════════════
 
         Spacer(Modifier.height(32.dp))
 
-        var titleSize by remember { mutableStateOf(34.sp) } // pon aquí tu tamaño “base”
+        var titleSize by remember { mutableStateOf(34.sp) }
         val minTitle = 22.sp
 
         // 2. SECCIÓN DE BIENVENIDA (DISEÑO LIMPIO)
@@ -103,7 +128,7 @@ fun HomeScreen(
             text = buildAnnotatedString {
                 withStyle(
                     SpanStyle(
-                        color = textPrimary,      // ✅ antes: Color.White
+                        color = textPrimary,
                         fontSize = titleSize,
                         fontWeight = FontWeight.Black
                     )
@@ -235,9 +260,9 @@ fun HomeScreen(
         }
     }
 }
+
 @Composable
 private fun TopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, card: Color, border: Color, textPrimary: Color) {
-    // 1. Definimos la animación de rotación (Gira 180 grados)
     val rotation by animateFloatAsState(
         targetValue = if (isDarkMode) 180f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
@@ -251,7 +276,6 @@ private fun TopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, card: Colo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // TU LÓGICA DE LOGOS SE MANTIENE EXACTAMENTE IGUAL
         val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
         CroppedLogo(
             resId = logoRes,
@@ -276,7 +300,6 @@ private fun TopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, card: Colo
                 tint = textPrimary,
                 modifier = Modifier
                     .size(20.dp)
-                    // 2. APLICAMOS LA ROTACIÓN SOLO AL ICONO
                     .graphicsLayer(rotationZ = rotation)
             )
         }
@@ -286,12 +309,9 @@ private fun TopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, card: Colo
 @Composable
 private fun BigActionCard(onClick: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
-
-    // 1. Scope para manejar el tiempo de espera (delay) [cite: 175, 190]
     val scope = rememberCoroutineScope()
     var isRotated by remember { mutableStateOf(false) }
 
-    // 2. Definición del giro suave (400ms) [cite: 175, 190]
     val rotation by animateFloatAsState(
         targetValue = if (isRotated) 90f else 0f,
         animationSpec = tween(
@@ -314,13 +334,12 @@ private fun BigActionCard(onClick: () -> Unit) {
             )
             .background(
                 Brush.linearGradient(
-                    colors = listOf(Color(0xFF000000), Color(0xFF0B0B0D), Color(0xFF1A1A1D)), // Tu gradiente original [cite: 192]
+                    colors = listOf(Color(0xFF000000), Color(0xFF0B0B0D), Color(0xFF1A1A1D)),
                     start = Offset(0f, 0f),
                     end = Offset(900f, 0f)
                 )
             )
             .clickable {
-                // 3. Activa la rotación y espera antes de navegar [cite: 193, 194]
                 isRotated = true
                 scope.launch {
                     kotlinx.coroutines.delay(350)
@@ -335,7 +354,6 @@ private fun BigActionCard(onClick: () -> Unit) {
                     .size(42.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(0.15f))
-                    // 4. Aplica el giro únicamente al círculo del icono
                     .graphicsLayer(rotationZ = rotation),
                 contentAlignment = Alignment.Center
             ) {
@@ -343,10 +361,10 @@ private fun BigActionCard(onClick: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
             Text("Nueva Cotización", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-            // No agregamos textos extra para no mover tu diseño original
         }
     }
 }
+
 @Composable
 private fun SmallActionCard(
     title: String, subtitle: String, iconRes: Int, isDarkMode: Boolean,
@@ -357,7 +375,6 @@ private fun SmallActionCard(
     var isPressed by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "icon_animations")
 
-    // Rotación parcial de vaivén para el Historial (-15 a 15 grados)
     val rotationOscilation by infiniteTransition.animateFloat(
         initialValue = -15f,
         targetValue = 15f,
@@ -367,7 +384,6 @@ private fun SmallActionCard(
         ), label = "oscilacion"
     )
 
-    // Salto sutil para la nube (Upload)
     val uploadAnim by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = -5f,
@@ -406,7 +422,7 @@ private fun SmallActionCard(
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     if (isDarkMode) Zinc800
-                    else Color(0xFFE5E7EB) // 👈 gris un poquito más marcado
+                    else Color(0xFFE5E7EB)
                 )
                 .graphicsLayer {
                     this.scaleX = scale
@@ -414,7 +430,6 @@ private fun SmallActionCard(
 
                     if (title == "Ver Cotizaciones") {
                         this.rotationZ = rotationOscilation
-                        // El eje se queda en el centro para que rote sobre su sitio
                         this.transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
                     } else if (title == "Pendientes por subir") {
                         this.translationY = uploadAnim
@@ -439,12 +454,12 @@ private fun SmallActionCard(
         }
     }
 }
+
 @Composable
 private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled: Boolean) {
     val scope = rememberCoroutineScope()
     val infiniteTransition = rememberInfiniteTransition(label = "logout_anim")
 
-    // La animación se queda quieta (0f) si está deshabilitado
     val offsetX by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = if (enabled) 5f else 0f,
@@ -454,7 +469,6 @@ private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled
         ), label = "logout_move"
     )
 
-    // Ajuste de colores: si no está habilitado, usamos tonos Zinc/Gris
     val redBg = if (isDarkMode) {
         if (enabled) Color(0xFF451A1A) else Zinc900.copy(alpha = 0.5f)
     } else {
@@ -467,7 +481,6 @@ private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled
         if (enabled) Color(0xFFFEE2E2) else Color(0xFFE5E7EB)
     }
 
-    // El contenido (Icono y Texto) se vuelve gris Zinc400 si está apagado
     val contentColor = if (enabled) Color(0xFFEF4444) else Zinc400
 
     Row(
@@ -476,7 +489,7 @@ private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled
             .clip(RoundedCornerShape(16.dp))
             .background(redBg)
             .border(1.dp, redBorder, RoundedCornerShape(16.dp))
-            .alpha(if (enabled) 1f else 0.6f) // Suaviza todo el botón si está apagado
+            .alpha(if (enabled) 1f else 0.6f)
             .clickable(enabled = enabled) { scope.launch { onClick() } }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -515,6 +528,7 @@ private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled
         }
     }
 }
+
 @Composable
 private fun CroppedLogo(
     @DrawableRes resId: Int,

@@ -32,7 +32,8 @@ import java.util.Locale
 @Composable
 fun AdminCotizacionesScreen(
     isDarkMode: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onVerDetalle: (CotizacionRemota) -> Unit
 ) {
     BackHandler { onBack() }
 
@@ -312,6 +313,7 @@ fun AdminCotizacionesScreen(
                         textPrimary = textPrimary,
                         textMuted = textMuted,
                         formatMoney = ::formatMoney,
+                        onVerDetalle = { onVerDetalle(cotizacion) },
                         onDescargarPdf = { descargarPdf(cotizacion) }
                     )
                 }
@@ -453,10 +455,13 @@ private fun AdminCotizacionCard(
     textPrimary: Color,
     textMuted: Color,
     formatMoney: (Double) -> String,
+    onVerDetalle: () -> Unit,
     onDescargarPdf: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onVerDetalle() },
         color = card,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, border.copy(0.5f))
@@ -592,30 +597,60 @@ private fun AdminCotizacionCard(
             HorizontalDivider(color = border.copy(0.5f))
             Spacer(Modifier.height(12.dp))
 
-            // Botón descargar PDF
-            Button(
-                onClick = onDescargarPdf,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isDarkMode) Color.White else Color.Black
-                ),
-                shape = RoundedCornerShape(10.dp)
+            // Botones: Ver Detalle + Ver PDF
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.Default.PictureAsPdf,
-                    contentDescription = null,
-                    tint = if (isDarkMode) Color.Black else Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Ver PDF",
-                    color = if (isDarkMode) Color.Black else Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
+                // Botón Ver Detalle
+                OutlinedButton(
+                    onClick = onVerDetalle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, border)
+                ) {
+                    Icon(
+                        Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = textPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Detalle",
+                        color = textPrimary,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp
+                    )
+                }
+
+                // Botón Ver PDF
+                Button(
+                    onClick = onDescargarPdf,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isDarkMode) Color.White else Color.Black
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PictureAsPdf,
+                        contentDescription = null,
+                        tint = if (isDarkMode) Color.Black else Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "PDF",
+                        color = if (isDarkMode) Color.Black else Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

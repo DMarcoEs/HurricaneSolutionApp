@@ -22,5 +22,9 @@ object Routes {
     const val ADMIN_HOME = "admin_home"
     const val ADMIN_PRECIOS = "admin_precios"
     const val ADMIN_COTIZACIONES = "admin_cotizaciones"
+    const val ADMIN_COTIZACION_DETALLE = "admin_cotizacion_detalle/{folio}"
     const val ADMIN_EMPLEADOS = "admin_empleados"
+
+    // Helper para navegar al detalle con folio
+    fun adminCotizacionDetalle(folio: String) = "admin_cotizacion_detalle/$folio"
 }

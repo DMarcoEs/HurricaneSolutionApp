@@ -65,6 +65,10 @@ fun HomeScreen(
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Zinc400 else Color(0xFF6B7280)
 
+    LaunchedEffect(Unit) {
+        verificarPreciosActualizados()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -78,6 +82,10 @@ fun HomeScreen(
 
         // 1. TOP BAR CON LOGO DINÁMICO Y BOTÓN CON PROFUNDIDAD REAL
         TopBar(isDarkMode, onToggleDarkMode, card, border, textPrimary)
+
+        PreciosActualizadosBanner(
+            isDarkMode = isDarkMode
+        )
 
         Spacer(Modifier.height(32.dp))
 

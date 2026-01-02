@@ -74,6 +74,7 @@ fun AppNavigation(
 
     var cotizacionActual by remember { mutableStateOf<Cotizacion?>(null) }
     var desdeHistorial by remember { mutableStateOf(false) }
+    var cotizacionRemotaSeleccionada by remember { mutableStateOf<CotizacionRemota?>(null) }
 
     // Cargar precios al iniciar (para todos los usuarios)
     LaunchedEffect(Unit) {
@@ -220,8 +221,31 @@ fun AppNavigation(
         ) {
             AdminCotizacionesScreen(
                 isDarkMode = isDarkMode,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onVerDetalle = { cotizacion ->
+                    cotizacionRemotaSeleccionada = cotizacion
+                    navController.navigate(Routes.adminCotizacionDetalle(cotizacion.folio))
+                }
             )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN - DETALLE DE COTIZACIÓN
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_COTIZACION_DETALLE,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            cotizacionRemotaSeleccionada?.let { cotizacion ->
+                AdminCotizacionDetalleScreen(
+                    cotizacion = cotizacion,
+                    isDarkMode = isDarkMode,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════

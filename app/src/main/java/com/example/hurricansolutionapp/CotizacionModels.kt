@@ -11,44 +11,40 @@ enum class TipoProducto(val etiqueta: String, val etiquetaCorta: String) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PRECIOS POR M² - VENTA (lo que se cobra al cliente)
+// PRECIOS POR M² - VALORES POR DEFECTO (fallback si no hay conexión)
+// Estos valores ya NO se usan directamente, solo como fallback
 // ═══════════════════════════════════════════════════════════════════════════════
 const val HS875_SELL_PRICE = 150.0
 const val HS1250_SELL_PRICE = 180.0
 const val HS1500_SELL_PRICE = 210.0
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PRECIOS POR M² - BASE/COSTO (mínimo, no se puede bajar de aquí con descuentos)
-// ═══════════════════════════════════════════════════════════════════════════════
 const val HS875_BASE_PRICE = 130.0
 const val HS1250_BASE_PRICE = 150.0
 const val HS1500_BASE_PRICE = 170.0
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PRECIOS LEGACY (para compatibilidad con código existente)
-// ═══════════════════════════════════════════════════════════════════════════════
+// Legacy (para compatibilidad)
 const val HS875_DEFAULT_PRICE = HS875_SELL_PRICE
 const val HS1250_DEFAULT_PRICE = HS1250_SELL_PRICE
 const val HS1500_DEFAULT_PRICE = HS1500_SELL_PRICE
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FUNCIONES AUXILIARES DE PRECIOS
+// FUNCIONES DE PRECIOS - AHORA USAN PRICEMANAGER (DINÁMICOS)
 // ═══════════════════════════════════════════════════════════════════════════════
-fun TipoProducto.getPrecioVenta(): Double = when (this) {
-    TipoProducto.HS875 -> HS875_SELL_PRICE
-    TipoProducto.HS1250 -> HS1250_SELL_PRICE
-    TipoProducto.HS1500 -> HS1500_SELL_PRICE
-    TipoProducto.PERSONALIZADO -> HS875_SELL_PRICE
-}
 
-fun TipoProducto.getPrecioBase(): Double = when (this) {
-    TipoProducto.HS875 -> HS875_BASE_PRICE
-    TipoProducto.HS1250 -> HS1250_BASE_PRICE
-    TipoProducto.HS1500 -> HS1500_BASE_PRICE
-    TipoProducto.PERSONALIZADO -> HS875_BASE_PRICE
-}
+/**
+ * Obtiene el precio de venta DINÁMICO desde PriceManager
+ */
+fun TipoProducto.getPrecioVenta(): Double = PriceManager.getPrecioVenta(this)
 
-fun TipoProducto.getMaxDescuento(): Double = getPrecioVenta() - getPrecioBase()
+/**
+ * Obtiene el precio base DINÁMICO desde PriceManager
+ */
+fun TipoProducto.getPrecioBase(): Double = PriceManager.getPrecioBase(this)
+
+/**
+ * Obtiene el descuento máximo permitido (diferencia entre venta y base)
+ */
+fun TipoProducto.getMaxDescuento(): Double = PriceManager.getMaxDescuento(this)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ESTADO DEL FORMULARIO PARA UNA MEDIDA
@@ -77,13 +73,13 @@ data class Ventana(
     val subtotal: Double get() = areaM2 * precioM2
 
     fun subtotalPorProducto(producto: TipoProducto): Double {
-        val precio = producto.getPrecioVenta()
+        val precio = producto.getPrecioVenta()  // Ahora usa precio dinámico
         return areaM2 * precio
     }
 
     fun subtotalConDescuento(producto: TipoProducto, descuentoPorM2: Double): Double {
-        val precioVenta = producto.getPrecioVenta()
-        val precioBase = producto.getPrecioBase()
+        val precioVenta = producto.getPrecioVenta()  // Ahora usa precio dinámico
+        val precioBase = producto.getPrecioBase()    // Ahora usa precio dinámico
         val descuentoAplicado = descuentoPorM2.coerceAtMost(precioVenta - precioBase)
         val precioFinal = (precioVenta - descuentoAplicado).coerceAtLeast(precioBase)
         return areaM2 * precioFinal
@@ -94,8 +90,8 @@ data class Ventana(
 // DRAFT DE COTIZACIÓN (lo que se va llenando paso a paso)
 // ═══════════════════════════════════════════════════════════════════════════════
 data class CotizacionDraft(
-    var id: Long = 0L,  // Para edición
-    var folio: String = "",  // Para edición
+    var id: Long = 0L,
+    var folio: String = "",
     var nombre: String = "",
     var telefono: String = "",
     var ciudad: String = "",
@@ -107,7 +103,6 @@ data class CotizacionDraft(
     var productosSeleccionados: MutableList<TipoProducto> = mutableListOf(TipoProducto.HS875),
     var aplicaDescuento: Boolean = false,
     var descuentoTexto: String = "0",
-    // Descuentos por sistema (en dólares por m²)
     var descuentoHS875: Double = 0.0,
     var descuentoHS1250: Double = 0.0,
     var descuentoHS1500: Double = 0.0
@@ -138,9 +133,6 @@ data class CotizacionDraft(
         TipoProducto.PERSONALIZADO -> 0.0
     }
 
-    /**
-     * Llena el draft con los datos de una cotización existente (para edición)
-     */
     fun cargarDesdeCotizacion(cotizacion: Cotizacion) {
         id = cotizacion.id
         folio = cotizacion.folio
@@ -148,7 +140,6 @@ data class CotizacionDraft(
         telefono = cotizacion.clienteTelefono
         ciudad = cotizacion.ciudad
 
-        // Extraer colonia y dirección de ubicación
         val partes = cotizacion.ubicacion.split(",").map { it.trim() }
         colonia = partes.getOrNull(1) ?: ""
         direccionDetalle = partes.getOrNull(2) ?: ""
@@ -157,13 +148,11 @@ data class CotizacionDraft(
         tipoMontaje = cotizacion.tipoMontaje
         productosSeleccionados = cotizacion.productos.toMutableList()
 
-        // Cargar descuentos
         descuentoHS875 = cotizacion.descuentoHS875
         descuentoHS1250 = cotizacion.descuentoHS1250
         descuentoHS1500 = cotizacion.descuentoHS1500
         aplicaDescuento = descuentoHS875 > 0 || descuentoHS1250 > 0 || descuentoHS1500 > 0
 
-        // Convertir ventanas a formularios
         ventanasForm = cotizacion.ventanas.map { v ->
             VentanaFormState(
                 descripcion = v.descripcion,
@@ -176,9 +165,6 @@ data class CotizacionDraft(
         }.toMutableList()
     }
 
-    /**
-     * Verifica si este draft es una edición de una cotización existente
-     */
     fun esEdicion(): Boolean = id > 0L || folio.isNotBlank()
 }
 
@@ -198,13 +184,10 @@ data class Cotizacion(
     val productos: List<TipoProducto> = listOf(producto),
     val tipoMontaje: String = "Flush Mount",
     val ventanas: List<Ventana>,
-    // Descuentos por sistema (en dólares por m²)
     val descuentoHS875: Double = 0.0,
     val descuentoHS1250: Double = 0.0,
     val descuentoHS1500: Double = 0.0,
-    // Legacy
     val descuentoDolaresPorM2: Double = 0.0,
-    // NUEVO: Timestamp de última actualización
     val updatedAt: Long = 0L
 ) {
     val areaTotal: Double get() = ventanas.sumOf { it.areaM2 }
@@ -229,21 +212,14 @@ data class Cotizacion(
 
     fun getPorcentajeDescuento(producto: TipoProducto): Double {
         val descuento = getDescuentoPorProducto(producto)
-        val precioVenta = producto.getPrecioVenta()
+        val precioVenta = producto.getPrecioVenta()  // Ahora usa precio dinámico
         return if (precioVenta > 0) (descuento / precioVenta) * 100 else 0.0
     }
 
-    // Productos ordenados de menor a mayor precio
     fun productosOrdenados(): List<TipoProducto> = productos.sortedBy { it.getPrecioVenta() }
 
-    /**
-     * Verifica si esta cotización fue editada después de crearse
-     */
     fun fueEditada(): Boolean = updatedAt > 0L
 
-    /**
-     * Obtiene la fecha de actualización formateada
-     */
     fun getUpdatedAtFormatted(): String {
         if (updatedAt == 0L) return ""
         val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())

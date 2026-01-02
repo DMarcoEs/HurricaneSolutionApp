@@ -77,7 +77,9 @@ object AutoUploadManager {
                         if (success && cotizacion.folio.isNotBlank()) {
                             try {
                                 val userId = SessionManager.getUserId(context)
-                                val pdfRemotePath = "$userId/Cotizacion_${cotizacion.folio}.pdf"
+                                // Formatear nombre igual que en UploadRepository
+                                val clienteFormateado = formatNameForPath(cotizacion.clienteNombre)
+                                val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${cotizacion.folio}.pdf"
                                 actualizarPdfPathEnSupabase(cotizacion.folio, pdfRemotePath)
                             } catch (e: Exception) {
                                 e.printStackTrace()
@@ -312,5 +314,25 @@ object AutoUploadManager {
         } catch (e: Exception) {
             false
         }
+    }
+
+    /**
+     * Formatea el nombre del cliente para la ruta del archivo.
+     * Debe coincidir exactamente con el formato usado en UploadRepository.
+     */
+    private fun formatNameForPath(input: String): String {
+        val normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+
+        return normalized
+            .trim()
+            .split("\\s+".toRegex())
+            .filter { it.isNotBlank() }
+            .joinToString("_") { word ->
+                word.lowercase(java.util.Locale.getDefault())
+                    .replaceFirstChar { it.uppercase() }
+            }
+            .replace("[^A-Za-z0-9_]+".toRegex(), "")
+            .take(50)
     }
 }

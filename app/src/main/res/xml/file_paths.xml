@@ -1,7 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Documentos generados por la app -->
+    <!-- Archivos en el directorio externo de la app -->
     <external-files-path
-        name="documents"
-        path="Documents/" />
+        name="external_files"
+        path="." />
+
+    <!-- Archivos en el directorio de caché externo -->
+    <external-cache-path
+        name="external_cache"
+        path="." />
+
+    <!-- Archivos en el directorio interno de la app -->
+    <files-path
+        name="internal_files"
+        path="." />
+
+    <!-- Archivos en el directorio de caché interno -->
+    <cache-path
+        name="internal_cache"
+        path="." />
+
+    <!-- Archivos en almacenamiento externo (para compatibilidad) -->
+    <external-path
+        name="external_storage"
+        path="." />
 </paths>

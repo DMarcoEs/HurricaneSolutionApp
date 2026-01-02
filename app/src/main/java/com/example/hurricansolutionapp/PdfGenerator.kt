@@ -745,10 +745,25 @@ fun generarPdfCotizacion(
     ) {
         val filaBottom = filaTop + rowHeightResumen
 
+
+
         // Celda negra con el label
         paint.style = Paint.Style.FILL
         paint.color = Color.BLACK
         canvas.drawRect(boxLeft, filaTop, boxLeft + labelWidth, filaBottom, paint)
+
+        if (isLastRow) {
+            paint.style = Paint.Style.FILL
+            paint.color = Color.BLACK
+            canvas.drawRect(boxLeft, filaBottom - 1f, boxLeft + labelWidth, filaBottom, paint)
+        }
+
+
+        // Borde superior del label (FILL para evitar ilusión de 1px)
+        paint.style = Paint.Style.FILL
+        paint.color = Color.BLACK
+        canvas.drawRect(boxLeft, filaTop, boxLeft + labelWidth, filaTop + 1f, paint)
+
 
         paint.color = Color.WHITE
         paint.textAlign = Paint.Align.LEFT
@@ -779,14 +794,29 @@ fun generarPdfCotizacion(
             canvas.drawLine(left, filaTop, left, filaBottom, paint)
             // Borde derecho siempre
             canvas.drawLine(right, filaTop, right, filaBottom, paint)
-            // Borde superior solo si NO es la primera fila
-            if (!isFirstRow) {
-                canvas.drawLine(left, filaTop, right, filaTop, paint)
-            }
-            // Borde inferior solo si ES la última fila
+            // Borde superior de la celda (FILL para evitar aliasing)
+            paint.style = Paint.Style.FILL
+            paint.color = Color.BLACK
+            canvas.drawRect(left, filaTop, right, filaTop + 1f, paint)
+
+            // Regresa a STROKE para bordes verticales
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.BLACK
+            paint.strokeWidth = 0.5f
+
+
+            // Borde inferior (FILL) solo si ES la última fila — evita half-pixel del STROKE
             if (isLastRow) {
-                canvas.drawLine(left, filaBottom, right, filaBottom, paint)
+                paint.style = Paint.Style.FILL
+                paint.color = Color.BLACK
+                canvas.drawRect(left, filaBottom - 1f, right, filaBottom, paint)
+
+                // Regresar a STROKE para no afectar lo demás del loop
+                paint.style = Paint.Style.STROKE
+                paint.color = Color.BLACK
+                paint.strokeWidth = 0.5f
             }
+
 
             // Texto del valor
             paint.style = Paint.Style.FILL
@@ -918,7 +948,7 @@ fun generarPdfCotizacion(
 
     paint.textSize = 5f
     paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
-    condicionesY += condLineHeightCalculated + 2f
+    condicionesY += condLineHeightCalculated
 
     fun drawConditionWithNumber(index: Int, text: String, startY: Float): Float {
         val numberPrefix = "$index.- "
@@ -959,7 +989,7 @@ fun generarPdfCotizacion(
 
     condicionesLineas.forEachIndexed { index, linea ->
         // Solo dibujar si no nos pasamos del límite
-        if (condicionesY < resumenBottom - condLineHeightCalculated) {
+        if (condicionesY <= resumenBottom - condLineHeightCalculated) {
             condicionesY = drawConditionWithNumber(index + 1, linea, condicionesY)
         }
     }

@@ -98,6 +98,11 @@ data class CotizacionDraft(
     var colonia: String = "",
     var direccionDetalle: String = "",
     var fecha: String = "",
+
+    // ✅ NUEVO: ID del lead si viene desde CRM
+    var leadId: String? = null,
+    var esClienteActual: Boolean = false,  // True si viene de CRM
+
     var ventanasForm: MutableList<VentanaFormState> = mutableListOf(VentanaFormState()),
     var tipoMontaje: String = "Flush Mount",
     var productosSeleccionados: MutableList<TipoProducto> = mutableListOf(TipoProducto.HS875),
@@ -116,6 +121,8 @@ data class CotizacionDraft(
         colonia = ""
         direccionDetalle = ""
         fecha = ""
+        leadId = null  // ✅ NUEVO
+        esClienteActual = false  // ✅ NUEVO
         ventanasForm = mutableListOf(VentanaFormState())
         tipoMontaje = "Flush Mount"
         productosSeleccionados = mutableListOf(TipoProducto.HS875)

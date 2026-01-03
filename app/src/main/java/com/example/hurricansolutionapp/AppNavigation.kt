@@ -111,7 +111,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // HOME (ESPECIALISTA)
+        // MODIFICAR: HOME (ESPECIALISTA)
         // ═══════════════════════════════════════════════════════════════════
         composable(Routes.HOME) {
             HomeScreen(
@@ -121,9 +121,8 @@ fun AppNavigation(
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
 
                 onNuevaCotizacion = {
-                    cotizacionDraft.clear()
-                    desdeHistorial = false
-                    navController.navigate(Routes.CLIENTE)
+                    // ✅ CAMBIO: Ya NO navega directo a CLIENTE, sino a SELECCION_CLIENTE
+                    navController.navigate(Routes.SELECCION_CLIENTE)
                 },
 
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
@@ -133,13 +132,11 @@ fun AppNavigation(
                 onCerrarSesion = {
                     scope.launch {
                         if (!isOnline(context)) return@launch
-
                         try {
                             AuthRepository.logout()
                         } catch (_: Exception) {
                             return@launch
                         }
-
                         SessionManager.logout(context)
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(Routes.HOME) { inclusive = true }
@@ -151,7 +148,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // ADMIN HOME
+        // MODIFICAR: ADMIN HOME
         // ═══════════════════════════════════════════════════════════════════
         composable(Routes.ADMIN_HOME) {
             AdminHomeScreen(
@@ -159,30 +156,27 @@ fun AppNavigation(
                 pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
-                // Funciones de especialista
+
+                // ✅ CAMBIO: Admin también usa selección de cliente
                 onNuevaCotizacion = {
-                    cotizacionDraft.clear()
-                    desdeHistorial = false
-                    navController.navigate(Routes.CLIENTE)
+                    navController.navigate(Routes.SELECCION_CLIENTE)
                 },
+
                 onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
-                // Funciones de admin
                 onConfigurePrecios = { navController.navigate(Routes.ADMIN_PRECIOS) },
                 onVerTodasCotizaciones = { navController.navigate(Routes.ADMIN_COTIZACIONES) },
                 onVerEmpleados = { navController.navigate(Routes.ADMIN_EMPLEADOS) },
-                // Logout
+
                 logoutEnabled = online,
                 onCerrarSesion = {
                     scope.launch {
                         if (!isOnline(context)) return@launch
-
                         try {
                             AuthRepository.logout()
                         } catch (_: Exception) {
                             return@launch
                         }
-
                         SessionManager.logout(context)
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(Routes.ADMIN_HOME) { inclusive = true }
@@ -396,6 +390,43 @@ fun AppNavigation(
                 },
                 onRemove = { id ->
                     UploadQueueStorage.remove(context, id)
+                }
+            )
+        }
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ NUEVA RUTA: SELECCIÓN DE CLIENTE
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.SELECCION_CLIENTE,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            SeleccionClienteScreen(
+                context = context,
+                userId = SessionManager.getUserId(context),
+                userRole = SessionManager.getRole(context),
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onClienteNuevo = {
+                    // Cliente nuevo: limpiar draft y permitir edición completa
+                    cotizacionDraft.clear()
+                    cotizacionDraft.esClienteActual = false
+                    cotizacionDraft.leadId = null
+                    navController.navigate(Routes.CLIENTE)
+                },
+                onClienteActualSeleccionado = { lead ->
+                    // Cliente actual: pre-llenar datos y marcar como no editable
+                    cotizacionDraft.clear()
+                    cotizacionDraft.nombre = lead.nombreCompleto
+                    cotizacionDraft.telefono = lead.telefono
+                    cotizacionDraft.ciudad = lead.ciudad ?: ""
+                    cotizacionDraft.colonia = lead.colonia ?: ""
+                    cotizacionDraft.direccionDetalle = "${lead.calle ?: ""} ${lead.numero ?: ""}".trim()
+                    cotizacionDraft.esClienteActual = true  // ✅ Esto activa el modo readonly
+                    cotizacionDraft.leadId = lead.id
+                    navController.navigate(Routes.CLIENTE)
                 }
             )
         }

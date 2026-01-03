@@ -25,6 +25,8 @@ object Routes {
     const val ADMIN_COTIZACION_DETALLE = "admin_cotizacion_detalle/{folio}"
     const val ADMIN_EMPLEADOS = "admin_empleados"
 
+    const val SELECCION_CLIENTE = "seleccion_cliente"
+
     // Helper para navegar al detalle con folio
     fun adminCotizacionDetalle(folio: String) = "admin_cotizacion_detalle/$folio"
 }

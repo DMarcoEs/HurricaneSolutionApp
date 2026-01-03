@@ -6,6 +6,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import io.ktor.client.*
+import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.json.*
 
 /**
  * Manager para subida automática de PDFs Y sincronización de cotizaciones con Supabase.
@@ -81,6 +89,13 @@ object AutoUploadManager {
                                 val clienteFormateado = formatNameForPath(cotizacion.clienteNombre)
                                 val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${cotizacion.folio}.pdf"
                                 actualizarPdfPathEnSupabase(cotizacion.folio, pdfRemotePath)
+
+                                // ✅ NUEVO: Llamar webhook de Make.com para subir a Google Drive
+                                // y actualizar GoHighLevel
+                                val leadId = obtenerLeadIdDeCotizacion(context, cotizacion)
+                                if (leadId != null) {
+                                    llamarWebhookMakeCom(context, cotizacion, pdfRemotePath, leadId)
+                                }
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
@@ -317,6 +332,26 @@ object AutoUploadManager {
     }
 
     /**
+     * Obtiene el leadId desde el CotizacionStorage local
+     */
+    /**
+     * Obtiene el leadId buscando por teléfono del cliente
+     */
+    private suspend fun obtenerLeadIdDeCotizacion(
+        context: Context,
+        cotizacion: Cotizacion
+    ): String? {
+        return try {
+            // Buscar lead por número de teléfono
+            val lead = LeadsRepository.getLeadByPhone(cotizacion.clienteTelefono)
+            lead?.id
+        } catch (e: Exception) {
+            android.util.Log.e("AutoUploadManager", "Error obteniendo leadId: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Formatea el nombre del cliente para la ruta del archivo.
      * Debe coincidir exactamente con el formato usado en UploadRepository.
      */
@@ -334,5 +369,116 @@ object AutoUploadManager {
             }
             .replace("[^A-Za-z0-9_]+".toRegex(), "")
             .take(50)
+    }
+    /**
+     * Llama al webhook de Make.com para subir PDF a Google Drive
+     * y actualizar GoHighLevel
+     */
+    private suspend fun llamarWebhookMakeCom(
+        context: Context,
+        cotizacion: Cotizacion,
+        pdfRemotePath: String,
+        leadId: String?
+    ) {
+        // Verificar si los webhooks están habilitados
+        if (!WebhookConfig.WEBHOOKS_ENABLED) {
+            android.util.Log.d("AutoUploadManager", "Webhooks deshabilitados - skip")
+            return
+        }
+
+        // Si no hay leadId, no hay nada que actualizar en GHL
+        if (leadId.isNullOrBlank()) {
+            android.util.Log.d("AutoUploadManager", "No hay leadId - skip webhook")
+            return
+        }
+
+        try {
+            android.util.Log.d("AutoUploadManager", "Llamando webhook de Make.com...")
+
+            // Construir URL pública del PDF en Supabase
+            val pdfPublicUrl = "https://vlorculyexquudkiwxoq.supabase.co/storage/v1/object/public/cotizaciones/$pdfRemotePath"
+
+            // Obtener ghl_opportunity_id del lead
+            val lead = LeadsRepository.getLeadById(leadId)
+            val ghlOpportunityId = lead?.ghlOpportunityId ?: ""
+
+            // Crear cliente HTTP con Ktor
+            val client = HttpClient(OkHttp) {
+                install(ContentNegotiation) {
+                    json(Json {
+                        prettyPrint = true
+                        isLenient = true
+                        ignoreUnknownKeys = true
+                    })
+                }
+
+                // Timeout
+                engine {
+                    config {
+                        connectTimeout(30000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        readTimeout(30000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        writeTimeout(30000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    }
+                }
+            }
+
+            // Preparar payload
+            val payload = buildJsonObject {
+                put("folio", cotizacion.folio)
+                put("cliente_nombre", cotizacion.clienteNombre)
+                put("especialista_nombre", cotizacion.especialista)
+                put("user_role", SessionManager.getRole(context))
+                put("pdf_url", pdfPublicUrl)
+                put("fecha", cotizacion.fecha)
+                put("lead_id", leadId)
+                put("ghl_opportunity_id", ghlOpportunityId)
+            }
+
+            android.util.Log.d("AutoUploadManager", "Payload: $payload")
+
+            // Hacer la llamada POST al webhook
+            val response: HttpResponse = client.post(WebhookConfig.UPLOAD_PDF_TO_DRIVE) {
+                contentType(ContentType.Application.Json)
+                setBody(payload.toString())
+            }
+
+            // Procesar respuesta
+            val statusCode = response.status.value
+            val responseBody = response.bodyAsText()
+
+            android.util.Log.d("AutoUploadManager", "Webhook response code: $statusCode")
+            android.util.Log.d("AutoUploadManager", "Webhook response body: $responseBody")
+
+            if (response.status.isSuccess()) {
+                // Parse respuesta JSON
+                try {
+                    val jsonResponse = Json.parseToJsonElement(responseBody).jsonObject
+                    val driveFileUrl = jsonResponse["drive_file_url"]?.jsonPrimitive?.content
+                    val folderPath = jsonResponse["folder_path"]?.jsonPrimitive?.content
+
+                    android.util.Log.d("AutoUploadManager", "✅ PDF subido a Google Drive")
+                    android.util.Log.d("AutoUploadManager", "   URL: $driveFileUrl")
+                    android.util.Log.d("AutoUploadManager", "   Carpeta: $folderPath")
+
+                    // Actualizar pipeline stage en Supabase también
+                    LeadsRepository.updateLeadPipelineStage(
+                        leadId = leadId,
+                        newStage = "Seguimiento Medidas"
+                    )
+
+                } catch (e: Exception) {
+                    android.util.Log.w("AutoUploadManager", "No se pudo parsear respuesta JSON: ${e.message}")
+                }
+            } else {
+                android.util.Log.e("AutoUploadManager", "❌ Error en webhook: HTTP $statusCode")
+                android.util.Log.e("AutoUploadManager", "   Body: $responseBody")
+            }
+
+            client.close()
+
+        } catch (e: Exception) {
+            android.util.Log.e("AutoUploadManager", "❌ Error llamando webhook: ${e.message}", e)
+            e.printStackTrace()
+        }
     }
 }

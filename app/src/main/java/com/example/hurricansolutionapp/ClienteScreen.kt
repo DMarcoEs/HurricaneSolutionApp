@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Info
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,7 +191,9 @@ fun ClienteScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
+        )
+
+        {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
                     "INFORMACIÓN PERSONAL",
@@ -199,6 +202,41 @@ fun ClienteScreen(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
+
+                // ✅ NUEVO: Banner informativo si es cliente del CRM
+                if (draft.esClienteActual) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isDarkMode) Color(0xFF1E3A8A).copy(alpha = 0.3f) else Color(0xFFDEEBFF)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF3B82F6) else Color(0xFF2563EB))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Info,  // ✅ Usa Material Icons
+                                contentDescription = null,
+                                tint = if (isDarkMode) Color(0xFF60A5FA) else Color(0xFF2563EB),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Cliente desde CRM: Nombre y teléfono no editables",
+                                fontSize = 13.sp,
+                                color = if (isDarkMode) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
                 StitchField(
                     label = "Nombre Completo",
@@ -209,7 +247,8 @@ fun ClienteScreen(
                     textPrimary = textPrimary,
                     surface = surface,
                     border = border,
-                    icon = R.drawable.ic_user_lucide
+                    icon = R.drawable.ic_user_lucide,
+                    readOnly = draft.esClienteActual
                 )
 
                 StitchField(
@@ -223,7 +262,8 @@ fun ClienteScreen(
                     border = border,
                     icon = R.drawable.ic_phone_lucide,
                     isPhone = true,
-                    keyboardType = KeyboardType.Number
+                    keyboardType = KeyboardType.Number,
+                    readOnly = draft.esClienteActual  // ✅ NUEVO: readonly si es cliente CRM
                 )
 
                 StitchField(

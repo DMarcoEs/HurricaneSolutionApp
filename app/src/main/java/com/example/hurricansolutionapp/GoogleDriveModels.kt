@@ -18,8 +18,12 @@ data class DriveUploadResult(
 /**
  * Información de archivo pendiente de subir a Drive
  */
+/**
+ * Información de archivo pendiente de subir a Drive
+ */
 @Serializable
 data class DrivePendingUpload(
+    @SerialName("id")
     val id: String,
 
     @SerialName("pdf_filename")
@@ -40,17 +44,23 @@ data class DrivePendingUpload(
     @SerialName("folio")
     val folio: String,
 
-    @SerialName("created_at")
-    val createdAt: String,
-
-    @SerialName("retry_count")
-    val retryCount: Int = 0,
+    @SerialName("target_folder_path")
+    val targetFolderPath: String,
 
     @SerialName("last_error")
     val lastError: String? = null,
 
-    @SerialName("target_folder_path")
-    val targetFolderPath: String? = null
+    @SerialName("retry_count")
+    val retryCount: Int = 0,
+
+    @SerialName("created_at")
+    val createdAt: String? = null,
+
+    @SerialName("updated_at")
+    val updatedAt: String? = null,
+
+    @SerialName("uploaded_at")
+    val uploadedAt: String? = null  // ✅ ESTE CAMPO FALTABA
 )
 
 /**

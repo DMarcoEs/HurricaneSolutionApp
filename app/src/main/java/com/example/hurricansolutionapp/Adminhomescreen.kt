@@ -49,6 +49,7 @@ fun AdminHomeScreen(
     onConfigurePrecios: () -> Unit,
     onVerTodasCotizaciones: () -> Unit,
     onVerEmpleados: () -> Unit,
+    onGestionarLeads: () -> Unit,
     // Logout
     logoutEnabled: Boolean,
     onCerrarSesion: () -> Unit
@@ -279,6 +280,25 @@ fun AdminHomeScreen(
             textPrimary = textPrimary,
             textMuted = textMuted
         )
+
+        // Botón: Gestionar Leads
+        Button(
+            onClick = onGestionarLeads,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF3B82F6) // Azul
+            )
+        ) {
+            Icon(
+                Icons.Default.Person,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Gestionar Leads", fontSize = 16.sp)
+        }
 
         Spacer(Modifier.height(12.dp))
 

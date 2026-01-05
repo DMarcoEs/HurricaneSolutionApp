@@ -247,4 +247,124 @@ object LeadsRepository {
     fun filterLeadsByPipelineStage(leads: List<Lead>, stage: String): List<Lead> {
         return leads.filter { it.pipelineStage == stage }
     }
+    // ═══════════════════════════════════════════════════════════════════════════════
+// FUNCIONES DE ASIGNACIÓN DE LEADS (ADMIN)
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGREGAR ESTAS FUNCIONES AL FINAL DE LeadsRepository.kt
+
+    /**
+     * Asigna un lead a un especialista
+     *
+     * @param leadId ID del lead
+     * @param userId ID del especialista
+     * @param userName Nombre del especialista
+     * @return Result con éxito o error
+     */
+    suspend fun assignLeadToUser(
+        leadId: String,
+        userId: String,
+        userName: String
+    ): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val client = SupabaseClientProvider.client
+
+                android.util.Log.d("LeadsRepository", "Asignando lead $leadId a $userName")
+
+                client.from("leads")
+                    .update(
+                        mapOf(
+                            "assigned_to_user_id" to userId,
+                            "assigned_to_name" to userName,
+
+                        )
+                    ) {
+                        filter {
+                            eq("id", leadId)
+                        }
+                    }
+
+                android.util.Log.d("LeadsRepository", "Lead asignado correctamente")
+                Result.success(Unit)
+            } catch (e: Exception) {
+                android.util.Log.e("LeadsRepository", "Error asignando lead: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Desasigna un lead (lo deja sin asignar)
+     *
+     * @param leadId ID del lead
+     * @return Result con éxito o error
+     */
+    suspend fun unassignLead(leadId: String): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val client = SupabaseClientProvider.client
+
+                android.util.Log.d("LeadsRepository", "Desasignando lead $leadId")
+
+                client.from("leads")
+                    .update(
+                        mapOf(
+                            "assigned_to_user_id" to null,
+                            "assigned_to_name" to null
+                        )
+                    ) {
+                        filter {
+                            eq("id", leadId)
+                        }
+                    }
+
+                android.util.Log.d("LeadsRepository", "Lead desasignado correctamente")
+                Result.success(Unit)
+            } catch (e: Exception) {
+                android.util.Log.e("LeadsRepository", "Error desasignando lead: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Obtiene leads sin asignar
+     *
+     * @return Lista de leads sin especialista asignado
+     */
+    suspend fun getUnassignedLeads(): List<Lead> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val client = SupabaseClientProvider.client
+
+                val result = client.from("leads")
+                    .select()
+                    .decodeList<Lead>()
+                    .filter { it.assignedToUserId == null } // Filtrar en cliente
+
+                android.util.Log.d("LeadsRepository", "Leads sin asignar: ${result.size}")
+                result
+            } catch (e: Exception) {
+                android.util.Log.e("LeadsRepository", "Error obteniendo leads sin asignar: ${e.message}", e)
+                emptyList()
+            }
+        }
+    }
+
+    /**
+     * Obtiene leads ya asignados (a cualquier usuario)
+     *
+     * @return Lista de leads con especialista asignado
+     */
+    suspend fun getAssignedLeads(): List<Lead> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val allLeads = getAllLeads()
+                allLeads.filter { it.assignedToUserId != null }
+            } catch (e: Exception) {
+                android.util.Log.e("LeadsRepository", "Error obteniendo leads asignados: ${e.message}", e)
+                emptyList()
+            }
+        }
+    }
 }

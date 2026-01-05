@@ -127,6 +127,7 @@ fun AppNavigation(
 
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
+                onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
 
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -167,6 +168,7 @@ fun AppNavigation(
                 onConfigurePrecios = { navController.navigate(Routes.ADMIN_PRECIOS) },
                 onVerTodasCotizaciones = { navController.navigate(Routes.ADMIN_COTIZACIONES) },
                 onVerEmpleados = { navController.navigate(Routes.ADMIN_EMPLEADOS) },
+                onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },  // ✅ AGREGAR
 
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -253,6 +255,22 @@ fun AppNavigation(
             popExitTransition = { popExitTransition() }
         ) {
             AdminEmpleadosScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN: GESTIONAR LEADS
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_LEADS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminLeadsScreen(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() }
             )
@@ -393,6 +411,27 @@ fun AppNavigation(
                 }
             )
         }
+
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ✅ NUEVA RUTA: PENDIENTES GOOGLE DRIVE
+    // ═══════════════════════════════════════════════════════════════════
+    composable(
+        route = Routes.PENDIENTES_DRIVE,
+        enterTransition = { enterTransition() },
+        exitTransition = { exitTransition() },
+        popEnterTransition = { popEnterTransition() },
+        popExitTransition = { popExitTransition() }
+    ) {
+        PendingDriveUploadsScreen(
+            isDarkMode = isDarkMode,
+            isOnline = online,
+            onBack = { navController.popBackStack() }
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+
         // ═══════════════════════════════════════════════════════════════════
         // ✅ NUEVA RUTA: SELECCIÓN DE CLIENTE
         // ═══════════════════════════════════════════════════════════════════

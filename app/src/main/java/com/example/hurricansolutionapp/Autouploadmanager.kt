@@ -90,6 +90,23 @@ object AutoUploadManager {
                                 val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${cotizacion.folio}.pdf"
                                 actualizarPdfPathEnSupabase(cotizacion.folio, pdfRemotePath)
 
+                                // ✅ NUEVO: Subir automáticamente a Google Drive
+                                val userName = SessionManager.getNombre(context)
+                                val userRole = SessionManager.getRole(context)
+                                if (userName.isNotBlank() && userRole.isNotBlank()) {
+                                    try {
+                                        DriveUploadManager.uploadPdfToDriveAuto(
+                                            context = context,
+                                            pdfFile = pdfFile,
+                                            userName = userName,
+                                            userRole = userRole,
+                                            folio = cotizacion.folio
+                                        )
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("AutoUploadManager", "Error subiendo a Drive: ${e.message}")
+                                    }
+                                }
+
                                 // ✅ NUEVO: Llamar webhook de Make.com para subir a Google Drive
                                 // y actualizar GoHighLevel
                                 val leadId = obtenerLeadIdDeCotizacion(context, cotizacion)

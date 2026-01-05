@@ -56,6 +56,7 @@ fun HomeScreen(
     onNuevaCotizacion: () -> Unit,
     onVerCotizaciones: () -> Unit,
     onPendientes: () -> Unit,
+    onPendientesDrive: () -> Unit,
     logoutEnabled: Boolean,
     onCerrarSesion: () -> Unit
 ) {
@@ -194,6 +195,23 @@ fun HomeScreen(
             isDarkMode = isDarkMode,
             card = card, border = border, textPrimary = textPrimary, textMuted = textMuted
         )
+
+
+
+        Spacer(Modifier.height(16.dp))
+
+        // ✅ NUEVO: Botón Pendientes Drive
+        SmallActionCard(
+            title = "Pendientes Google Drive",
+            subtitle = "PDFs sin subir a Drive",
+            badgeCount = 0, // TODO: Agregar contador si quieres
+            iconRes = R.drawable.ic_google_drive,
+            onClick = onPendientesDrive,
+            isDarkMode = isDarkMode,
+            card = card, border = border, textPrimary = textPrimary, textMuted = textMuted
+        )
+
+        Spacer(Modifier.height(16.dp))
 
         Spacer(Modifier.height(16.dp))
         CerrarSesionButton(

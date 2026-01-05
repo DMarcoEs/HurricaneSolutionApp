@@ -15,6 +15,7 @@ object Routes {
     const val RESUMEN = "resumen"
     const val HISTORIAL = "historial"
     const val PENDIENTES = "pendientes"
+    const val PENDIENTES_DRIVE = "pendientes_drive"
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // RUTAS ADMINISTRADOR
@@ -24,6 +25,7 @@ object Routes {
     const val ADMIN_COTIZACIONES = "admin_cotizaciones"
     const val ADMIN_COTIZACION_DETALLE = "admin_cotizacion_detalle/{folio}"
     const val ADMIN_EMPLEADOS = "admin_empleados"
+    const val ADMIN_LEADS = "admin_leads"
 
     const val SELECCION_CLIENTE = "seleccion_cliente"
 

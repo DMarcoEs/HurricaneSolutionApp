@@ -30,6 +30,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.common.api.ApiException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +52,103 @@ fun ResumenScreen(
     var folioGenerado by rememberSaveable { mutableStateOf(cotizacion.folio) }
     var subiendoPdf by remember { mutableStateOf(false) }
     var mensajeSubida by remember { mutableStateOf<String?>(null) }
+    var subiendoDrive by remember { mutableStateOf(false) }
+    var driveUploadSuccess by remember { mutableStateOf<Boolean?>(null) }
+    var driveErrorMessage by remember { mutableStateOf<String?>(null) }
+
+
+    fun uploadToDrive() {
+        if (pdfFile == null || folioGenerado.isBlank()) {
+            Toast.makeText(context, "No hay PDF para subir", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val userName = SessionManager.getNombre(context)
+        val userRole = SessionManager.getRole(context)
+
+        if (userName.isBlank() || userRole.isBlank()) {
+            Toast.makeText(context, "Sesión no válida", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        subiendoDrive = true
+        driveUploadSuccess = null
+        driveErrorMessage = null
+
+        scope.launch {
+            try {
+                // Subir a Google Drive con estructura de carpetas (archivo local)
+                val result = GoogleDriveRepository.uploadPdfToStructuredFolder(
+                    context = context,
+                    localPdfFile = pdfFile!!,
+                    userName = userName,
+                    userRole = userRole
+                )
+
+                if (result.isSuccess) {
+                    val uploadResult = result.getOrNull()!!
+
+                    if (uploadResult.success) {
+                        driveUploadSuccess = true
+                        Toast.makeText(
+                            context,
+                            "PDF subido a Drive: ${uploadResult.folderPath}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        driveUploadSuccess = false
+                        driveErrorMessage = uploadResult.error
+                        Toast.makeText(
+                            context,
+                            "Error: ${uploadResult.error}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } else {
+                    driveUploadSuccess = false
+                    driveErrorMessage = result.exceptionOrNull()?.message
+                    Toast.makeText(
+                        context,
+                        "Error al subir: ${result.exceptionOrNull()?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+
+            } catch (e: Exception) {
+                driveUploadSuccess = false
+                driveErrorMessage = e.message
+                Toast.makeText(
+                    context,
+                    "Error: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                subiendoDrive = false
+            }
+        }
+    }
+
+
+    val signInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        scope.launch {
+            val resultData = result.data
+            val signInResult = DriveAuthManager.handleSignInResult(resultData)
+
+            if (signInResult.isSuccess) {
+                // Autenticación exitosa, ahora subir archivo
+                Toast.makeText(context, "Autenticado con Google", Toast.LENGTH_SHORT).show()
+                uploadToDrive()
+            } else {
+                Toast.makeText(
+                    context,
+                    "Error de autenticación: ${signInResult.exceptionOrNull()?.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 
     var hs875Selected by rememberSaveable {
         mutableStateOf(if (desdeHistorial) cotizacion.productos.contains(TipoProducto.HS875) else true)
@@ -159,6 +259,19 @@ fun ResumenScreen(
             pdfFile = pdf
         }
         return pdf
+    }
+
+
+
+    fun handleDriveUpload() {
+        if (!DriveAuthManager.isAuthenticated(context)) {
+            // No autenticado, iniciar flujo OAuth
+            val signInIntent = DriveAuthManager.getSignInIntent(context)
+            signInLauncher.launch(signInIntent)
+        } else {
+            // Ya autenticado, subir directamente
+            uploadToDrive()
+        }
     }
 
     BackHandler {
@@ -288,46 +401,94 @@ fun ResumenScreen(
                             Text("GUARDAR Y GENERAR PDF", color = if (isDarkMode) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.5.sp)
                         }
                     } else {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    val pdf = obtenerOGenerarPdf()
-                                    if (pdf != null) compartirPdf(context, pdf)
-                                    else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.weight(1.2f).height(48.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
-                            ) {
-                                Icon(Icons.Default.Share, null, tint = textPrimary, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Enviar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        // Botones cuando ya está guardado
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                            // Primera fila: Enviar, PDF, Editar
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val pdf = obtenerOGenerarPdf()
+                                        if (pdf != null) compartirPdf(context, pdf)
+                                        else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1.2f).height(48.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                                ) {
+                                    Icon(Icons.Default.Share, null, tint = textPrimary, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Enviar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val pdf = obtenerOGenerarPdf()
+                                        if (pdf != null) verPdf(context, pdf)
+                                        else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.PictureAsPdf, null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("PDF", color = if (isDarkMode) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = onVolverAEditar,
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                                ) {
+                                    Icon(Icons.Default.Edit, null, tint = textPrimary, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Editar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
 
+                            // Segunda fila: BOTÓN DE GOOGLE DRIVE (NUEVO)
                             Button(
-                                onClick = {
-                                    val pdf = obtenerOGenerarPdf()
-                                    if (pdf != null) verPdf(context, pdf)
-                                    else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.weight(1f).height(48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
+                                onClick = { handleDriveUpload() },
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                enabled = !subiendoDrive,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = when {
+                                        driveUploadSuccess == true -> Color(0xFF10B981) // Verde
+                                        driveUploadSuccess == false -> Color(0xFFEF4444) // Rojo
+                                        else -> Color(0xFF4285F4) // Azul Google
+                                    }
+                                ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(Icons.Default.PictureAsPdf, null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("PDF", color = if (isDarkMode) Color.Black else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            OutlinedButton(
-                                onClick = onVolverAEditar,
-                                modifier = Modifier.weight(1f).height(48.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
-                            ) {
-                                Icon(Icons.Default.Edit, null, tint = textPrimary, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Editar", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                if (subiendoDrive) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Subiendo a Drive...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_google_drive),
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        when {
+                                            driveUploadSuccess == true -> "✓ Subido a Google Drive"
+                                            driveUploadSuccess == false -> "Error - Reintentar"
+                                            else -> "Subir a Google Drive"
+                                        },
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }

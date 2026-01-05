@@ -111,17 +111,17 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // MODIFICAR: HOME (ESPECIALISTA)
+        // HOME (ESPECIALISTA)
         // ═══════════════════════════════════════════════════════════════════
         composable(Routes.HOME) {
             HomeScreen(
                 userFirstName = SessionManager.getNombre(context),
                 pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
+                pendingDriveCount = 0, // TODO: Implementar contador de Drive
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
 
                 onNuevaCotizacion = {
-                    // ✅ CAMBIO: Ya NO navega directo a CLIENTE, sino a SELECCION_CLIENTE
                     navController.navigate(Routes.SELECCION_CLIENTE)
                 },
 
@@ -149,26 +149,28 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // MODIFICAR: ADMIN HOME
+        // ADMIN HOME
         // ═══════════════════════════════════════════════════════════════════
         composable(Routes.ADMIN_HOME) {
             AdminHomeScreen(
                 adminName = SessionManager.getNombre(context),
                 pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
+                pendingDriveCount = 0, // TODO: Implementar contador de Drive
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
 
-                // ✅ CAMBIO: Admin también usa selección de cliente
                 onNuevaCotizacion = {
                     navController.navigate(Routes.SELECCION_CLIENTE)
                 },
 
                 onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
+                onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
                 onConfigurePrecios = { navController.navigate(Routes.ADMIN_PRECIOS) },
                 onVerTodasCotizaciones = { navController.navigate(Routes.ADMIN_COTIZACIONES) },
                 onVerEmpleados = { navController.navigate(Routes.ADMIN_EMPLEADOS) },
-                onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },  // ✅ AGREGAR
+                onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },
+                onVerMetros = { navController.navigate(Routes.ADMIN_METROS) }, // Nueva ruta
 
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -277,6 +279,22 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
+        // ADMIN: METROS CUADRADOS (Nueva pantalla)
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_METROS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminMetrosScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
         // CLIENTE (Paso 1 del flujo de cotización)
         // ═══════════════════════════════════════════════════════════════════
         composable(
@@ -339,8 +357,9 @@ fun AppNavigation(
                     isDarkMode = isDarkMode,
                     onVolverAInicio = {
                         cotizacionDraft.clear()
-                        navController.navigate(Routes.HOME) {
-                            popUpTo(Routes.HOME) { inclusive = true }
+                        val destination = if (SessionManager.getRole(context) == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+                        navController.navigate(destination) {
+                            popUpTo(destination) { inclusive = true }
                         }
                     },
                     onVolverAEditar = {
@@ -357,8 +376,9 @@ fun AppNavigation(
                     }
                 )
             } else {
-                navController.navigate(Routes.HOME) {
-                    popUpTo(Routes.HOME) { inclusive = true }
+                val destination = if (SessionManager.getRole(context) == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+                navController.navigate(destination) {
+                    popUpTo(destination) { inclusive = true }
                 }
             }
         }
@@ -413,27 +433,25 @@ fun AppNavigation(
         }
 
 
-    // ═══════════════════════════════════════════════════════════════════
-    // ✅ NUEVA RUTA: PENDIENTES GOOGLE DRIVE
-    // ═══════════════════════════════════════════════════════════════════
-    composable(
-        route = Routes.PENDIENTES_DRIVE,
-        enterTransition = { enterTransition() },
-        exitTransition = { exitTransition() },
-        popEnterTransition = { popEnterTransition() },
-        popExitTransition = { popExitTransition() }
-    ) {
-        PendingDriveUploadsScreen(
-            isDarkMode = isDarkMode,
-            isOnline = online,
-            onBack = { navController.popBackStack() }
-        )
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════
+        // PENDIENTES GOOGLE DRIVE
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.PENDIENTES_DRIVE,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            PendingDriveUploadsScreen(
+                isDarkMode = isDarkMode,
+                isOnline = online,
+                onBack = { navController.popBackStack() }
+            )
+        }
 
         // ═══════════════════════════════════════════════════════════════════
-        // ✅ NUEVA RUTA: SELECCIÓN DE CLIENTE
+        // SELECCIÓN DE CLIENTE
         // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.SELECCION_CLIENTE,

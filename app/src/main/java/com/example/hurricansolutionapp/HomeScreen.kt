@@ -35,12 +35,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.alpha
-// NUEVOS IMPORTS PARA LIFECYCLE
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-// COLORES ZINC (Extraídos de tu archivo de diseño Stich)
+// COLORES ZINC
 val Zinc950 = Color(0xFF09090B)
 val Zinc900 = Color(0xFF18181B)
 val Zinc800 = Color(0xFF27272A)
@@ -51,6 +50,7 @@ val Zinc400 = Color(0xFF71717A)
 fun HomeScreen(
     userFirstName: String,
     pendingCount: Int,
+    pendingDriveCount: Int = 0,
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
     onNuevaCotizacion: () -> Unit,
@@ -67,22 +67,17 @@ fun HomeScreen(
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Zinc400 else Color(0xFF6B7280)
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // VERIFICACIÓN DE PRECIOS - Cada vez que la pantalla se hace visible
-    // ═══════════════════════════════════════════════════════════════════════════
+    // Verificación de precios
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // Cada vez que la pantalla se hace visible, verificar precios
                 scope.launch {
                     try {
                         PriceManager.checkForUpdates()
-                    } catch (e: Exception) {
-                        // Silencioso - no mostrar error al usuario
-                    }
+                    } catch (e: Exception) { }
                 }
             }
         }
@@ -91,7 +86,6 @@ fun HomeScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    // ═══════════════════════════════════════════════════════════════════════════
 
     Column(
         modifier = Modifier
@@ -100,52 +94,38 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .statusBarsPadding()
-
+            .navigationBarsPadding()
     ) {
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
 
-        // 1. TOP BAR CON LOGO DINÁMICO Y BOTÓN CON PROFUNDIDAD REAL
+        // TOP BAR
         TopBar(isDarkMode, onToggleDarkMode, card, border, textPrimary)
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // BANNER DE PRECIOS ACTUALIZADOS
-        // ═══════════════════════════════════════════════════════════════════════
+        // BANNER DE PRECIOS
         PreciosActualizadosBanner(isDarkMode = isDarkMode)
-        // ═══════════════════════════════════════════════════════════════════════
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
 
         var titleSize by remember { mutableStateOf(34.sp) }
         val minTitle = 22.sp
 
-        // 2. SECCIÓN DE BIENVENIDA (DISEÑO LIMPIO)
+        // BIENVENIDA
         Text(
-            text = "Jueves, 24 de Octubre",
+            text = getSpanishDate(),
             color = textMuted,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
         )
         Text(
             text = buildAnnotatedString {
-                withStyle(
-                    SpanStyle(
-                        color = textPrimary,
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.Black
-                    )
-                ) { append("Bienvenido, ") }
-
-                withStyle(
-                    SpanStyle(
-                        color = textMuted,
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.Black
-                    )
-                ) {
+                withStyle(SpanStyle(color = textPrimary, fontSize = titleSize, fontWeight = FontWeight.Black)) {
+                    append("Bienvenido, ")
+                }
+                withStyle(SpanStyle(color = textMuted, fontSize = titleSize, fontWeight = FontWeight.Black)) {
                     append(userFirstName)
                 }
             },
-            maxLines = 2,
+            maxLines = 3,
             overflow = TextOverflow.Clip,
             onTextLayout = { result ->
                 if (result.hasVisualOverflow && titleSize > minTitle) {
@@ -153,7 +133,6 @@ fun HomeScreen(
                 }
             }
         )
-
 
         Spacer(Modifier.height(18.dp))
         HorizontalDivider(color = border, thickness = 1.dp)
@@ -168,44 +147,45 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // 3. TARJETA PRINCIPAL (NUEVA COTIZACIÓN)
+        // TARJETA PRINCIPAL
         BigActionCard(onNuevaCotizacion)
 
         Spacer(Modifier.height(16.dp))
 
-        // 4. ACCIONES SECUNDARIAS
+        // Historial de Cotizaciones
         SmallActionCard(
-            title = "Ver Cotizaciones",
-            subtitle = "Consultar historial reciente",
+            title = "Historial De Cotizaciones Generadas",
+            subtitle = "Ver mi historial de cotizaciones",
             iconRes = R.drawable.ic_history_lucide,
+            animationType = AnimationType.ROTATION,
             onClick = onVerCotizaciones,
             isDarkMode = isDarkMode,
-            card = card, border = border, textPrimary = textPrimary, textMuted = textMuted,
-            showArrow = true
+            card = card, border = border, textPrimary = textPrimary, textMuted = textMuted
         )
 
         Spacer(Modifier.height(16.dp))
 
+        // Sincronizaciones Pendientes
         SmallActionCard(
-            title = "Pendientes por subir",
-            subtitle = "Sincronizar datos locales",
+            title = "Sincronizaciones Pendientes",
+            subtitle = "Subir Cotizaciones A La Nube",
             badgeCount = pendingCount,
             iconRes = R.drawable.ic_upload_lucide,
+            animationType = AnimationType.BOUNCE,
             onClick = onPendientes,
             isDarkMode = isDarkMode,
             card = card, border = border, textPrimary = textPrimary, textMuted = textMuted
         )
 
-
-
         Spacer(Modifier.height(16.dp))
 
-        // ✅ NUEVO: Botón Pendientes Drive
+        // Archivar PDF (Google Drive) - CON ANIMACIÓN
         SmallActionCard(
-            title = "Pendientes Google Drive",
-            subtitle = "PDFs sin subir a Drive",
-            badgeCount = 0, // TODO: Agregar contador si quieres
+            title = "Archivar PDF",
+            subtitle = "PDFs Sin Subir A La Base De Datos",
+            badgeCount = pendingDriveCount,
             iconRes = R.drawable.ic_google_drive,
+            animationType = AnimationType.BOUNCE, // Animación de rebote igual que sincronizaciones
             onClick = onPendientesDrive,
             isDarkMode = isDarkMode,
             card = card, border = border, textPrimary = textPrimary, textMuted = textMuted
@@ -213,26 +193,27 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        Spacer(Modifier.height(16.dp))
+        // CERRAR SESIÓN - Separación consistente
         CerrarSesionButton(
             onClick = { if (logoutEnabled) showLogoutDialog = true },
             isDarkMode = isDarkMode,
             enabled = logoutEnabled
         )
 
-        val dialogBg = if (isDarkMode) Zinc900 else Color.White
-        val dialogTitle = if (isDarkMode) Color.White else Color(0xFF111418)
-        val dialogText = if (isDarkMode) Color(0xFFB0B0B0) else Color(0xFF374151)
-        val cancelColor = if (isDarkMode) Color.White else Color(0xFF111418)
-        val dangerColor = Color(0xFFE53935)
+        Spacer(Modifier.height(32.dp))
 
-        Spacer(Modifier.height(24.dp))
+        // Dialog logout
         if (showLogoutDialog) {
+            val dialogBg = if (isDarkMode) Zinc900 else Color.White
+            val dialogTitle = if (isDarkMode) Color.White else Color(0xFF111418)
+            val dialogText = if (isDarkMode) Color(0xFFB0B0B0) else Color(0xFF374151)
+            val cancelColor = if (isDarkMode) Color.White else Color(0xFF111418)
+            val dangerColor = Color(0xFFE53935)
+
             AlertDialog(
                 onDismissRequest = { showLogoutDialog = false },
                 containerColor = dialogBg,
                 tonalElevation = 6.dp,
-
                 title = {
                     Text(
                         text = "Cerrar sesión",
@@ -241,7 +222,6 @@ fun HomeScreen(
                         fontSize = 20.sp
                     )
                 },
-
                 text = {
                     Text(
                         text = "¿Deseas cerrar sesión?\nTendrás que volver a iniciar sesión.",
@@ -249,7 +229,6 @@ fun HomeScreen(
                         fontSize = 15.sp
                     )
                 },
-
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -257,26 +236,22 @@ fun HomeScreen(
                             onCerrarSesion()
                         }
                     ) {
-                        Text(
-                            text = "Sí, salir",
-                            color = dangerColor,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text(text = "Sí, salir", color = dangerColor, fontWeight = FontWeight.Bold)
                     }
                 },
-
                 dismissButton = {
                     TextButton(onClick = { showLogoutDialog = false }) {
-                        Text(
-                            text = "Cancelar",
-                            color = cancelColor,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text(text = "Cancelar", color = cancelColor, fontWeight = FontWeight.SemiBold)
                     }
                 }
             )
         }
     }
+}
+
+// Tipos de animación para los iconos
+private enum class AnimationType {
+    NONE, ROTATION, BOUNCE
 }
 
 @Composable
@@ -295,16 +270,12 @@ private fun TopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, card: Colo
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
-        CroppedLogo(
-            resId = logoRes,
-            height = 48.dp,
-            modifier = Modifier
-        )
+        CroppedLogo(resId = logoRes, height = 48.dp)
 
         Box(
             modifier = Modifier
                 .size(46.dp)
-                .shadow(elevation = if(isDarkMode) 0.dp else 6.dp, CircleShape)
+                .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
                 .clip(CircleShape)
                 .background(card)
                 .border(1.5.dp, border, CircleShape)
@@ -332,10 +303,7 @@ private fun BigActionCard(onClick: () -> Unit) {
 
     val rotation by animateFloatAsState(
         targetValue = if (isRotated) 90f else 0f,
-        animationSpec = tween(
-            durationMillis = 400,
-            easing = FastOutSlowInEasing
-        ),
+        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
         label = "rotation"
     )
 
@@ -345,11 +313,7 @@ private fun BigActionCard(onClick: () -> Unit) {
             .height(150.dp)
             .shadow(20.dp, shape, spotColor = Color.Black.copy(alpha = 0.5f))
             .clip(shape)
-            .border(
-                width = 1.dp,
-                color = Color.Black.copy(alpha = 0.08f),
-                shape = shape
-            )
+            .border(width = 1.dp, color = Color.Black.copy(alpha = 0.08f), shape = shape)
             .background(
                 Brush.linearGradient(
                     colors = listOf(Color(0xFF000000), Color(0xFF0B0B0D), Color(0xFF1A1A1D)),
@@ -385,30 +349,42 @@ private fun BigActionCard(onClick: () -> Unit) {
 
 @Composable
 private fun SmallActionCard(
-    title: String, subtitle: String, iconRes: Int, isDarkMode: Boolean,
-    card: Color, border: Color, textPrimary: Color, textMuted: Color,
-    badgeCount: Int? = null, showArrow: Boolean = false, onClick: () -> Unit
+    title: String,
+    subtitle: String,
+    iconRes: Int,
+    isDarkMode: Boolean,
+    card: Color,
+    border: Color,
+    textPrimary: Color,
+    textMuted: Color,
+    badgeCount: Int? = null,
+    animationType: AnimationType = AnimationType.NONE,
+    onClick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "icon_animations")
 
+    // Animación de rotación (para historial)
     val rotationOscilation by infiniteTransition.animateFloat(
         initialValue = -15f,
         targetValue = 15f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
-        ), label = "oscilacion"
+        ),
+        label = "oscilacion"
     )
 
-    val uploadAnim by infiniteTransition.animateFloat(
+    // Animación de rebote arriba/abajo (para pendientes y drive)
+    val bounceAnim by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = -5f,
         animationSpec = infiniteRepeatable(
             animation = tween(900, easing = EaseInOutQuad),
             repeatMode = RepeatMode.Reverse
-        ), label = "upload"
+        ),
+        label = "bounce"
     )
 
     val scale by animateFloatAsState(
@@ -438,19 +414,19 @@ private fun SmallActionCard(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(
-                    if (isDarkMode) Zinc800
-                    else Color(0xFFE5E7EB)
-                )
+                .background(if (isDarkMode) Zinc800 else Color(0xFFE5E7EB))
                 .graphicsLayer {
                     this.scaleX = scale
                     this.scaleY = scale
-
-                    if (title == "Ver Cotizaciones") {
-                        this.rotationZ = rotationOscilation
-                        this.transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
-                    } else if (title == "Pendientes por subir") {
-                        this.translationY = uploadAnim
+                    when (animationType) {
+                        AnimationType.ROTATION -> {
+                            this.rotationZ = rotationOscilation
+                            this.transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
+                        }
+                        AnimationType.BOUNCE -> {
+                            this.translationY = bounceAnim
+                        }
+                        AnimationType.NONE -> { }
                     }
                 },
             contentAlignment = Alignment.Center
@@ -484,7 +460,8 @@ private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled
         animationSpec = infiniteRepeatable(
             animation = tween(850, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
-        ), label = "logout_move"
+        ),
+        label = "logout_move"
     )
 
     val redBg = if (isDarkMode) {

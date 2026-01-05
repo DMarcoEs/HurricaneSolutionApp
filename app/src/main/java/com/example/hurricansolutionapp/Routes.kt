@@ -26,6 +26,7 @@ object Routes {
     const val ADMIN_COTIZACION_DETALLE = "admin_cotizacion_detalle/{folio}"
     const val ADMIN_EMPLEADOS = "admin_empleados"
     const val ADMIN_LEADS = "admin_leads"
+    const val ADMIN_METROS = "admin_metros"  // Nueva ruta para metros cuadrados
 
     const val SELECCION_CLIENTE = "seleccion_cliente"
 

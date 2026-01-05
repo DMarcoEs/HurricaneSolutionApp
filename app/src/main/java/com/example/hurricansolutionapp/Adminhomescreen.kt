@@ -39,17 +39,20 @@ import kotlinx.coroutines.launch
 fun AdminHomeScreen(
     adminName: String,
     pendingCount: Int,
+    pendingDriveCount: Int = 0,
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
-    // Funciones de ESPECIALISTA (las mismas que tiene)
+    // Funciones de ESPECIALISTA
     onNuevaCotizacion: () -> Unit,
     onVerMisCotizaciones: () -> Unit,
     onPendientes: () -> Unit,
+    onPendientesDrive: () -> Unit,
     // Funciones de ADMIN
     onConfigurePrecios: () -> Unit,
     onVerTodasCotizaciones: () -> Unit,
     onVerEmpleados: () -> Unit,
     onGestionarLeads: () -> Unit,
+    onVerMetros: () -> Unit, // Nueva función para la pantalla de metros
     // Logout
     logoutEnabled: Boolean,
     onCerrarSesion: () -> Unit
@@ -68,13 +71,13 @@ fun AdminHomeScreen(
         isLoadingStats = false
     }
 
-    // Colores (igual que HomeScreen)
+    // Colores
     val bg = if (isDarkMode) Zinc950 else Color.White
     val card = if (isDarkMode) Zinc900 else Color(0xFFF9FAFB)
     val border = if (isDarkMode) Zinc800 else Color(0xFFE5E7EB)
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Zinc400 else Color(0xFF6B7280)
-    val adminAccent = Color(0xFF3B82F6) // Azul para admin
+    val adminAccent = Color(0xFF3B82F6)
 
     Column(
         modifier = Modifier
@@ -83,19 +86,16 @@ fun AdminHomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
 
-        // ═══════════════════════════════════════════════════════════════════
-        // TOP BAR (igual que HomeScreen pero con badge ADMIN)
-        // ═══════════════════════════════════════════════════════════════════
+        // TOP BAR
         AdminTopBar(isDarkMode, onToggleDarkMode, card, border, textPrimary, adminAccent)
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
 
-        // ═══════════════════════════════════════════════════════════════════
-        // BIENVENIDA (igual que HomeScreen)
-        // ═══════════════════════════════════════════════════════════════════
+        // BIENVENIDA
         Text(
             text = getSpanishDate(),
             color = textMuted,
@@ -112,10 +112,10 @@ fun AdminHomeScreen(
                     append("Bienvenido, ")
                 }
                 withStyle(SpanStyle(color = textMuted, fontSize = titleSize, fontWeight = FontWeight.Black)) {
-                    append(adminName.split(" ").firstOrNull() ?: adminName)
+                    append(adminName)
                 }
             },
-            maxLines = 2,
+            maxLines = 3,
             overflow = TextOverflow.Clip,
             onTextLayout = { result ->
                 if (result.hasVisualOverflow && titleSize > minTitle) {
@@ -128,9 +128,7 @@ fun AdminHomeScreen(
         HorizontalDivider(color = border, thickness = 1.dp)
         Spacer(Modifier.height(18.dp))
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ESTADÍSTICAS RÁPIDAS (Solo para Admin)
-        // ═══════════════════════════════════════════════════════════════════
+        // ESTADÍSTICAS RÁPIDAS - Fila 1
         Text(
             text = "Resumen General",
             color = textPrimary,
@@ -144,7 +142,7 @@ fun AdminHomeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AdminStatCard(
+            AdminStatCardClickable(
                 title = "Cotizaciones",
                 value = if (isLoadingStats) "..." else stats.totalCotizaciones.toString(),
                 icon = Icons.Default.Description,
@@ -154,9 +152,10 @@ fun AdminHomeScreen(
                 card = card,
                 border = border,
                 textPrimary = textPrimary,
-                textMuted = textMuted
+                textMuted = textMuted,
+                onClick = onVerTodasCotizaciones
             )
-            AdminStatCard(
+            AdminStatCardClickable(
                 title = "Empleados",
                 value = if (isLoadingStats) "..." else stats.empleadosActivos.toString(),
                 icon = Icons.Default.People,
@@ -166,9 +165,11 @@ fun AdminHomeScreen(
                 card = card,
                 border = border,
                 textPrimary = textPrimary,
-                textMuted = textMuted
+                textMuted = textMuted,
+                onClick = onVerEmpleados
             )
-            AdminStatCard(
+            // m² Total ahora va a su propia pantalla
+            AdminStatCardClickable(
                 title = "m² Total",
                 value = if (isLoadingStats) "..." else String.format("%.0f", stats.totalMetrosCuadrados),
                 icon = Icons.Default.SquareFoot,
@@ -178,17 +179,49 @@ fun AdminHomeScreen(
                 card = card,
                 border = border,
                 textPrimary = textPrimary,
-                textMuted = textMuted
+                textMuted = textMuted,
+                onClick = onVerMetros // Nueva pantalla de metros
             )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // HERRAMIENTAS ADMIN - Fila 2 (Solo Precios y Leads - sin Usuarios duplicado)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            AdminToolCard(
+                title = "Precios",
+                icon = Icons.Default.AttachMoney,
+                color = Color(0xFF10B981),
+                modifier = Modifier.weight(1f),
+                isDarkMode = isDarkMode,
+                card = card,
+                border = border,
+                textPrimary = textPrimary,
+                onClick = onConfigurePrecios
+            )
+            AdminToolCard(
+                title = "Leads",
+                icon = Icons.Default.PersonAdd,
+                color = Color(0xFF3B82F6),
+                modifier = Modifier.weight(1f),
+                isDarkMode = isDarkMode,
+                card = card,
+                border = border,
+                textPrimary = textPrimary,
+                onClick = onGestionarLeads
+            )
+            // Espacio vacío para mantener el layout balanceado
+            Spacer(modifier = Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(24.dp))
         HorizontalDivider(color = border, thickness = 1.dp)
         Spacer(Modifier.height(18.dp))
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ACCIONES RÁPIDAS (Igual que especialista)
-        // ═══════════════════════════════════════════════════════════════════
+        // ACCIONES RÁPIDAS
         Text(
             text = "Acciones Rápidas",
             color = textPrimary,
@@ -198,33 +231,34 @@ fun AdminHomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // Tarjeta principal: Nueva Cotización
+        // Nueva Cotización
         AdminBigActionCard(onNuevaCotizacion)
 
         Spacer(Modifier.height(16.dp))
 
-        // Ver Mis Cotizaciones
+        // Historial de Cotizaciones
         AdminSmallActionCard(
-            title = "Mis Cotizaciones",
+            title = "Historial De Cotizaciones Generadas",
             subtitle = "Ver mi historial de cotizaciones",
             iconRes = R.drawable.ic_history_lucide,
+            animationType = AdminAnimationType.ROTATION,
             onClick = onVerMisCotizaciones,
             isDarkMode = isDarkMode,
             card = card,
             border = border,
             textPrimary = textPrimary,
-            textMuted = textMuted,
-            showArrow = true
+            textMuted = textMuted
         )
 
         Spacer(Modifier.height(16.dp))
 
-        // Pendientes por subir
+        // Sincronizaciones Pendientes
         AdminSmallActionCard(
-            title = "Pendientes por subir",
-            subtitle = "Sincronizar datos locales",
+            title = "Sincronizaciones Pendientes",
+            subtitle = "Subir Cotizaciones A La Nube",
             badgeCount = pendingCount,
             iconRes = R.drawable.ic_upload_lucide,
+            animationType = AdminAnimationType.BOUNCE,
             onClick = onPendientes,
             isDarkMode = isDarkMode,
             card = card,
@@ -233,117 +267,33 @@ fun AdminHomeScreen(
             textMuted = textMuted
         )
 
-        Spacer(Modifier.height(24.dp))
-        HorizontalDivider(color = border, thickness = 1.dp)
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ACCIONES DE ADMINISTRADOR
-        // ═══════════════════════════════════════════════════════════════════
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF3B82F6), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    "ADMIN",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-            }
-            Text(
-                text = "Herramientas de Administración",
-                color = textPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // Archivar PDF
+        AdminSmallActionCard(
+            title = "Archivar PDF",
+            subtitle = "PDFs Sin Subir A La Base De Datos",
+            badgeCount = pendingDriveCount,
+            iconRes = R.drawable.ic_google_drive,
+            animationType = AdminAnimationType.BOUNCE,
+            onClick = onPendientesDrive,
+            isDarkMode = isDarkMode,
+            card = card,
+            border = border,
+            textPrimary = textPrimary,
+            textMuted = textMuted
+        )
 
         Spacer(Modifier.height(16.dp))
 
-        // Configurar Precios
-        AdminFeatureCard(
-            title = "Configurar Precios",
-            subtitle = "Actualizar precios de venta y costos",
-            icon = Icons.Default.AttachMoney,
-            accentColor = Color(0xFF10B981),
-            onClick = onConfigurePrecios,
-            isDarkMode = isDarkMode,
-            card = card,
-            border = border,
-            textPrimary = textPrimary,
-            textMuted = textMuted
-        )
-
-        // Botón: Gestionar Leads
-        Button(
-            onClick = onGestionarLeads,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF3B82F6) // Azul
-            )
-        ) {
-            Icon(
-                Icons.Default.Person,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("Gestionar Leads", fontSize = 16.sp)
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Ver Todas las Cotizaciones
-        AdminFeatureCard(
-            title = "Ver Todas las Cotizaciones",
-            subtitle = "Revisar cotizaciones de empleados",
-            icon = Icons.Default.FolderShared,
-            accentColor = Color(0xFF3B82F6),
-            onClick = onVerTodasCotizaciones,
-            isDarkMode = isDarkMode,
-            card = card,
-            border = border,
-            textPrimary = textPrimary,
-            textMuted = textMuted
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // Gestionar Empleados
-        AdminFeatureCard(
-            title = "Gestionar Empleados",
-            subtitle = "Administrar usuarios del sistema",
-            icon = Icons.Default.ManageAccounts,
-            accentColor = Color(0xFF8B5CF6),
-            onClick = onVerEmpleados,
-            isDarkMode = isDarkMode,
-            card = card,
-            border = border,
-            textPrimary = textPrimary,
-            textMuted = textMuted
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        // ═══════════════════════════════════════════════════════════════════
-        // CERRAR SESIÓN (igual estilo que HomeScreen)
-        // ═══════════════════════════════════════════════════════════════════
+        // CERRAR SESIÓN - Separación consistente igual que empleado
         AdminCerrarSesionButton(
             onClick = { if (logoutEnabled) showLogoutDialog = true },
             isDarkMode = isDarkMode,
             enabled = logoutEnabled
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(32.dp))
     }
 
     // Dialog de logout
@@ -380,24 +330,21 @@ fun AdminHomeScreen(
                         onCerrarSesion()
                     }
                 ) {
-                    Text(
-                        text = "Sí, salir",
-                        color = dangerColor,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(text = "Sí, salir", color = dangerColor, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
-                    Text(
-                        text = "Cancelar",
-                        color = cancelColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text(text = "Cancelar", color = cancelColor, fontWeight = FontWeight.SemiBold)
                 }
             }
         )
     }
+}
+
+// Tipos de animación
+private enum class AdminAnimationType {
+    NONE, ROTATION, BOUNCE
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -430,11 +377,9 @@ private fun AdminTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Logo
             val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
             AdminCroppedLogo(resId = logoRes, height = 48.dp)
 
-            // Badge ADMIN
             Box(
                 modifier = Modifier
                     .background(adminAccent, RoundedCornerShape(6.dp))
@@ -545,7 +490,7 @@ private fun AdminSmallActionCard(
     textPrimary: Color,
     textMuted: Color,
     badgeCount: Int? = null,
-    showArrow: Boolean = false,
+    animationType: AdminAnimationType = AdminAnimationType.NONE,
     onClick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -562,14 +507,14 @@ private fun AdminSmallActionCard(
         label = "oscilacion"
     )
 
-    val uploadAnim by infiniteTransition.animateFloat(
+    val bounceAnim by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = -5f,
         animationSpec = infiniteRepeatable(
             animation = tween(900, easing = EaseInOutQuad),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "upload"
+        label = "bounce"
     )
 
     val scale by animateFloatAsState(
@@ -603,11 +548,15 @@ private fun AdminSmallActionCard(
                 .graphicsLayer {
                     this.scaleX = scale
                     this.scaleY = scale
-                    if (title.contains("Cotizaciones")) {
-                        this.rotationZ = rotationOscilation
-                        this.transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
-                    } else if (title.contains("Pendientes")) {
-                        this.translationY = uploadAnim
+                    when (animationType) {
+                        AdminAnimationType.ROTATION -> {
+                            this.rotationZ = rotationOscilation
+                            this.transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
+                        }
+                        AdminAnimationType.BOUNCE -> {
+                            this.translationY = bounceAnim
+                        }
+                        AdminAnimationType.NONE -> { }
                     }
                 },
             contentAlignment = Alignment.Center
@@ -626,92 +575,6 @@ private fun AdminSmallActionCard(
         }
         if (badgeCount != null && badgeCount > 0) {
             Text("• $badgeCount", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        }
-    }
-}
-
-@Composable
-private fun AdminFeatureCard(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    accentColor: Color,
-    onClick: () -> Unit,
-    isDarkMode: Boolean,
-    card: Color,
-    border: Color,
-    textPrimary: Color,
-    textMuted: Color
-) {
-    val scope = rememberCoroutineScope()
-    var isPressed by remember { mutableStateOf(false) }
-
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "scale"
-    )
-
-    Surface(
-        onClick = {
-            isPressed = true
-            scope.launch {
-                kotlinx.coroutines.delay(100)
-                isPressed = false
-                onClick()
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
-        color = card,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, border)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(accentColor.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = textPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    subtitle,
-                    color = textMuted,
-                    fontSize = 13.sp
-                )
-            }
-
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = textMuted,
-                modifier = Modifier.size(24.dp)
-            )
         }
     }
 }
@@ -794,7 +657,7 @@ private fun AdminCerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, en
 }
 
 @Composable
-private fun AdminStatCard(
+private fun AdminStatCardClickable(
     title: String,
     value: String,
     icon: ImageVector,
@@ -804,13 +667,35 @@ private fun AdminStatCard(
     card: Color,
     border: Color,
     textPrimary: Color,
-    textMuted: Color
+    textMuted: Color,
+    onClick: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    var isPressed by remember { mutableStateOf(false) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         color = card,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, border)
+        border = BorderStroke(1.dp, border),
+        onClick = {
+            isPressed = true
+            scope.launch {
+                kotlinx.coroutines.delay(100)
+                isPressed = false
+                onClick()
+            }
+        }
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -820,6 +705,74 @@ private fun AdminStatCard(
             Spacer(Modifier.height(8.dp))
             Text(value, color = textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text(title, color = textMuted, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun AdminToolCard(
+    title: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    isDarkMode: Boolean,
+    card: Color,
+    border: Color,
+    textPrimary: Color,
+    onClick: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var isPressed by remember { mutableStateOf(false) }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+
+    Surface(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        color = card,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, border),
+        onClick = {
+            isPressed = true
+            scope.launch {
+                kotlinx.coroutines.delay(100)
+                isPressed = false
+                onClick()
+            }
+        }
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(color.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                title,
+                color = textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }

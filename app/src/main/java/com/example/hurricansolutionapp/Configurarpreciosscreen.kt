@@ -95,7 +95,7 @@ fun ConfigurarPreciosScreen(
             isSaving = true
 
             // Obtener el userId del usuario actual
-            val userId = SessionManager.getUserId(context) ?: "admin"
+            val userId = SessionManager.getUserId(context)
 
             val configUpdate = AppConfigUpdate(
                 hs875PrecioVenta = v875,

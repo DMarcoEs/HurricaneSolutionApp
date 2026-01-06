@@ -125,7 +125,7 @@ fun HomeScreen(
         Spacer(Modifier.height(18.dp))
 
         Text(
-            text = "Acciones Rápidas",
+            text = "Menu",
             color = textPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold

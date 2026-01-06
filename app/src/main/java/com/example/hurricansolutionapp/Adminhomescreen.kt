@@ -115,7 +115,7 @@ fun AdminHomeScreen(
 
         // ESTADÍSTICAS RÁPIDAS - Fila 1
         Text(
-            text = "Resumen General",
+            text = "Herramientas De Administración",
             color = textPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold
@@ -206,7 +206,7 @@ fun AdminHomeScreen(
 
         // ACCIONES RÁPIDAS
         Text(
-            text = "Acciones Rápidas",
+            text = "Menu",
             color = textPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold

@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,7 +52,7 @@ fun AdminEmpleadosScreen(
 
     // Colores
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
-    val surface = if (isDarkMode) Color(0xFF111111) else Color.White
+    val surface = if (isDarkMode) Color(0xFF000000) else Color.White
     val card = if (isDarkMode) Color(0xFF18181B) else Color.White
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
@@ -78,32 +79,36 @@ fun AdminEmpleadosScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = surface,
-                shadowElevation = 2.dp
+            // StitchTopBar
+            Column(
+                modifier = Modifier
+                    .background(surface)
+                    .statusBarsPadding()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = textPrimary)
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = surface
+                    ),
+                    title = {
+                        Text(
+                            "GESTIONAR EMPLEADOS",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = textPrimary,
+                            letterSpacing = 0.5.sp
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_chevron_left),
+                                contentDescription = "Volver",
+                                tint = textPrimary
+                            )
+                        }
                     }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "GESTIONAR EMPLEADOS",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = textPrimary,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Spacer(Modifier.size(40.dp))
-                }
+                )
+                HorizontalDivider(color = border, thickness = 1.dp)
             }
         }
     ) { innerPadding ->
@@ -124,114 +129,107 @@ fun AdminEmpleadosScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.PeopleOutline,
+                        Icons.Default.PersonOff,
                         contentDescription = null,
                         tint = textMuted,
                         modifier = Modifier.size(64.dp)
                     )
-                    Text(
-                        "No hay empleados registrados",
-                        color = textMuted,
-                        fontSize = 16.sp
-                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("No hay empleados registrados", color = textMuted)
                 }
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                // Resumen
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        SummaryCard(
-                            title = "Total",
-                            value = empleados.size.toString(),
-                            icon = Icons.Default.People,
-                            color = Color(0xFF3B82F6),
-                            modifier = Modifier.weight(1f),
-                            isDarkMode = isDarkMode,
-                            card = card,
-                            border = border,
-                            textPrimary = textPrimary,
-                            textMuted = textMuted
-                        )
-                        SummaryCard(
-                            title = "Activos",
-                            value = empleados.count { it.isActive }.toString(),
-                            icon = Icons.Default.CheckCircle,
-                            color = Color(0xFF10B981),
-                            modifier = Modifier.weight(1f),
-                            isDarkMode = isDarkMode,
-                            card = card,
-                            border = border,
-                            textPrimary = textPrimary,
-                            textMuted = textMuted
-                        )
-                        SummaryCard(
-                            title = "Inactivos",
-                            value = empleados.count { !it.isActive }.toString(),
-                            icon = Icons.Default.Block,
-                            color = Color(0xFFEF4444),
-                            modifier = Modifier.weight(1f),
-                            isDarkMode = isDarkMode,
-                            card = card,
-                            border = border,
-                            textPrimary = textPrimary,
-                            textMuted = textMuted
-                        )
-                    }
-                }
-
-                item {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Lista de Usuarios",
-                        color = textPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                items(
-                    items = empleados.sortedByDescending { it.isActive },
-                    key = { it.id }
-                ) { empleado ->
-                    EmpleadoCard(
-                        empleado = empleado,
-                        cotizaciones = cotizacionesPorEmpleado[empleado.id] ?: 0,
+                // Stats row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        icon = Icons.Default.People,
+                        value = empleados.size.toString(),
+                        label = "Total",
+                        color = Color(0xFF3B82F6),
+                        modifier = Modifier.weight(1f),
                         isDarkMode = isDarkMode,
                         card = card,
                         border = border,
                         textPrimary = textPrimary,
-                        textMuted = textMuted,
-                        onToggleActive = {
-                            empleadoSeleccionado = empleado
-                            showConfirmDialog = true
-                        }
+                        textMuted = textMuted
                     )
+                    StatCard(
+                        icon = Icons.Default.CheckCircle,
+                        value = empleados.count { it.isActive }.toString(),
+                        label = "Activos",
+                        color = Color(0xFF10B981),
+                        modifier = Modifier.weight(1f),
+                        isDarkMode = isDarkMode,
+                        card = card,
+                        border = border,
+                        textPrimary = textPrimary,
+                        textMuted = textMuted
+                    )
+                    StatCard(
+                        icon = Icons.Default.Block,
+                        value = empleados.count { !it.isActive }.toString(),
+                        label = "Inactivos",
+                        color = Color(0xFFEF4444),
+                        modifier = Modifier.weight(1f),
+                        isDarkMode = isDarkMode,
+                        card = card,
+                        border = border,
+                        textPrimary = textPrimary,
+                        textMuted = textMuted
+                    )
+                }
+
+                // Título
+                Text(
+                    "Lista de Usuarios",
+                    color = textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                // Lista
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(empleados) { empleado ->
+                        EmpleadoCard(
+                            empleado = empleado,
+                            cotizaciones = cotizacionesPorEmpleado[empleado.id] ?: 0,
+                            isDarkMode = isDarkMode,
+                            card = card,
+                            border = border,
+                            textPrimary = textPrimary,
+                            textMuted = textMuted,
+                            onToggleActive = {
+                                empleadoSeleccionado = empleado
+                                showConfirmDialog = true
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 
-    // Diálogo de confirmación
+    // Dialog de confirmación
     if (showConfirmDialog && empleadoSeleccionado != null) {
-        val empleado = empleadoSeleccionado!!
-        val accion = if (empleado.isActive) "desactivar" else "activar"
+        val emp = empleadoSeleccionado!!
+        val action = if (emp.isActive) "desactivar" else "activar"
 
         AlertDialog(
             onDismissRequest = {
@@ -241,58 +239,41 @@ fun AdminEmpleadosScreen(
             containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
             icon = {
                 Icon(
-                    if (empleado.isActive) Icons.Default.Block else Icons.Default.CheckCircle,
+                    if (emp.isActive) Icons.Default.Block else Icons.Default.CheckCircle,
                     contentDescription = null,
-                    tint = if (empleado.isActive) Color(0xFFEF4444) else Color(0xFF10B981),
+                    tint = if (emp.isActive) Color(0xFFEF4444) else Color(0xFF10B981),
                     modifier = Modifier.size(32.dp)
                 )
             },
             title = {
                 Text(
-                    "${accion.replaceFirstChar { it.uppercase() }} usuario",
+                    "${action.replaceFirstChar { it.uppercase() }} usuario",
                     color = textPrimary,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                Column {
-                    Text(
-                        "¿Estás seguro de que deseas $accion a ${empleado.name}?",
-                        color = textMuted
-                    )
-                    if (empleado.isActive) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "El usuario no podrá iniciar sesión hasta que lo reactives.",
-                            color = Color(0xFFEF4444),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
+                Text(
+                    "¿Estás seguro de que deseas $action a ${emp.name}?",
+                    color = textMuted
+                )
             },
             confirmButton = {
                 Button(
-                    onClick = { toggleUserActive(empleado) },
+                    onClick = { toggleUserActive(emp) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (empleado.isActive) Color(0xFFEF4444) else Color(0xFF10B981)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        accion.replaceFirstChar { it.uppercase() },
-                        fontWeight = FontWeight.Bold
+                        containerColor = if (emp.isActive) Color(0xFFEF4444) else Color(0xFF10B981)
                     )
+                ) {
+                    Text(action.replaceFirstChar { it.uppercase() })
                 }
             },
             dismissButton = {
-                OutlinedButton(
-                    onClick = {
-                        showConfirmDialog = false
-                        empleadoSeleccionado = null
-                    },
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Cancelar", color = textPrimary)
+                TextButton(onClick = {
+                    showConfirmDialog = false
+                    empleadoSeleccionado = null
+                }) {
+                    Text("Cancelar", color = textMuted)
                 }
             }
         )
@@ -300,10 +281,10 @@ fun AdminEmpleadosScreen(
 }
 
 @Composable
-private fun SummaryCard(
-    title: String,
-    value: String,
+private fun StatCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String,
+    label: String,
     color: Color,
     modifier: Modifier = Modifier,
     isDarkMode: Boolean,
@@ -322,24 +303,10 @@ private fun SummaryCard(
             modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                value,
-                color = textPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                title,
-                color = textMuted,
-                fontSize = 11.sp
-            )
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(value, color = textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = textMuted, fontSize = 11.sp)
         }
     }
 }
@@ -355,24 +322,19 @@ private fun EmpleadoCard(
     textMuted: Color,
     onToggleActive: () -> Unit
 ) {
-    val isAdmin = empleado.role == "ADMIN"
+    val avatarColor = when {
+        empleado.role == "ADMIN" -> Color(0xFF3B82F6)
+        empleado.isActive -> Color(0xFF10B981)
+        else -> Color(0xFFEF4444)
+    }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (!empleado.isActive) Modifier.alpha(0.7f) else Modifier
-            ),
+            .alpha(if (empleado.isActive) 1f else 0.6f),
         color = card,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(
-            1.dp,
-            when {
-                !empleado.isActive -> Color(0xFFEF4444).copy(alpha = 0.3f)
-                isAdmin -> Color(0xFF3B82F6).copy(alpha = 0.3f)
-                else -> border
-            }
-        )
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, border)
     ) {
         Row(
             modifier = Modifier
@@ -383,117 +345,87 @@ private fun EmpleadoCard(
             // Avatar
             Box(
                 modifier = Modifier
-                    .size(50.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(
-                        when {
-                            isAdmin -> Color(0xFF3B82F6).copy(alpha = 0.2f)
-                            empleado.isActive -> Color(0xFF10B981).copy(alpha = 0.2f)
-                            else -> Color(0xFFEF4444).copy(alpha = 0.2f)
-                        }
-                    ),
+                    .background(avatarColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    empleado.name.split(" ")
-                        .take(2)
-                        .mapNotNull { it.firstOrNull()?.uppercase() }
-                        .joinToString(""),
-                    color = when {
-                        isAdmin -> Color(0xFF3B82F6)
-                        empleado.isActive -> Color(0xFF10B981)
-                        else -> Color(0xFFEF4444)
-                    },
+                    empleado.name.split(" ").take(2).map { it.firstOrNull()?.uppercase() ?: "" }.joinToString(""),
+                    color = avatarColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(16.dp))
 
             // Info
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        empleado.name,
-                        color = textPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    if (isAdmin) {
-                        Spacer(Modifier.width(8.dp))
+                Text(
+                    empleado.name,
+                    color = textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Estado
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .background(Color(0xFF3B82F6), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                "ADMIN",
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (empleado.isActive) Color(0xFF10B981) else Color(0xFFEF4444))
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (empleado.isActive) "Activo" else "Inactivo",
+                            color = textMuted,
+                            fontSize = 12.sp
+                        )
                     }
-                }
-
-                Spacer(Modifier.height(4.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Estado
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (empleado.isActive) Color(0xFF10B981) else Color(0xFFEF4444)
-                            )
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (empleado.isActive) "Activo" else "Inactivo",
-                        color = textMuted,
-                        fontSize = 12.sp
-                    )
-
-                    Spacer(Modifier.width(12.dp))
 
                     // Cotizaciones
-                    Icon(
-                        Icons.Default.Description,
-                        contentDescription = null,
-                        tint = textMuted,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        "$cotizaciones cotización(es)",
-                        color = textMuted,
-                        fontSize = 12.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Description,
+                            contentDescription = null,
+                            tint = textMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "$cotizaciones cotización(es)",
+                            color = textMuted,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
-            // Botón toggle (no mostrar para admin)
-            if (!isAdmin) {
-                IconButton(
-                    onClick = onToggleActive,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (empleado.isActive)
-                                Color(0xFFEF4444).copy(alpha = 0.1f)
-                            else
-                                Color(0xFF10B981).copy(alpha = 0.1f)
-                        )
+            // Badge ADMIN o botón toggle
+            if (empleado.role == "ADMIN") {
+                Surface(
+                    color = Color(0xFF3B82F6),
+                    shape = RoundedCornerShape(6.dp)
                 ) {
+                    Text(
+                        "ADMIN",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            } else {
+                IconButton(onClick = onToggleActive) {
                     Icon(
                         if (empleado.isActive) Icons.Default.Block else Icons.Default.CheckCircle,
                         contentDescription = if (empleado.isActive) "Desactivar" else "Activar",
-                        tint = if (empleado.isActive) Color(0xFFEF4444) else Color(0xFF10B981),
-                        modifier = Modifier.size(20.dp)
+                        tint = if (empleado.isActive) Color(0xFFFCA5A5) else Color(0xFF10B981)
                     )
                 }
             }

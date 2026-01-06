@@ -28,7 +28,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -106,32 +105,19 @@ fun HomeScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        var titleSize by remember { mutableStateOf(34.sp) }
-        val minTitle = 22.sp
-
-        // BIENVENIDA
+        // BIENVENIDA - Con nombre en máximo 2 líneas
         Text(
             text = getSpanishDate(),
             color = textMuted,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
         )
-        Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(color = textPrimary, fontSize = titleSize, fontWeight = FontWeight.Black)) {
-                    append("Bienvenido, ")
-                }
-                withStyle(SpanStyle(color = textMuted, fontSize = titleSize, fontWeight = FontWeight.Black)) {
-                    append(userFirstName)
-                }
-            },
-            maxLines = 3,
-            overflow = TextOverflow.Clip,
-            onTextLayout = { result ->
-                if (result.hasVisualOverflow && titleSize > minTitle) {
-                    titleSize = (titleSize.value - 1).sp
-                }
-            }
+
+        // Título con nombre que fluye en máximo 2 líneas
+        WelcomeText(
+            userName = userFirstName,
+            textPrimary = textPrimary,
+            textMuted = textMuted
         )
 
         Spacer(Modifier.height(18.dp))
@@ -179,13 +165,13 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // Archivar PDF (Google Drive) - CON ANIMACIÓN
+        // Archivar PDF (Google Drive)
         SmallActionCard(
             title = "Archivar PDF",
             subtitle = "PDFs Sin Subir A La Base De Datos",
             badgeCount = pendingDriveCount,
             iconRes = R.drawable.ic_google_drive,
-            animationType = AnimationType.BOUNCE, // Animación de rebote igual que sincronizaciones
+            animationType = AnimationType.BOUNCE,
             onClick = onPendientesDrive,
             isDarkMode = isDarkMode,
             card = card, border = border, textPrimary = textPrimary, textMuted = textMuted
@@ -193,7 +179,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // CERRAR SESIÓN - Separación consistente
+        // CERRAR SESIÓN
         CerrarSesionButton(
             onClick = { if (logoutEnabled) showLogoutDialog = true },
             isDarkMode = isDarkMode,
@@ -247,6 +233,31 @@ fun HomeScreen(
             )
         }
     }
+}
+
+/**
+ * Texto de bienvenida con nombre en MÁXIMO 2 LÍNEAS.
+ * "Bienvenido, " en negro/blanco, nombre en gris.
+ */
+@Composable
+private fun WelcomeText(
+    userName: String,
+    textPrimary: Color,
+    textMuted: Color
+) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = textPrimary, fontWeight = FontWeight.Black)) {
+                append("Bienvenido, ")
+            }
+            withStyle(SpanStyle(color = textMuted, fontWeight = FontWeight.Black)) {
+                append(userName)
+            }
+        },
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+        maxLines = 2
+    )
 }
 
 // Tipos de animación para los iconos
@@ -365,7 +376,6 @@ private fun SmallActionCard(
     var isPressed by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "icon_animations")
 
-    // Animación de rotación (para historial)
     val rotationOscilation by infiniteTransition.animateFloat(
         initialValue = -15f,
         targetValue = 15f,
@@ -376,7 +386,6 @@ private fun SmallActionCard(
         label = "oscilacion"
     )
 
-    // Animación de rebote arriba/abajo (para pendientes y drive)
     val bounceAnim by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = -5f,

@@ -1,6 +1,8 @@
 package com.example.hurricansolutionapp
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,7 +29,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SeleccionClienteScreen(
-    context: android.content.Context,  // ✅ NUEVO
+    context: android.content.Context,
     userId: String,
     userRole: String,
     isDarkMode: Boolean,
@@ -32,6 +37,8 @@ fun SeleccionClienteScreen(
     onClienteNuevo: () -> Unit,
     onClienteActualSeleccionado: (Lead) -> Unit
 ) {
+    BackHandler { onBack() }
+
     val scope = rememberCoroutineScope()
 
     // Estado
@@ -42,12 +49,14 @@ fun SeleccionClienteScreen(
     var showError by remember { mutableStateOf<String?>(null) }
     var isSyncing by remember { mutableStateOf(false) }
 
-    // Colores según tema
-    val backgroundColor = if (isDarkMode) Zinc950 else Color.White
-    val cardColor = if (isDarkMode) Zinc900 else Color(0xFFF5F5F5)
-    val textColor = if (isDarkMode) Color.White else Zinc950
-    val textSecondary = if (isDarkMode) Color(0xFFAAAAAA) else Color(0xFF666666)
-    val accentColor = Color(0xFFE63946)
+    // Colores Stitch
+    val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
+    val surface = if (isDarkMode) Color(0xFF000000) else Color.White
+    val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
+    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+    val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+    val inputBg = if (isDarkMode) Color(0xFF111111) else Color.White
 
     // Cargar leads al iniciar
     LaunchedEffect(Unit) {
@@ -55,8 +64,6 @@ fun SeleccionClienteScreen(
         try {
             val leads = LeadsRepository.getAllLeads()
             allLeads = leads
-
-            // Filtrar según rol
             filteredLeads = if (userRole == "ADMIN") {
                 leads
             } else {
@@ -86,56 +93,13 @@ fun SeleccionClienteScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Seleccionar Cliente", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver", tint = textColor)
-                    }
-                },
-                actions = {
-                    // Botón de sincronizar
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                isSyncing = true
-                                try {
-                                    val result = LeadsRepository.syncLeadsFromCRM(context)
-                                    if (result.isSuccess) {
-                                        // Recargar leads
-                                        val leads = LeadsRepository.getAllLeads()
-                                        allLeads = leads
-                                        showError = result.getOrNull()
-                                    } else {
-                                        showError = "Error sincronizando leads"
-                                    }
-                                } catch (e: Exception) {
-                                    showError = "Error: ${e.message}"
-                                } finally {
-                                    isSyncing = false
-                                }
-                            }
-                        },
-                        enabled = !isSyncing
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = accentColor,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.Refresh, "Sincronizar", tint = textColor)
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = backgroundColor,
-                    titleContentColor = textColor
-                )
+            StitchTopBarWithDivider(
+                title = "Leads Nuevos",
+                onBack = onBack,
+                isDarkMode = isDarkMode
             )
         },
-        containerColor = backgroundColor
+        containerColor = bg
     ) { padding ->
         Column(
             modifier = Modifier
@@ -143,15 +107,16 @@ fun SeleccionClienteScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Snackbar de error
+            // Snackbar de error/info
             showError?.let { error ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(bottom = 12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFEBEE)
+                        containerColor = if (error.contains("Error")) Color(0xFFFFEBEE) else Color(0xFFE8F5E9)
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
@@ -164,21 +129,24 @@ fun SeleccionClienteScreen(
                         Icon(
                             Icons.Default.Info,
                             contentDescription = null,
-                            tint = Color(0xFFD32F2F),
+                            tint = if (error.contains("Error")) Color(0xFFD32F2F) else Color(0xFF388E3C),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = error,
                             fontSize = 14.sp,
-                            color = Color(0xFFD32F2F)
+                            color = if (error.contains("Error")) Color(0xFFD32F2F) else Color(0xFF388E3C),
+                            modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.weight(1f))
-                        IconButton(onClick = { showError = null }) {
+                        IconButton(
+                            onClick = { showError = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "Cerrar",
-                                tint = Color(0xFFD32F2F),
+                                tint = if (error.contains("Error")) Color(0xFFD32F2F) else Color(0xFF388E3C),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -186,79 +154,145 @@ fun SeleccionClienteScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Botón "Cliente Nuevo"
-            Card(
+            // Botón "CLIENTE NUEVO"
+            Button(
+                onClick = onClienteNuevo,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onClienteNuevo() },
-                colors = CardDefaults.cardColors(
-                    containerColor = accentColor
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isDarkMode) Color.White else Color.Black
                 ),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                shape = RoundedCornerShape(8.dp),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 4.dp
+                )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "CLIENTE NUEVO",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = null,
+                    tint = if (isDarkMode) Color.Black else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "CLIENTE NUEVO",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDarkMode) Color.Black else Color.White,
+                    letterSpacing = 1.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Título "Cliente Actual"
+            // Título "LEADS DEL CRM" centrado
             Text(
-                text = "Cliente Actual",
-                fontSize = 20.sp,
+                text = "LEADS DEL CRM",
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = textColor
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Barra de búsqueda
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+                color = textPrimary,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Buscar por nombre, teléfono o email") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null)
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Limpiar")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = accentColor,
-                    unfocusedBorderColor = if (isDarkMode) Color(0xFF444444) else Color(0xFFCCCCCC)
-                )
+                textAlign = TextAlign.Center,
+                letterSpacing = 1.sp
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Barra de búsqueda + Botón Actualizar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Campo de búsqueda
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text(
+                            "Buscar...",
+                            color = textMuted
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = textMuted
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Limpiar",
+                                    tint = textMuted
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                        unfocusedBorderColor = border,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg,
+                        focusedTextColor = textPrimary,
+                        unfocusedTextColor = textPrimary
+                    )
+                )
+
+                // Botón Actualizar
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSyncing = true
+                            try {
+                                val result = LeadsRepository.syncLeadsFromCRM(context)
+                                if (result.isSuccess) {
+                                    val leads = LeadsRepository.getAllLeads()
+                                    allLeads = leads
+                                    showError = result.getOrNull()
+                                } else {
+                                    showError = "Error sincronizando leads"
+                                }
+                            } catch (e: Exception) {
+                                showError = "Error: ${e.message}"
+                            } finally {
+                                isSyncing = false
+                            }
+                        }
+                    },
+                    enabled = !isSyncing,
+                    modifier = Modifier.height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isDarkMode) Color.White else Color.Black,
+                        disabledContainerColor = if (isDarkMode) Color(0xFF333333) else Color(0xFFCCCCCC)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = if (isDarkMode) Color.Black else Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Actualizar",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDarkMode) Color.Black else Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Contador de leads
             Row(
@@ -268,16 +302,17 @@ fun SeleccionClienteScreen(
             ) {
                 Text(
                     text = "${filteredLeads.size} lead${if (filteredLeads.size != 1) "s" else ""} encontrado${if (filteredLeads.size != 1) "s" else ""}",
-                    fontSize = 14.sp,
-                    color = textSecondary
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textMuted
                 )
 
                 if (userRole != "ADMIN") {
                     Text(
                         text = "(Solo tus leads asignados)",
                         fontSize = 12.sp,
-                        color = textSecondary,
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        color = textMuted,
+                        fontStyle = FontStyle.Italic
                     )
                 }
             }
@@ -292,7 +327,9 @@ fun SeleccionClienteScreen(
                         .padding(top = 48.dp),
                     contentAlignment = Alignment.TopCenter
                 ) {
-                    CircularProgressIndicator(color = accentColor)
+                    CircularProgressIndicator(
+                        color = if (isDarkMode) Color.White else Color.Black
+                    )
                 }
             } else if (filteredLeads.isEmpty()) {
                 Box(
@@ -308,7 +345,7 @@ fun SeleccionClienteScreen(
                         Icon(
                             Icons.Default.PersonSearch,
                             contentDescription = null,
-                            tint = textSecondary,
+                            tint = textMuted,
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -319,19 +356,18 @@ fun SeleccionClienteScreen(
                                 "No se encontraron resultados"
                             },
                             fontSize = 16.sp,
-                            color = textSecondary
+                            color = textMuted
                         )
                     }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filteredLeads) { lead ->
-                        LeadCard(
+                        StitchLeadCard(
                             lead = lead,
-                            currentUserId = userId,
                             isDarkMode = isDarkMode,
                             onClick = { onClienteActualSeleccionado(lead) }
                         )
@@ -344,33 +380,39 @@ fun SeleccionClienteScreen(
     }
 }
 
+/**
+ * Tarjeta de lead con borde verde al seleccionar (estilo Stitch)
+ * Sin checkmark, sin círculo de selección
+ */
 @Composable
-private fun LeadCard(
+private fun StitchLeadCard(
     lead: Lead,
-    currentUserId: String,
     isDarkMode: Boolean,
     onClick: () -> Unit
 ) {
-    val cardColor = if (isDarkMode) Zinc900 else Color.White
-    val textColor = if (isDarkMode) Color.White else Zinc950
-    val textSecondary = if (isDarkMode) Color(0xFFAAAAAA) else Color(0xFF666666)
-    val accentColor = Color(0xFFE63946)
+    val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
+    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+    val borderDefault = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+    val greenBorder = Color(0xFF22C55E) // Verde para selección
 
-    val isAssignedToMe = lead.assignedToUserId == currentUserId
-
-    Card(
+    // Tarjeta con borde verde completo (estilo imagen 4)
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = cardColor
-        ),
+        color = cardBg,
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shadowElevation = 2.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .border(
+                    width = 2.dp,
+                    color = greenBorder,
+                    shape = RoundedCornerShape(12.dp)
+                )
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -379,14 +421,15 @@ private fun LeadCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(if (isAssignedToMe) accentColor else Color.Gray),
+                    .background(if (isDarkMode) Color.White else Color.Black),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = lead.getInitials(),
-                    fontSize = 18.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = if (isDarkMode) Color.Black else Color.White,
+                    letterSpacing = 1.sp
                 )
             }
 
@@ -394,85 +437,59 @@ private fun LeadCard(
 
             // Información del lead
             Column(modifier = Modifier.weight(1f)) {
+                // Nombre
                 Text(
                     text = lead.nombreCompleto,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = textColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                // Teléfono
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.Phone,
+                        painter = painterResource(id = R.drawable.ic_phone_lucide),
                         contentDescription = null,
-                        tint = textSecondary,
+                        tint = textMuted,
                         modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = lead.telefono,
-                        fontSize = 14.sp,
-                        color = textSecondary
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textMuted
                     )
                 }
 
-                if (!lead.ciudad.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = textSecondary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = lead.ciudad,
-                            fontSize = 13.sp,
-                            color = textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // Pipeline stage
+                // Pipeline stage badge
                 if (!lead.pipelineStage.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Surface(
-                        color = accentColor.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(4.dp)
+                        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isDarkMode) Color(0xFF3F3F46) else Color(0xFFE5E7EB)
+                        )
                     ) {
                         Text(
-                            text = lead.pipelineStage,
-                            fontSize = 11.sp,
-                            color = accentColor,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            text = lead.pipelineStage.uppercase(),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textPrimary,
+                            letterSpacing = 0.5.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            // Indicador visual si está asignado
-            if (isAssignedToMe) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = "Asignado a mí",
-                    tint = accentColor,
-                    modifier = Modifier.size(24.dp)
-                )
-            } else {
-                Icon(
-                    Icons.Default.ArrowForward,
-                    contentDescription = "Seleccionar",
-                    tint = textSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+            // Sin checkmark - espacio vacío a la derecha
         }
     }
 }

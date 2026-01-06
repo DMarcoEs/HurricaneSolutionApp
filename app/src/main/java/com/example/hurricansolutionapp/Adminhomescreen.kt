@@ -27,7 +27,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -52,7 +51,7 @@ fun AdminHomeScreen(
     onVerTodasCotizaciones: () -> Unit,
     onVerEmpleados: () -> Unit,
     onGestionarLeads: () -> Unit,
-    onVerMetros: () -> Unit, // Nueva función para la pantalla de metros
+    onVerMetros: () -> Unit,
     // Logout
     logoutEnabled: Boolean,
     onCerrarSesion: () -> Unit
@@ -103,25 +102,11 @@ fun AdminHomeScreen(
             fontWeight = FontWeight.Medium
         )
 
-        var titleSize by remember { mutableStateOf(34.sp) }
-        val minTitle = 22.sp
-
-        Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(color = textPrimary, fontSize = titleSize, fontWeight = FontWeight.Black)) {
-                    append("Bienvenido, ")
-                }
-                withStyle(SpanStyle(color = textMuted, fontSize = titleSize, fontWeight = FontWeight.Black)) {
-                    append(adminName)
-                }
-            },
-            maxLines = 3,
-            overflow = TextOverflow.Clip,
-            onTextLayout = { result ->
-                if (result.hasVisualOverflow && titleSize > minTitle) {
-                    titleSize = (titleSize.value - 1).sp
-                }
-            }
+        // Título con nombre en MÁXIMO 2 LÍNEAS
+        AdminWelcomeText(
+            userName = adminName,
+            textPrimary = textPrimary,
+            textMuted = textMuted
         )
 
         Spacer(Modifier.height(18.dp))
@@ -168,7 +153,6 @@ fun AdminHomeScreen(
                 textMuted = textMuted,
                 onClick = onVerEmpleados
             )
-            // m² Total ahora va a su propia pantalla
             AdminStatCardClickable(
                 title = "m² Total",
                 value = if (isLoadingStats) "..." else String.format("%.0f", stats.totalMetrosCuadrados),
@@ -180,13 +164,13 @@ fun AdminHomeScreen(
                 border = border,
                 textPrimary = textPrimary,
                 textMuted = textMuted,
-                onClick = onVerMetros // Nueva pantalla de metros
+                onClick = onVerMetros
             )
         }
 
         Spacer(Modifier.height(12.dp))
 
-        // HERRAMIENTAS ADMIN - Fila 2 (Solo Precios y Leads - sin Usuarios duplicado)
+        // HERRAMIENTAS ADMIN - Fila 2 (Solo Precios y Leads)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -213,7 +197,6 @@ fun AdminHomeScreen(
                 textPrimary = textPrimary,
                 onClick = onGestionarLeads
             )
-            // Espacio vacío para mantener el layout balanceado
             Spacer(modifier = Modifier.weight(1f))
         }
 
@@ -286,7 +269,7 @@ fun AdminHomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // CERRAR SESIÓN - Separación consistente igual que empleado
+        // CERRAR SESIÓN
         AdminCerrarSesionButton(
             onClick = { if (logoutEnabled) showLogoutDialog = true },
             isDarkMode = isDarkMode,
@@ -340,6 +323,30 @@ fun AdminHomeScreen(
             }
         )
     }
+}
+
+/**
+ * Texto de bienvenida con nombre en MÁXIMO 2 LÍNEAS.
+ */
+@Composable
+private fun AdminWelcomeText(
+    userName: String,
+    textPrimary: Color,
+    textMuted: Color
+) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = textPrimary, fontWeight = FontWeight.Black)) {
+                append("Bienvenido, ")
+            }
+            withStyle(SpanStyle(color = textMuted, fontWeight = FontWeight.Black)) {
+                append(userName)
+            }
+        },
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+        maxLines = 2
+    )
 }
 
 // Tipos de animación

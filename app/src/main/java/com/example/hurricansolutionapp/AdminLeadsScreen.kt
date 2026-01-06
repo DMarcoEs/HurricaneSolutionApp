@@ -2,6 +2,7 @@ package com.example.hurricansolutionapp
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,14 +65,12 @@ fun AdminLeadsScreen(
     LaunchedEffect(leads, selectedFilter, searchQuery) {
         var result = leads
 
-        // Filtro por asignación
         result = when (selectedFilter) {
             LeadFilter.TODOS -> result
             LeadFilter.SIN_ASIGNAR -> result.filter { it.assignedToUserId == null }
             LeadFilter.ASIGNADOS -> result.filter { it.assignedToUserId != null }
         }
 
-        // Filtro por búsqueda
         if (searchQuery.isNotBlank()) {
             val query = searchQuery.lowercase()
             result = result.filter { lead ->
@@ -83,7 +83,6 @@ fun AdminLeadsScreen(
         filteredLeads = result
     }
 
-    // Función de sincronización
     fun syncLeads() {
         scope.launch {
             isSyncing = true
@@ -98,7 +97,6 @@ fun AdminLeadsScreen(
         }
     }
 
-    // Función de asignación
     fun assignLead() {
         val lead = selectedLead ?: return
         val especialista = selectedEspecialista ?: return
@@ -125,7 +123,7 @@ fun AdminLeadsScreen(
 
     // Colores
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
-    val surface = if (isDarkMode) Color(0xFF111111) else Color.White
+    val surface = if (isDarkMode) Color(0xFF000000) else Color.White
     val card = if (isDarkMode) Color(0xFF18181B) else Color.White
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
@@ -135,41 +133,57 @@ fun AdminLeadsScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "GESTIONAR LEADS",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { syncLeads() },
-                        enabled = !isSyncing
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
+            // StitchTopBar con botón de sync
+            Column(
+                modifier = Modifier
+                    .background(surface)
+                    .statusBarsPadding()
+            ) {
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = surface
+                    ),
+                    title = {
+                        Text(
+                            "GESTIONAR LEADS",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = textPrimary,
+                            letterSpacing = 0.5.sp
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_chevron_left),
+                                contentDescription = "Volver",
+                                tint = textPrimary
                             )
-                        } else {
-                            Icon(Icons.Default.Refresh, "Sincronizar")
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { syncLeads() },
+                            enabled = !isSyncing
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = textPrimary
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    "Sincronizar",
+                                    tint = textPrimary
+                                )
+                            }
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = surface,
-                    titleContentColor = textPrimary,
-                    navigationIconContentColor = textPrimary,
-                    actionIconContentColor = textPrimary
                 )
-            )
+                HorizontalDivider(color = border, thickness = 1.dp)
+            }
         }
     ) { padding ->
         Column(
@@ -198,8 +212,11 @@ fun AdminLeadsScreen(
                     focusedContainerColor = surface,
                     unfocusedContainerColor = surface,
                     focusedTextColor = textPrimary,
-                    unfocusedTextColor = textPrimary
-                )
+                    unfocusedTextColor = textPrimary,
+                    focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                    unfocusedBorderColor = border
+                ),
+                shape = RoundedCornerShape(12.dp)
             )
 
             // Filtros
@@ -226,119 +243,143 @@ fun AdminLeadsScreen(
                 )
             }
 
-            Divider(color = border)
-
             // Lista de leads
-            when {
-                isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = accentColor)
+                }
+            } else if (filteredLeads.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.PersonSearch,
+                            contentDescription = null,
+                            tint = textMuted,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text("No se encontraron leads", color = textMuted)
                     }
                 }
-                filteredLeads.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = textMuted.copy(alpha = 0.5f)
-                            )
-                            Text(
-                                "No hay leads",
-                                color = textMuted,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(filteredLeads) { lead ->
-                            LeadCard(
-                                lead = lead,
-                                isDarkMode = isDarkMode,
-                                card = card,
-                                border = border,
-                                textPrimary = textPrimary,
-                                textMuted = textMuted,
-                                accentColor = accentColor,
-                                onAssign = {
-                                    selectedLead = lead
-                                    showAssignDialog = true
-                                },
-                                onUnassign = {
-                                    scope.launch {
-                                        LeadsRepository.unassignLead(lead.id)
-                                        leads = LeadsRepository.getAllLeads()
-                                        Toast.makeText(context, "Lead desasignado", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            )
-                        }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(filteredLeads) { lead ->
+                        AdminLeadCard(
+                            lead = lead,
+                            isDarkMode = isDarkMode,
+                            card = card,
+                            border = border,
+                            textPrimary = textPrimary,
+                            textMuted = textMuted,
+                            accentColor = accentColor,
+                            onAssign = {
+                                selectedLead = lead
+                                showAssignDialog = true
+                            }
+                        )
                     }
                 }
             }
         }
     }
 
-    // Dialog de asignación
+    // Dialog para asignar
     if (showAssignDialog && selectedLead != null) {
         AlertDialog(
-            onDismissRequest = { showAssignDialog = false },
+            onDismissRequest = {
+                showAssignDialog = false
+                selectedLead = null
+                selectedEspecialista = null
+            },
+            containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
+            title = {
+                Text(
+                    "Asignar Lead",
+                    color = textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "Lead: ${selectedLead?.nombreCompleto}",
+                        color = textPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("Selecciona un especialista:", color = textMuted)
+                    Spacer(Modifier.height(8.dp))
+
+                    especialistas.forEach { esp ->
+                        Surface(
+                            onClick = { selectedEspecialista = esp },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = if (selectedEspecialista == esp)
+                                accentColor.copy(alpha = 0.1f)
+                            else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(accentColor.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        esp.name.take(2).uppercase(),
+                                        color = accentColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(esp.name, color = textPrimary)
+                                if (selectedEspecialista == esp) {
+                                    Spacer(Modifier.weight(1f))
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = accentColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = { assignLead() },
-                    enabled = selectedEspecialista != null
+                    enabled = selectedEspecialista != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor
+                    )
                 ) {
                     Text("Asignar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAssignDialog = false }) {
-                    Text("Cancelar")
-                }
-            },
-            title = { Text("Asignar Lead") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Lead: ${selectedLead!!.nombreCompleto}")
-                    Text("Selecciona un especialista:", fontWeight = FontWeight.Bold)
-
-                    especialistas.forEach { especialista ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (selectedEspecialista?.id == especialista.id)
-                                        accentColor.copy(alpha = 0.1f)
-                                    else Color.Transparent
-                                )
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedEspecialista?.id == especialista.id,
-                                onClick = { selectedEspecialista = especialista }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(especialista.name)
-                        }
-                    }
+                TextButton(onClick = {
+                    showAssignDialog = false
+                    selectedLead = null
+                    selectedEspecialista = null
+                }) {
+                    Text("Cancelar", color = textMuted)
                 }
             }
         )
@@ -346,7 +387,7 @@ fun AdminLeadsScreen(
 }
 
 @Composable
-private fun LeadCard(
+private fun AdminLeadCard(
     lead: Lead,
     isDarkMode: Boolean,
     card: Color,
@@ -354,154 +395,124 @@ private fun LeadCard(
     textPrimary: Color,
     textMuted: Color,
     accentColor: Color,
-    onAssign: () -> Unit,
-    onUnassign: () -> Unit
+    onAssign: () -> Unit
 ) {
+    val isAssigned = lead.assignedToUserId != null
+    val avatarColor = if (isAssigned) Color(0xFF10B981) else Color(0xFFFCA5A5)
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = card,
         shape = RoundedCornerShape(12.dp),
-        shadowElevation = 2.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, border)
+        border = BorderStroke(1.dp, border)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Nombre y avatar
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Avatar
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.2f)),
+                        .background(avatarColor.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = lead.getInitials(),
-                        color = accentColor,
+                        lead.getInitials(),
+                        color = avatarColor,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                 }
 
+                Spacer(Modifier.width(12.dp))
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = lead.nombreCompleto,
-                        fontSize = 16.sp,
+                        lead.nombreCompleto,
+                        color = textPrimary,
                         fontWeight = FontWeight.Bold,
-                        color = textPrimary
+                        fontSize = 15.sp
                     )
                     Text(
-                        text = lead.telefono,
-                        fontSize = 14.sp,
-                        color = textMuted
+                        lead.telefono,
+                        color = textMuted,
+                        fontSize = 13.sp
                     )
                 }
             }
 
-            // Email (si existe)
-            lead.email?.let { email ->
-                Text(
-                    text = "📧 $email",
-                    fontSize = 12.sp,
-                    color = textMuted
-                )
-            }
+            Spacer(Modifier.height(12.dp))
 
             // Estado de asignación
-            if (lead.assignedToUserId != null && lead.assignedToName != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF10B981).copy(alpha = 0.1f))
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color(0xFF10B981),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "Asignado a: ${lead.assignedToName}",
-                        fontSize = 12.sp,
-                        color = Color(0xFF10B981),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            } else {
+            if (isAssigned) {
                 Surface(
-                    color = Color(0xFFFEF3C7),
+                    color = Color(0xFF10B981).copy(alpha = 0.1f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(
-                        text = "⚠️ Sin asignar",
-                        fontSize = 12.sp,
-                        color = Color(0xFFA16207),
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Asignado a: ${lead.assignedToName ?: ""}",
+                            color = Color(0xFF10B981),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
-            }
+            } else {
+                // Botón asignar
+                Surface(
+                    color = Color(0xFFFEF2F2),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Sin asignar",
+                                color = Color(0xFFEF4444),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
 
-            // Botones de acción
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (lead.assignedToUserId == null) {
-                    Button(
-                        onClick = onAssign,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = accentColor
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Asignar a...")
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = onAssign,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Reasignar")
-                    }
-                    OutlinedButton(
-                        onClick = onUnassign,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFEF4444)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Desasignar")
-                    }
+                Spacer(Modifier.height(8.dp))
+
+                Button(
+                    onClick = onAssign,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Asignar a...")
                 }
             }
         }

@@ -2,7 +2,6 @@ package com.example.hurricansolutionapp
 
 import android.content.Context
 import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

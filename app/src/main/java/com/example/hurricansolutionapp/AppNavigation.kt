@@ -117,7 +117,7 @@ fun AppNavigation(
             HomeScreen(
                 userFirstName = SessionManager.getNombre(context),
                 pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
-                pendingDriveCount = 0, // TODO: Implementar contador de Drive
+                pendingDriveCount = 0,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
 
@@ -155,12 +155,13 @@ fun AppNavigation(
             AdminHomeScreen(
                 adminName = SessionManager.getNombre(context),
                 pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
-                pendingDriveCount = 0, // TODO: Implementar contador de Drive
+                pendingDriveCount = 0,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
 
+                // Nueva Cotización - Navega al Wizard
                 onNuevaCotizacion = {
-                    navController.navigate(Routes.SELECCION_CLIENTE)
+                    navController.navigate(Routes.COTIZACION_WIZARD)
                 },
 
                 onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
@@ -170,7 +171,7 @@ fun AppNavigation(
                 onVerTodasCotizaciones = { navController.navigate(Routes.ADMIN_COTIZACIONES) },
                 onVerEmpleados = { navController.navigate(Routes.ADMIN_EMPLEADOS) },
                 onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },
-                onVerMetros = { navController.navigate(Routes.ADMIN_METROS) }, // Nueva ruta
+                onVerMetros = { navController.navigate(Routes.ADMIN_METROS) },
 
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -186,6 +187,36 @@ fun AppNavigation(
                             popUpTo(Routes.ADMIN_HOME) { inclusive = true }
                             launchSingleTop = true
                         }
+                    }
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // WIZARD DE COTIZACIÓN (4 pasos con animación slide)
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.COTIZACION_WIZARD,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            CotizacionWizardScreen(
+                context = context,
+                userId = SessionManager.getUserId(context),
+                userRole = SessionManager.getRole(context),
+                draft = cotizacionDraft,
+                isDarkMode = isDarkMode,
+                onExit = { navController.popBackStack() },
+                onFinalizar = { cotizacion ->
+                    // Lógica al finalizar la cotización
+                    cotizacionActual = cotizacion
+                    cotizacionDraft.clear()
+                    // Navegar al home
+                    val destination = if (SessionManager.getRole(context) == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+                    navController.navigate(destination) {
+                        popUpTo(destination) { inclusive = true }
                     }
                 }
             )
@@ -279,7 +310,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // ADMIN: METROS CUADRADOS (Nueva pantalla)
+        // ADMIN: METROS CUADRADOS
         // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.ADMIN_METROS,
@@ -295,7 +326,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // CLIENTE (Paso 1 del flujo de cotización)
+        // CLIENTE (Paso 1 del flujo de cotización - Especialista)
         // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.CLIENTE,
@@ -329,7 +360,7 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 currentStep = 2,
                 totalSteps = 3,
-                onDraftChange = { /* Tu lógica de cambio */ },
+                onDraftChange = { /* El draft se modifica directamente */ },
                 onBack = { navController.popBackStack() },
                 onContinuarResumen = { cotizacion ->
                     cotizacionActual = cotizacion
@@ -432,7 +463,6 @@ fun AppNavigation(
             )
         }
 
-
         // ═══════════════════════════════════════════════════════════════════
         // PENDIENTES GOOGLE DRIVE
         // ═══════════════════════════════════════════════════════════════════
@@ -451,7 +481,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // SELECCIÓN DE CLIENTE
+        // SELECCIÓN DE CLIENTE (para Especialista - flujo tradicional)
         // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.SELECCION_CLIENTE,
@@ -481,7 +511,7 @@ fun AppNavigation(
                     cotizacionDraft.ciudad = lead.ciudad ?: ""
                     cotizacionDraft.colonia = lead.colonia ?: ""
                     cotizacionDraft.direccionDetalle = "${lead.calle ?: ""} ${lead.numero ?: ""}".trim()
-                    cotizacionDraft.esClienteActual = true  // ✅ Esto activa el modo readonly
+                    cotizacionDraft.esClienteActual = true
                     cotizacionDraft.leadId = lead.id
                     navController.navigate(Routes.CLIENTE)
                 }

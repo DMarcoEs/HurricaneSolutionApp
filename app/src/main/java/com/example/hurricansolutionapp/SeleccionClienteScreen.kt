@@ -2,7 +2,6 @@ package com.example.hurricansolutionapp
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -237,10 +236,10 @@ fun SeleccionClienteScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
-                        unfocusedBorderColor = border,
                         focusedContainerColor = inputBg,
                         unfocusedContainerColor = inputBg,
+                        focusedBorderColor = border,
+                        unfocusedBorderColor = border,
                         focusedTextColor = textPrimary,
                         unfocusedTextColor = textPrimary
                     )
@@ -256,9 +255,9 @@ fun SeleccionClienteScreen(
                                 if (result.isSuccess) {
                                     val leads = LeadsRepository.getAllLeads()
                                     allLeads = leads
-                                    showError = result.getOrNull()
+                                    showError = "Leads actualizados"
                                 } else {
-                                    showError = "Error sincronizando leads"
+                                    showError = "Error: ${result.exceptionOrNull()?.message}"
                                 }
                             } catch (e: Exception) {
                                 showError = "Error: ${e.message}"
@@ -268,16 +267,15 @@ fun SeleccionClienteScreen(
                         }
                     },
                     enabled = !isSyncing,
-                    modifier = Modifier.height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isDarkMode) Color.White else Color.Black,
-                        disabledContainerColor = if (isDarkMode) Color(0xFF333333) else Color(0xFFCCCCCC)
+                        containerColor = if (isDarkMode) Color.White else Color.Black
                     ),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     if (isSyncing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                             color = if (isDarkMode) Color.Black else Color.White,
                             strokeWidth = 2.dp
                         )
@@ -381,8 +379,8 @@ fun SeleccionClienteScreen(
 }
 
 /**
- * Tarjeta de lead con borde verde al seleccionar (estilo Stitch)
- * Sin checkmark, sin círculo de selección
+ * Tarjeta de lead estilo Stitch
+ * Borde izquierdo negro/gris, SIN borde verde completo
  */
 @Composable
 private fun StitchLeadCard(
@@ -393,103 +391,109 @@ private fun StitchLeadCard(
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
-    val borderDefault = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-    val greenBorder = Color(0xFF22C55E) // Verde para selección
+    val leftBorder = if (isDarkMode) Color(0xFFE5E7EB) else Color.Black
 
-    // Tarjeta con borde verde completo (estilo imagen 4)
+    // Tarjeta con borde izquierdo (estilo Stitch)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         color = cardBg,
-        shape = RoundedCornerShape(12.dp),
-        shadowElevation = 2.dp
+        shadowElevation = 1.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(
-                    width = 2.dp,
-                    color = greenBorder,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .height(IntrinsicSize.Min)
         ) {
-            // Avatar con iniciales
+            // Borde izquierdo negro/gris
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(if (isDarkMode) Color.White else Color.Black),
-                contentAlignment = Alignment.Center
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(leftBorder)
+            )
+
+            // Contenido de la tarjeta
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = lead.getInitials(),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isDarkMode) Color.Black else Color.White,
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Información del lead
-            Column(modifier = Modifier.weight(1f)) {
-                // Nombre
-                Text(
-                    text = lead.nombreCompleto,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Teléfono
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_phone_lucide),
-                        contentDescription = null,
-                        tint = textMuted,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                // Avatar con iniciales
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(if (isDarkMode) Color.White else Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = lead.telefono,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = textMuted
+                        text = lead.getInitials(),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkMode) Color.Black else Color.White,
+                        letterSpacing = 1.sp
                     )
                 }
 
-                // Pipeline stage badge
-                if (!lead.pipelineStage.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
-                        shape = RoundedCornerShape(4.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isDarkMode) Color(0xFF3F3F46) else Color(0xFFE5E7EB)
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Información del lead
+                Column(modifier = Modifier.weight(1f)) {
+                    // Nombre
+                    Text(
+                        text = lead.nombreCompleto,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Teléfono
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_phone_lucide),
+                            contentDescription = null,
+                            tint = textMuted,
+                            modifier = Modifier.size(14.dp)
                         )
-                    ) {
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = lead.pipelineStage.uppercase(),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textPrimary,
-                            letterSpacing = 0.5.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            text = lead.telefono,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = textMuted
                         )
+                    }
+
+                    // Pipeline stage badge
+                    if (!lead.pipelineStage.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
+                            shape = RoundedCornerShape(2.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isDarkMode) Color(0xFF3F3F46) else Color(0xFFE5E7EB)
+                            )
+                        ) {
+                            Text(
+                                text = lead.pipelineStage.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textPrimary,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
-
-            // Sin checkmark - espacio vacío a la derecha
         }
     }
 }

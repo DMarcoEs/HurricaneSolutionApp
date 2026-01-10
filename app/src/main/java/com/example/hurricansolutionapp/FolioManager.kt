@@ -1,145 +1,170 @@
 package com.example.hurricansolutionapp
 
 import android.content.Context
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
+private const val PREFS_FOLIO = "folio_prefs"
+private const val KEY_SYNCED = "folios_synced"
+
+/**
+ * Manager para generación y sincronización de folios
+ * FORMATO: MC001 (sin guion, 3 dígitos)
+ */
 object FolioManager {
 
-    private const val PREFS_NAME = "folios_prefs"
-    private const val KEY_PREFIX = "folio_counter_"
-
     /**
-     * Genera el siguiente número de folio para un prefijo dado.
-     * @param context Contexto de la aplicación
-     * @param prefijo Prefijo del folio (ej: "MC" para Marco Canche)
-     * @return El siguiente número consecutivo
+     * Genera el siguiente folio para un especialista
+     * Formato: [INICIALES][NÚMERO] → MC001, MC002, etc.
      */
-    fun nextFolioForPrefix(context: Context, prefijo: String): Int {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val key = KEY_PREFIX + prefijo
+    fun nextFolioForEspecialista(context: Context, especialista: String): String {
+        val prefix = getPrefix(especialista)
+        val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
 
-        val last = prefs.getInt(key, 0)
-        val next = last + 1
+        val key = "counter_$prefix"
+        val currentCounter = prefs.getInt(key, 0)
+        val nextCounter = currentCounter + 1
 
-        prefs.edit().putInt(key, next).apply()
-        return next
+        prefs.edit().putInt(key, nextCounter).apply()
+
+        // Formato: MC001 (3 dígitos, sin guion)
+        return "$prefix${nextCounter.toString().padStart(3, '0')}"
     }
 
     /**
-     * Genera el siguiente folio para un especialista.
-     * El folio se forma con las iniciales del nombre y primer apellido + número consecutivo.
-     * Ejemplo: "Marco Alejandro Canche Kantun" -> "MC-0001"
-     *
-     * @param context Contexto de la aplicación
-     * @param nombreCompleto Nombre completo del especialista
-     * @return Folio generado (ej: "MC-0001")
+     * Obtiene el prefijo de iniciales de un nombre
+     * "Marco Canche" → "MC"
+     * "Juan Pérez García" → "JP"
      */
-    fun nextFolioForEspecialista(
-        context: Context,
-        nombreCompleto: String
-    ): String {
-        // Tomamos la primera letra del nombre y la primera letra del primer apellido
-        // "Marco Alejandro Canche Kantun" -> ["Marco", "Alejandro", "Canche", "Kantun"]
-        // Tomamos: M (de Marco) + C (de Canche, que es el primer apellido)
-        val palabras = nombreCompleto
-            .trim()
-            .split(" ")
-            .filter { it.isNotBlank() }
-
-        val prefijo = when {
-            palabras.size >= 3 -> {
-                // Nombre + Primer apellido (asumiendo que el tercer elemento es apellido)
-                // Para "Marco Alejandro Canche Kantun": M + C
-                "${palabras[0].first().uppercase()}${palabras[2].first().uppercase()}"
-            }
-
-            palabras.size == 2 -> {
-                // Solo nombre y apellido
-                "${palabras[0].first().uppercase()}${palabras[1].first().uppercase()}"
-            }
-
-            palabras.size == 1 -> {
-                // Solo un nombre
-                palabras[0].take(2).uppercase()
-            }
-
-            else -> "XX"
-        }
-
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val key = KEY_PREFIX + prefijo
-
-        val last = prefs.getInt(key, 0)
-        val next = last + 1
-
-        prefs.edit().putInt(key, next).apply()
-
-        val numero = String.format("%04d", next)
-        return "$prefijo-$numero"
-    }
-
-    /**
-     * Obtiene el último número usado para un prefijo sin incrementar.
-     */
-    fun getLastNumberForPrefix(context: Context, prefijo: String): Int {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val key = KEY_PREFIX + prefijo
-        return prefs.getInt(key, 0)
-    }
-
-    /**
-     * Verifica si un folio ya existe.
-     */
-    fun folioExists(context: Context, folio: String): Boolean {
-        val cotizaciones = obtenerCotizacionesLocal(context)
-        return cotizaciones.any { it.folio == folio }
-    }
-
-    /**
-     * Genera un folio único, verificando que no exista.
-     * Si ya existe, incrementa hasta encontrar uno disponible.
-     */
-    fun generateUniqueFolio(context: Context, nombreCompleto: String): String {
-        var folio = nextFolioForEspecialista(context, nombreCompleto)
-
-        // En caso muy raro de colisión, incrementar
-        var attempts = 0
-        while (folioExists(context, folio) && attempts < 100) {
-            folio = nextFolioForEspecialista(context, nombreCompleto)
-            attempts++
-        }
-
-        return folio
-    }
-
-    /**
-     * Resetea el contador para un prefijo específico (útil para pruebas).
-     */
-    fun resetCounter(context: Context, prefijo: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val key = KEY_PREFIX + prefijo
-        prefs.edit().remove(key).apply()
-    }
-
-    /**
-     * Obtiene las iniciales de un especialista.
-     */
-    fun getInitials(nombreCompleto: String): String {
-        val palabras = nombreCompleto
-            .trim()
-            .split(" ")
-            .filter { it.isNotBlank() }
-
+    private fun getPrefix(nombre: String): String {
+        val palabras = nombre.trim().split("\\s+".toRegex())
         return when {
-            palabras.size >= 3 -> "${palabras[0].first().uppercase()}${
-                palabras[2].first().uppercase()
-            }"
-
-            palabras.size == 2 -> "${palabras[0].first().uppercase()}${
-                palabras[1].first().uppercase()
-            }"
-
-            palabras.size == 1 -> palabras[0].take(2).uppercase()
+            palabras.size >= 2 -> {
+                "${palabras[0].firstOrNull()?.uppercaseChar() ?: 'X'}${palabras[1].firstOrNull()?.uppercaseChar() ?: 'X'}"
+            }
+            palabras.isNotEmpty() -> {
+                val primera = palabras[0]
+                if (primera.length >= 2) {
+                    "${primera[0].uppercaseChar()}${primera[1].uppercaseChar()}"
+                } else {
+                    "${primera.firstOrNull()?.uppercaseChar() ?: 'X'}X"
+                }
+            }
             else -> "XX"
         }
+    }
+
+    /**
+     * Establece el contador para un prefijo específico
+     * Útil para sincronización desde Supabase
+     */
+    fun setCounterForPrefix(context: Context, prefix: String, value: Int) {
+        val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
+        prefs.edit().putInt("counter_$prefix", value).apply()
+        android.util.Log.d("FolioManager", "Counter establecido: $prefix = $value")
+    }
+
+    /**
+     * Obtiene el contador actual para un prefijo
+     */
+    fun getCounterForPrefix(context: Context, prefix: String): Int {
+        val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
+        return prefs.getInt("counter_$prefix", 0)
+    }
+
+    /**
+     * Sincroniza los contadores de folios desde Supabase
+     * Debe llamarse al login para asegurar que no se dupliquen folios
+     */
+    suspend fun syncFromSupabase(context: Context, userId: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                android.util.Log.d("FolioManager", "Sincronizando folios desde Supabase...")
+
+                val client = SupabaseClientProvider.client
+
+                // Obtener cotizaciones del usuario
+                val cotizaciones = client.from("cotizaciones")
+                    .select {
+                        filter { eq("user_id", userId) }
+                    }
+                    .decodeList<CotizacionRemota>()
+
+                // Agrupar por prefijo y encontrar el máximo
+                val maxByPrefix = mutableMapOf<String, Int>()
+
+                for (cot in cotizaciones) {
+                    val parsed = parseFolio(cot.folio)
+                    if (parsed != null) {
+                        val (prefix, number) = parsed
+                        val currentMax = maxByPrefix[prefix] ?: 0
+                        if (number > currentMax) {
+                            maxByPrefix[prefix] = number
+                        }
+                    }
+                }
+
+                // Actualizar contadores locales
+                for ((prefix, maxNumber) in maxByPrefix) {
+                    val localCounter = getCounterForPrefix(context, prefix)
+                    if (maxNumber > localCounter) {
+                        setCounterForPrefix(context, prefix, maxNumber)
+                        android.util.Log.d("FolioManager", "Actualizado $prefix: $localCounter → $maxNumber")
+                    }
+                }
+
+                // Marcar como sincronizado
+                val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
+                prefs.edit().putBoolean(KEY_SYNCED, true).apply()
+
+                android.util.Log.d("FolioManager", "✅ Sincronización completada")
+
+            } catch (e: Exception) {
+                android.util.Log.e("FolioManager", "Error sincronizando folios: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Parsea un folio y extrae prefijo y número
+     * Soporta ambos formatos: "MC001" y "MC-0001"
+     */
+    fun parseFolio(folio: String): Pair<String, Int>? {
+        if (folio.isBlank()) return null
+
+        // Formato nuevo: MC001
+        val regexNew = Regex("^([A-Z]{2})(\\d+)$")
+        regexNew.find(folio)?.let { match ->
+            val prefix = match.groupValues[1]
+            val number = match.groupValues[2].toIntOrNull() ?: return null
+            return Pair(prefix, number)
+        }
+
+        // Formato viejo: MC-0001
+        val regexOld = Regex("^([A-Z]{2})-(\\d+)$")
+        regexOld.find(folio)?.let { match ->
+            val prefix = match.groupValues[1]
+            val number = match.groupValues[2].toIntOrNull() ?: return null
+            return Pair(prefix, number)
+        }
+
+        return null
+    }
+
+    /**
+     * Verifica si ya se sincronizó en esta sesión
+     */
+    fun isSynced(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_SYNCED, false)
+    }
+
+    /**
+     * Resetea el flag de sincronización (llamar al logout)
+     */
+    fun resetSyncFlag(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SYNCED, false).apply()
     }
 }

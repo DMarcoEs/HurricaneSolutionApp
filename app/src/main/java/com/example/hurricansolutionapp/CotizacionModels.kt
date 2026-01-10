@@ -50,6 +50,7 @@ fun TipoProducto.getMaxDescuento(): Double = PriceManager.getMaxDescuento(this)
 // ESTADO DEL FORMULARIO PARA UNA MEDIDA
 // ═══════════════════════════════════════════════════════════════════════════════
 data class VentanaFormState(
+    var zona: String = "",           // ✅ NUEVO: Zona (ej: Terraza, Sala, etc.)
     var descripcion: String = "",
     var alto: String = "",
     var ancho: String = "",
@@ -62,6 +63,7 @@ data class VentanaFormState(
 // MEDIDA INDIVIDUAL (Ventana / Área a proteger)
 // ═══════════════════════════════════════════════════════════════════════════════
 data class Ventana(
+    val zona: String = "",           // ✅ NUEVO: Zona
     val descripcion: String,
     val alto: Double,
     val ancho: Double,
@@ -162,6 +164,7 @@ data class CotizacionDraft(
 
         ventanasForm = cotizacion.ventanas.map { v ->
             VentanaFormState(
+                zona = v.zona,  // ✅ NUEVO
                 descripcion = v.descripcion,
                 alto = String.format("%.2f", v.alto),
                 ancho = String.format("%.2f", v.ancho),

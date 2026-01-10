@@ -296,6 +296,7 @@ fun CotizacionesFormScreen(
                                         ).show(); return@Button
                                     }
                                     Ventana(
+                                        zona = v.zona.trim(),  // ✅ NUEVO
                                         descripcion = desc,
                                         alto = alto,
                                         ancho = ancho,
@@ -436,10 +437,28 @@ fun CotizacionesFormScreen(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
+                        // ✅ NUEVO: Campo ZONA antes de descripción
                         StitchInputFieldMaterial(
-                            "DESCRIPCIÓN",
+                            "ZONA",
+                            actual.zona,
+                            "Ej. Terraza, Sala, Recámara",
+                            {
+                                if (indexActual in ventanas.indices) {
+                                    ventanas[indexActual] =
+                                        ventanas[indexActual].copy(zona = it); syncDraft()
+                                }
+                            },
+                            Icons.Default.Place,
+                            isDarkMode,
+                            textPrimary,
+                            textLabel,
+                            inputBg,
+                            inputBorder
+                        )
+                        StitchInputFieldMaterial(
+                            "ÁREA A PROTEGER",
                             actual.descripcion,
-                            "Ej. Ventana, Sala",
+                            "Ej. Ventana, Puerta corrediza",
                             {
                                 if (indexActual in ventanas.indices) {
                                     ventanas[indexActual] =

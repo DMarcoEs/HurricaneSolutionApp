@@ -146,6 +146,7 @@ object GoogleDriveRepository {
             val roleFolderName = when (userRole) {
                 "ADMIN" -> "Admins"
                 "SPECIALIST" -> "Especialistas"
+                "INSTALLER" -> "Instaladores"
                 else -> "Otros"
             }
 

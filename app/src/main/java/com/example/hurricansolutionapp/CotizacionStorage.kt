@@ -16,7 +16,11 @@ private fun getPrefs(context: Context): SharedPreferences {
  * Guarda o actualiza una cotización en SharedPreferences.
  * Si es una actualización (id existente), se actualiza el campo updatedAt.
  */
-fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion, esActualizacion: Boolean = false) {
+fun guardarCotizacionLocal(
+    context: Context,
+    cotizacion: Cotizacion,
+    esActualizacion: Boolean = false
+) {
     val prefs = getPrefs(context)
 
     val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
@@ -84,6 +88,7 @@ fun guardarCotizacionLocal(context: Context, cotizacion: Cotizacion, esActualiza
         val ventanasArray = JSONArray()
         cotizacion.ventanas.forEach { v ->
             val vObj = JSONObject().apply {
+                put("zona", v.zona)  // ✅ NUEVO
                 put("descripcion", v.descripcion)
                 put("alto", v.alto)
                 put("ancho", v.ancho)
@@ -158,6 +163,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         val ventanas = mutableListOf<Ventana>()
         for (j in 0 until ventanasJson.length()) {
             val vObj = ventanasJson.getJSONObject(j)
+            val zona = vObj.optString("zona", "")  // ✅ NUEVO
             val descripcion = vObj.optString("descripcion", "Apertura")
             val alto = vObj.optDouble("alto", 0.0)
             val ancho = vObj.optDouble("ancho", 0.0)
@@ -167,6 +173,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
 
             ventanas.add(
                 Ventana(
+                    zona = zona,  // ✅ NUEVO
                     descripcion = descripcion,
                     alto = alto,
                     ancho = ancho,
@@ -188,34 +195,35 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
             fecha = fecha,
             producto = producto,
             productos = productos,
+            tipoMontaje = tipoMontaje,
+            ventanas = ventanas,
             descuentoHS875 = descuentoHS875,
             descuentoHS1250 = descuentoHS1250,
             descuentoHS1500 = descuentoHS1500,
             descuentoDolaresPorM2 = descuentoDolaresPorM2,
-            tipoMontaje = tipoMontaje,
-            ventanas = ventanas,
             updatedAt = updatedAt
         )
         resultado.add(cotizacion)
     }
 
-    // Orden inverso (más recientes primero)
-    return resultado.reversed()
+    return resultado.sortedByDescending { it.id }
 }
 
 /**
- * Elimina UNA cotización por id.
+ * Elimina una cotización por su ID.
  */
-fun borrarCotizacionLocal(context: Context, id: Long) {
+fun eliminarCotizacionLocal(context: Context, cotizacionId: Long) {
     val prefs = getPrefs(context)
+
     val listaJson = prefs.getString(KEY_COTIZACIONES, "[]") ?: "[]"
     val array = JSONArray(listaJson)
 
     val nuevoArray = JSONArray()
+
     for (i in 0 until array.length()) {
         val obj = array.getJSONObject(i)
-        val idExistente = obj.optLong("id", -1L)
-        if (idExistente != id) {
+        val id = obj.optLong("id", -1L)
+        if (id != cotizacionId) {
             nuevoArray.put(obj)
         }
     }
@@ -226,22 +234,25 @@ fun borrarCotizacionLocal(context: Context, id: Long) {
 }
 
 /**
- * Obtiene una cotización por ID
+ * Alias para eliminarCotizacionLocal (compatibilidad)
  */
-fun obtenerCotizacionPorId(context: Context, id: Long): Cotizacion? {
-    return obtenerCotizacionesLocal(context).find { it.id == id }
+fun borrarCotizacionLocal(context: Context, cotizacionId: Long) {
+    eliminarCotizacionLocal(context, cotizacionId)
 }
 
 /**
- * Obtiene una cotización por folio
+ * Obtiene una cotización específica por su ID.
  */
-fun obtenerCotizacionPorFolio(context: Context, folio: String): Cotizacion? {
-    return obtenerCotizacionesLocal(context).find { it.folio == folio }
+fun obtenerCotizacionPorId(context: Context, cotizacionId: Long): Cotizacion? {
+    return obtenerCotizacionesLocal(context).find { it.id == cotizacionId }
 }
 
 /**
- * Actualiza una cotización existente y marca como editada
+ * Limpia todas las cotizaciones guardadas.
  */
-fun actualizarCotizacionLocal(context: Context, cotizacion: Cotizacion) {
-    guardarCotizacionLocal(context, cotizacion, esActualizacion = true)
+fun limpiarCotizacionesLocal(context: Context) {
+    val prefs = getPrefs(context)
+    prefs.edit()
+        .putString(KEY_COTIZACIONES, "[]")
+        .apply()
 }

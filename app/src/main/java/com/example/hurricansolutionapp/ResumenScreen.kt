@@ -385,6 +385,88 @@ fun ResumenScreen(
                                     }
                                 )
 
+                                // CREAR REGISTRO DE INSTALADOR SI HAY UN SOLO SISTEMA
+                                scope.launch {
+                                    try {
+                                        if (cotizacion.productos.size == 1) {
+                                            val sistemaSeleccionado = cotizacion.productos.first().name
+                                            val userId = SessionManager.getUserId(context)
+                                            val userName = SessionManager.getNombre(context)
+
+                                            android.util.Log.d(
+                                                "ResumenScreen",
+                                                "Creando registro de instalador para sistema: $sistemaSeleccionado"
+                                            )
+
+                                            // ✅ GUARDAR RESULTADO
+                                            val result = InstaladorRepository.crearRegistroDesdeCotizacionCompleto(
+                                                cotizacion = cotizacion,
+                                                sistemaSeleccionado = sistemaSeleccionado,
+                                                especialistaId = userId,
+                                                especialistaNombre = userName
+                                            )
+
+                                            if (result.isSuccess) {
+                                                val instaladorDatos = result.getOrNull()
+
+                                                android.util.Log.d(
+                                                    "ResumenScreen",
+                                                    "✅ Registro de instalador creado con ID: ${instaladorDatos?.id}"
+                                                )
+
+                                                // Generar PDF de instalación (sin precios)
+                                                val pdfInstalador = PdfInstaladorGenerator.generarPdfOrdenInstalacion(
+                                                    context = context,
+                                                    cotizacion = cotizacion,
+                                                    sistemaSeleccionado = sistemaSeleccionado,
+                                                    instaladorDatos = instaladorDatos
+                                                )
+
+                                                if (pdfInstalador != null) {
+                                                    android.util.Log.d(
+                                                        "ResumenScreen",
+                                                        "✅ PDF de instalación generado: ${pdfInstalador.absolutePath}"
+                                                    )
+
+                                                    val pendingInsert = InstaladorPendingInsert(
+                                                        cotizacionId = cotizacion.id?.toString() ?: cotizacion.folio,
+                                                        folio = cotizacion.folio,
+                                                        filePath = pdfInstalador.absolutePath,
+                                                        fileName = pdfInstalador.name,
+                                                        clienteNombre = cotizacion.clienteNombre,
+                                                        createdById = userId,
+                                                        createdByNombre = userName
+                                                    )
+
+                                                    InstaladorRepository.enqueuePending(pendingInsert)
+
+                                                    android.util.Log.d(
+                                                        "ResumenScreen",
+                                                        "✅ PDF de instalación encolado para Drive"
+                                                    )
+                                                }
+                                            } else {
+                                                android.util.Log.e(
+                                                    "ResumenScreen",
+                                                    "❌ Error creando registro de instalador: ${result.exceptionOrNull()?.message}"
+                                                )
+                                            }
+                                        } else {
+                                            android.util.Log.d(
+                                                "ResumenScreen",
+                                                "Cotización tiene ${cotizacion.productos.size} sistemas – no se crea registro"
+                                            )
+                                        }
+                                    } catch (e: Exception) {
+                                        android.util.Log.e(
+                                            "ResumenScreen",
+                                            "❌ Error en flujo de instalador: ${e.message}",
+                                            e
+                                        )
+                                    }
+                                }
+
+
                                 if (pdf != null) {
                                     Toast.makeText(context, "Cotización guardada", Toast.LENGTH_SHORT).show()
                                 } else {

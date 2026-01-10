@@ -65,9 +65,11 @@ fun AppNavigation(
     // Determinar pantalla inicial basada en rol
     val userRole = SessionManager.getRole(context)
     val isAdmin = userRole == "ADMIN"
+    val isInstaller = userRole == "INSTALLER"
 
     val start = when {
         !SessionManager.isLoggedIn(context) -> Routes.LOGIN
+        isInstaller -> Routes.INSTALADOR_HOME
         isAdmin -> Routes.ADMIN_HOME
         else -> Routes.HOME
     }
@@ -93,15 +95,15 @@ fun AppNavigation(
         composable(Routes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
-                    // Cargar precios después del login
                     scope.launch {
                         PriceManager.loadPrices()
                     }
-
-                    // Navegar según el rol
                     val role = SessionManager.getRole(context)
-                    val destination = if (role == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
-
+                    val destination = when (role) {
+                        "ADMIN" -> Routes.ADMIN_HOME
+                        "INSTALLER" -> Routes.INSTALADOR_HOME
+                        else -> Routes.HOME
+                    }
                     navController.navigate(destination) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
                         launchSingleTop = true
@@ -116,19 +118,18 @@ fun AppNavigation(
         composable(Routes.HOME) {
             HomeScreen(
                 userFirstName = SessionManager.getNombre(context),
-                pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
-                pendingDriveCount = 0,
+                pendingCount = UploadQueueStorage.getAll(context)
+                    .filter { it.status != "DONE" }.size,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
-
                 onNuevaCotizacion = {
                     navController.navigate(Routes.SELECCION_CLIENTE)
                 },
-
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
-
+                // ✅ NUEVO: Envíos a Instalación
+                onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
                     scope.launch {
@@ -149,30 +150,44 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
+        // ✅ NUEVO: ENVÍOS A INSTALACIÓN
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ENVIOS_INSTALACION,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            EnviosInstalacionScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
         // ADMIN HOME
         // ═══════════════════════════════════════════════════════════════════
         composable(Routes.ADMIN_HOME) {
             AdminHomeScreen(
                 adminName = SessionManager.getNombre(context),
-                pendingCount = UploadQueueStorage.getAll(context).filter { it.status != "DONE" }.size,
-                pendingDriveCount = 0,
+                pendingCount = UploadQueueStorage.getAll(context)
+                    .filter { it.status != "DONE" }.size,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
-
-                // Nueva Cotización - Navega al Wizard
                 onNuevaCotizacion = {
-                    navController.navigate(Routes.COTIZACION_WIZARD)
+                    navController.navigate(Routes.SELECCION_CLIENTE)
                 },
-
                 onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
+
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
+                onVerMetros = { navController.navigate(Routes.ADMIN_METROS) },
+
                 onConfigurePrecios = { navController.navigate(Routes.ADMIN_PRECIOS) },
                 onVerTodasCotizaciones = { navController.navigate(Routes.ADMIN_COTIZACIONES) },
                 onVerEmpleados = { navController.navigate(Routes.ADMIN_EMPLEADOS) },
                 onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },
-                onVerMetros = { navController.navigate(Routes.ADMIN_METROS) },
-
                 logoutEnabled = online,
                 onCerrarSesion = {
                     scope.launch {
@@ -187,36 +202,6 @@ fun AppNavigation(
                             popUpTo(Routes.ADMIN_HOME) { inclusive = true }
                             launchSingleTop = true
                         }
-                    }
-                }
-            )
-        }
-
-        // ═══════════════════════════════════════════════════════════════════
-        // WIZARD DE COTIZACIÓN (4 pasos con animación slide)
-        // ═══════════════════════════════════════════════════════════════════
-        composable(
-            route = Routes.COTIZACION_WIZARD,
-            enterTransition = { enterTransition() },
-            exitTransition = { exitTransition() },
-            popEnterTransition = { popEnterTransition() },
-            popExitTransition = { popExitTransition() }
-        ) {
-            CotizacionWizardScreen(
-                context = context,
-                userId = SessionManager.getUserId(context),
-                userRole = SessionManager.getRole(context),
-                draft = cotizacionDraft,
-                isDarkMode = isDarkMode,
-                onExit = { navController.popBackStack() },
-                onFinalizar = { cotizacion ->
-                    // Lógica al finalizar la cotización
-                    cotizacionActual = cotizacion
-                    cotizacionDraft.clear()
-                    // Navegar al home
-                    val destination = if (SessionManager.getRole(context) == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
-                    navController.navigate(destination) {
-                        popUpTo(destination) { inclusive = true }
                     }
                 }
             )
@@ -310,23 +295,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // ADMIN: METROS CUADRADOS
-        // ═══════════════════════════════════════════════════════════════════
-        composable(
-            route = Routes.ADMIN_METROS,
-            enterTransition = { enterTransition() },
-            exitTransition = { exitTransition() },
-            popEnterTransition = { popEnterTransition() },
-            popExitTransition = { popExitTransition() }
-        ) {
-            AdminMetrosScreen(
-                isDarkMode = isDarkMode,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        // ═══════════════════════════════════════════════════════════════════
-        // CLIENTE (Paso 1 del flujo de cotización - Especialista)
+        // CLIENTE (Paso 1 del flujo de cotización)
         // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.CLIENTE,
@@ -360,7 +329,7 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 currentStep = 2,
                 totalSteps = 3,
-                onDraftChange = { /* El draft se modifica directamente */ },
+                onDraftChange = { },
                 onBack = { navController.popBackStack() },
                 onContinuarResumen = { cotizacion ->
                     cotizacionActual = cotizacion
@@ -388,17 +357,12 @@ fun AppNavigation(
                     isDarkMode = isDarkMode,
                     onVolverAInicio = {
                         cotizacionDraft.clear()
-                        val destination = if (SessionManager.getRole(context) == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
-                        navController.navigate(destination) {
-                            popUpTo(destination) { inclusive = true }
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.HOME) { inclusive = true }
                         }
                     },
                     onVolverAEditar = {
-                        if (desdeHistorial) {
-                            navController.popBackStack()
-                        } else {
-                            navController.popBackStack()
-                        }
+                        navController.popBackStack()
                     },
                     onVolverAHistorial = {
                         navController.navigate(Routes.HISTORIAL) {
@@ -407,9 +371,8 @@ fun AppNavigation(
                     }
                 )
             } else {
-                val destination = if (SessionManager.getRole(context) == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
-                navController.navigate(destination) {
-                    popUpTo(destination) { inclusive = true }
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.HOME) { inclusive = true }
                 }
             }
         }
@@ -425,7 +388,6 @@ fun AppNavigation(
             popExitTransition = { popExitTransition() }
         ) {
             val listState = rememberLazyListState()
-
             HistorialScreen(
                 listState = listState,
                 isDarkMode = isDarkMode,
@@ -481,7 +443,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // SELECCIÓN DE CLIENTE (para Especialista - flujo tradicional)
+        // SELECCIÓN DE CLIENTE
         // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.SELECCION_CLIENTE,
@@ -497,24 +459,148 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() },
                 onClienteNuevo = {
-                    // Cliente nuevo: limpiar draft y permitir edición completa
                     cotizacionDraft.clear()
                     cotizacionDraft.esClienteActual = false
                     cotizacionDraft.leadId = null
                     navController.navigate(Routes.CLIENTE)
                 },
                 onClienteActualSeleccionado = { lead ->
-                    // Cliente actual: pre-llenar datos y marcar como no editable
                     cotizacionDraft.clear()
                     cotizacionDraft.nombre = lead.nombreCompleto
                     cotizacionDraft.telefono = lead.telefono
                     cotizacionDraft.ciudad = lead.ciudad ?: ""
                     cotizacionDraft.colonia = lead.colonia ?: ""
-                    cotizacionDraft.direccionDetalle = "${lead.calle ?: ""} ${lead.numero ?: ""}".trim()
+                    cotizacionDraft.direccionDetalle =
+                        "${lead.calle ?: ""} ${lead.numero ?: ""}".trim()
                     cotizacionDraft.esClienteActual = true
                     cotizacionDraft.leadId = lead.id
                     navController.navigate(Routes.CLIENTE)
                 }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ INSTALADOR - HOME
+        // ═══════════════════════════════════════════════════════════════════
+        composable(Routes.INSTALADOR_HOME) {
+            InstaladorHomeScreen(
+                instaladorName = SessionManager.getNombre(context),
+                isDarkMode = isDarkMode,
+                onToggleDarkMode = { setDarkMode(!isDarkMode) },
+                onVerMedidas = { navController.navigate(Routes.INSTALADOR_MEDIDAS_LIST) },
+                onPendientesDrive = { navController.navigate(Routes.INSTALADOR_DRIVE) },
+                logoutEnabled = online,
+                onCerrarSesion = {
+                    scope.launch {
+                        if (!isOnline(context)) return@launch
+                        try {
+                            AuthRepository.logout()
+                        } catch (_: Exception) {
+                            return@launch
+                        }
+                        SessionManager.logout(context)
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.INSTALADOR_HOME) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ INSTALADOR - LISTA DE MEDIDAS
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.INSTALADOR_MEDIDAS_LIST,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            InstaladorMedidasListScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onNavigateToForm = { folio ->
+                    navController.navigate(Routes.instaladorForm(folio))
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ INSTALADOR - FORMULARIO DE RECTIFICACIÓN
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.INSTALADOR_FORM,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) { backStackEntry ->
+            val folio = backStackEntry.arguments?.getString("folio") ?: ""
+            InstaladorFormScreen(
+                folio = folio,
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onNavigateToResumen = { f ->
+                    navController.navigate(Routes.instaladorResumen(f))
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ INSTALADOR - RESUMEN
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.INSTALADOR_RESUMEN,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) { backStackEntry ->
+            val folio = backStackEntry.arguments?.getString("folio") ?: ""
+            InstaladorResumenScreen(
+                folio = folio,
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onNavigateToHome = {
+                    navController.navigate(Routes.INSTALADOR_HOME) {
+                        popUpTo(Routes.INSTALADOR_HOME) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ✅ INSTALADOR - GOOGLE DRIVE
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.INSTALADOR_DRIVE,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            InstaladorDriveScreen(
+                isDarkMode = isDarkMode,
+                isOnline = online,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ADMIN - METROS CUADRADOS
+        // ═══════════════════════════════════════════════════════════════════
+        composable(
+            route = Routes.ADMIN_METROS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminMetrosScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
             )
         }
     }

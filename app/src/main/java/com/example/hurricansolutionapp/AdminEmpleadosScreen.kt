@@ -2,7 +2,8 @@ package com.example.hurricansolutionapp
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +11,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,8 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,13 +54,18 @@ fun AdminEmpleadosScreen(
         isLoading = false
     }
 
-    // Colores
-    val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
-    val surface = if (isDarkMode) Color(0xFF000000) else Color.White
-    val card = if (isDarkMode) Color(0xFF18181B) else Color.White
-    val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
-    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+    // Colores Stitch
+    val bg = StitchColors.background(isDarkMode)
+    val surface = StitchColors.surface(isDarkMode)
+    val textPrimary = StitchColors.textPrimary(isDarkMode)
+    val textSecondary = StitchColors.textSecondary(isDarkMode)
+    val border = StitchColors.border(isDarkMode)
+    val primary = StitchColors.primary(isDarkMode)
+    val onPrimary = StitchColors.onPrimary(isDarkMode)
+
+    // Colores estandarizados
+    val greenColor = StitchColors.greenStandard
+    val redColor = StitchColors.redStandard
 
     fun toggleUserActive(empleado: UserProfile) {
         scope.launch {
@@ -76,40 +85,20 @@ fun AdminEmpleadosScreen(
         }
     }
 
+    // Contadores
+    val totalEmpleados = empleados.size
+    val activos = empleados.count { it.isActive }
+    val inactivos = empleados.count { !it.isActive }
+
     Scaffold(
         containerColor = bg,
         topBar = {
-            // StitchTopBar
-            Column(
-                modifier = Modifier
-                    .background(surface)
-                    .statusBarsPadding()
-            ) {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = surface
-                    ),
-                    title = {
-                        Text(
-                            "GESTIONAR EMPLEADOS",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = textPrimary,
-                            letterSpacing = 0.5.sp
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_chevron_left),
-                                contentDescription = "Volver",
-                                tint = textPrimary
-                            )
-                        }
-                    }
-                )
-                HorizontalDivider(color = border, thickness = 1.dp)
-            }
+            // StitchTopBar sin separador
+            StitchTopBar(
+                title = "Gestionar Empleados",
+                onBack = onBack,
+                isDarkMode = isDarkMode
+            )
         }
     ) { innerPadding ->
 
@@ -120,7 +109,7 @@ fun AdminEmpleadosScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF8B5CF6))
+                CircularProgressIndicator(color = primary)
             }
         } else if (empleados.isEmpty()) {
             Box(
@@ -133,11 +122,11 @@ fun AdminEmpleadosScreen(
                     Icon(
                         Icons.Default.PersonOff,
                         contentDescription = null,
-                        tint = textMuted,
+                        tint = textSecondary,
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("No hay empleados registrados", color = textMuted)
+                    Text("No hay empleados registrados", color = textSecondary)
                 }
             }
         } else {
@@ -145,103 +134,125 @@ fun AdminEmpleadosScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .padding(horizontal = 16.dp)
             ) {
-                // Stats row
+                Spacer(Modifier.height(16.dp))
+
+                // ═══════════════════════════════════════════════════════════════════
+                // STATS CARDS - 3 columnas
+                // ═══════════════════════════════════════════════════════════════════
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatCard(
+                    // Total
+                    StitchStatCard(
                         icon = Icons.Default.People,
-                        value = empleados.size.toString(),
-                        label = "Total",
-                        color = Color(0xFF3B82F6),
-                        modifier = Modifier.weight(1f),
+                        value = totalEmpleados.toString(),
+                        label = "TOTAL",
+                        iconColor = textPrimary,
+                        valueColor = textPrimary,
+                        labelColor = textSecondary,
                         isDarkMode = isDarkMode,
-                        card = card,
-                        border = border,
-                        textPrimary = textPrimary,
-                        textMuted = textMuted
+                        modifier = Modifier.weight(1f)
                     )
-                    StatCard(
-                        icon = Icons.Default.CheckCircle,
-                        value = empleados.count { it.isActive }.toString(),
-                        label = "Activos",
-                        color = Color(0xFF10B981),
-                        modifier = Modifier.weight(1f),
+
+                    // Activos
+                    StitchStatCard(
+                        icon = Icons.Outlined.CheckCircle,
+                        value = activos.toString(),
+                        label = "ACTIVOS",
+                        iconColor = greenColor,
+                        valueColor = greenColor,
+                        labelColor = greenColor,
                         isDarkMode = isDarkMode,
-                        card = card,
-                        border = border,
-                        textPrimary = textPrimary,
-                        textMuted = textMuted
+                        modifier = Modifier.weight(1f)
                     )
-                    StatCard(
-                        icon = Icons.Default.Block,
-                        value = empleados.count { !it.isActive }.toString(),
-                        label = "Inactivos",
-                        color = Color(0xFFEF4444),
-                        modifier = Modifier.weight(1f),
+
+                    // Inactivos
+                    StitchStatCard(
+                        icon = Icons.Outlined.Block,
+                        value = inactivos.toString(),
+                        label = "INACTIVOS",
+                        iconColor = redColor,
+                        valueColor = redColor,
+                        labelColor = redColor,
                         isDarkMode = isDarkMode,
-                        card = card,
-                        border = border,
-                        textPrimary = textPrimary,
-                        textMuted = textMuted
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
-                // Título
-                Text(
-                    "Lista de Usuarios",
-                    color = textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                Spacer(Modifier.height(24.dp))
 
-                // Lista
+                // ═══════════════════════════════════════════════════════════════════
+                // TITULO DE SECCION - Estilo Stitch con barra lateral
+                // ═══════════════════════════════════════════════════════════════════
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    // Barra vertical negra/blanca
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(primary)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "LISTA DE USUARIOS",
+                        color = textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                // ═══════════════════════════════════════════════════════════════════
+                // LISTA DE EMPLEADOS
+                // ═══════════════════════════════════════════════════════════════════
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(empleados) { empleado ->
-                        EmpleadoCard(
+                        StitchEmpleadoCard(
                             empleado = empleado,
                             cotizaciones = cotizacionesPorEmpleado[empleado.id] ?: 0,
                             isDarkMode = isDarkMode,
-                            card = card,
-                            border = border,
-                            textPrimary = textPrimary,
-                            textMuted = textMuted,
                             onToggleActive = {
                                 empleadoSeleccionado = empleado
                                 showConfirmDialog = true
                             }
                         )
                     }
+                    item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
     }
 
-    // Dialog de confirmación
+    // ═══════════════════════════════════════════════════════════════════
+    // DIALOG DE CONFIRMACION
+    // ═══════════════════════════════════════════════════════════════════
     if (showConfirmDialog && empleadoSeleccionado != null) {
         val emp = empleadoSeleccionado!!
         val action = if (emp.isActive) "desactivar" else "activar"
+        val actionColor = if (emp.isActive) redColor else greenColor
 
         AlertDialog(
             onDismissRequest = {
                 showConfirmDialog = false
                 empleadoSeleccionado = null
             },
-            containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
+            containerColor = surface,
+            shape = RoundedCornerShape(16.dp),
             icon = {
                 Icon(
-                    if (emp.isActive) Icons.Default.Block else Icons.Default.CheckCircle,
+                    if (emp.isActive) Icons.Outlined.Block else Icons.Outlined.CheckCircle,
                     contentDescription = null,
-                    tint = if (emp.isActive) Color(0xFFEF4444) else Color(0xFF10B981),
+                    tint = actionColor,
                     modifier = Modifier.size(32.dp)
                 )
             },
@@ -254,18 +265,22 @@ fun AdminEmpleadosScreen(
             },
             text = {
                 Text(
-                    "¿Estás seguro de que deseas $action a ${emp.name}?",
-                    color = textMuted
+                    "Estas seguro de que deseas $action a ${emp.name}?",
+                    color = textSecondary
                 )
             },
             confirmButton = {
                 Button(
                     onClick = { toggleUserActive(emp) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (emp.isActive) Color(0xFFEF4444) else Color(0xFF10B981)
-                    )
+                        containerColor = actionColor
+                    ),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(action.replaceFirstChar { it.uppercase() })
+                    Text(
+                        action.replaceFirstChar { it.uppercase() },
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             dismissButton = {
@@ -273,67 +288,107 @@ fun AdminEmpleadosScreen(
                     showConfirmDialog = false
                     empleadoSeleccionado = null
                 }) {
-                    Text("Cancelar", color = textMuted)
+                    Text("Cancelar", color = textSecondary)
                 }
             }
         )
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTES AUXILIARES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Tarjeta de estadistica estilo Stitch
+ */
 @Composable
-private fun StatCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun StitchStatCard(
+    icon: ImageVector,
     value: String,
     label: String,
-    color: Color,
-    modifier: Modifier = Modifier,
+    iconColor: Color,
+    valueColor: Color,
+    labelColor: Color,
     isDarkMode: Boolean,
-    card: Color,
-    border: Color,
-    textPrimary: Color,
-    textMuted: Color
+    modifier: Modifier = Modifier
 ) {
+    val surface = StitchColors.surface(isDarkMode)
+    val border = StitchColors.border(isDarkMode)
+
     Surface(
         modifier = modifier,
-        color = card,
-        shape = RoundedCornerShape(12.dp),
+        color = surface,
+        shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, border)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(24.dp)
+            )
             Spacer(Modifier.height(8.dp))
-            Text(value, color = textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(label, color = textMuted, fontSize = 11.sp)
+            Text(
+                value,
+                color = valueColor,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                label,
+                color = labelColor,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
         }
     }
 }
 
+/**
+ * Tarjeta de empleado estilo Stitch
+ */
 @Composable
-private fun EmpleadoCard(
+private fun StitchEmpleadoCard(
     empleado: UserProfile,
     cotizaciones: Int,
     isDarkMode: Boolean,
-    card: Color,
-    border: Color,
-    textPrimary: Color,
-    textMuted: Color,
     onToggleActive: () -> Unit
 ) {
-    val avatarColor = when {
-        empleado.role == "ADMIN" -> Color(0xFF3B82F6)
-        empleado.isActive -> Color(0xFF10B981)
-        else -> Color(0xFFEF4444)
+    val surface = StitchColors.surface(isDarkMode)
+    val border = StitchColors.border(isDarkMode)
+    val textPrimary = StitchColors.textPrimary(isDarkMode)
+    val textSecondary = StitchColors.textSecondary(isDarkMode)
+    val primary = StitchColors.primary(isDarkMode)
+    val onPrimary = StitchColors.onPrimary(isDarkMode)
+
+    // Colores estandarizados
+    val greenColor = StitchColors.greenStandard
+    val redColor = StitchColors.redStandard
+
+    // Color del avatar segun rol/estado
+    val isAdmin = empleado.role == "ADMIN"
+    val avatarBg = if (isAdmin) {
+        primary
+    } else {
+        if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
     }
+    val avatarTextColor = if (isAdmin) onPrimary else textPrimary
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (empleado.isActive) 1f else 0.6f),
-        color = card,
-        shape = RoundedCornerShape(12.dp),
+        color = surface,
+        shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, border)
     ) {
         Row(
@@ -342,90 +397,111 @@ private fun EmpleadoCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
+            // Avatar con iniciales
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
-                    .background(avatarColor.copy(alpha = 0.2f)),
+                    .background(avatarBg)
+                    .then(
+                        if (!isAdmin) {
+                            Modifier.border(1.dp, border, CircleShape)
+                        } else Modifier
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    empleado.name.split(" ").take(2).map { it.firstOrNull()?.uppercase() ?: "" }.joinToString(""),
-                    color = avatarColor,
+                    empleado.name.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase()?.toString() }.joinToString(""),
+                    color = avatarTextColor,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 14.sp
                 )
             }
 
             Spacer(Modifier.width(16.dp))
 
-            // Info
+            // Info del empleado
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     empleado.name,
                     color = textPrimary,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                    fontSize = 14.sp
                 )
+                Spacer(Modifier.height(4.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Estado
+                    // Estado (punto + texto)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(6.dp)
                                 .clip(CircleShape)
-                                .background(if (empleado.isActive) Color(0xFF10B981) else Color(0xFFEF4444))
+                                .background(if (empleado.isActive) greenColor else redColor)
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            if (empleado.isActive) "Activo" else "Inactivo",
-                            color = textMuted,
-                            fontSize = 12.sp
+                            if (empleado.isActive) "ACTIVO" else "INACTIVO",
+                            color = if (empleado.isActive) greenColor else redColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
                         )
                     }
+
+                    // Separador
+                    Text(
+                        "•",
+                        color = textSecondary.copy(alpha = 0.5f),
+                        fontSize = 10.sp
+                    )
 
                     // Cotizaciones
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.Description,
                             contentDescription = null,
-                            tint = textMuted,
-                            modifier = Modifier.size(14.dp)
+                            tint = textSecondary,
+                            modifier = Modifier.size(12.dp)
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            "$cotizaciones cotización(es)",
-                            color = textMuted,
-                            fontSize = 12.sp
+                            "$cotizaciones cotizaciones",
+                            color = textSecondary,
+                            fontSize = 10.sp
                         )
                     }
                 }
             }
 
-            // Badge ADMIN o botón toggle
-            if (empleado.role == "ADMIN") {
+            // Badge ADMIN o boton toggle
+            if (isAdmin) {
                 Surface(
-                    color = Color(0xFF3B82F6),
-                    shape = RoundedCornerShape(6.dp)
+                    color = primary,
+                    shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         "ADMIN",
-                        color = Color.White,
-                        fontSize = 10.sp,
+                        color = onPrimary,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             } else {
-                IconButton(onClick = onToggleActive) {
+                // Icono de bloquear/activar
+                IconButton(
+                    onClick = onToggleActive,
+                    modifier = Modifier.size(32.dp)
+                ) {
                     Icon(
-                        if (empleado.isActive) Icons.Default.Block else Icons.Default.CheckCircle,
+                        if (empleado.isActive) Icons.Outlined.Block else Icons.Outlined.CheckCircle,
                         contentDescription = if (empleado.isActive) "Desactivar" else "Activar",
-                        tint = if (empleado.isActive) Color(0xFFFCA5A5) else Color(0xFF10B981)
+                        tint = textSecondary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

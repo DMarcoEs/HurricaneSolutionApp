@@ -2,10 +2,13 @@ package com.example.hurricansolutionapp
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -63,14 +65,14 @@ fun ConfigurarPreciosScreen(
         isLoading = false
     }
 
-    // Colores
-    val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
-    val surface = if (isDarkMode) Color(0xFF000000) else Color.White
-    val card = if (isDarkMode) Color(0xFF18181B) else Color.White
-    val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
-    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
-    val inputBg = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+    // Colores Stitch
+    val bg = StitchColors.background(isDarkMode)
+    val surface = StitchColors.surface(isDarkMode)
+    val textPrimary = StitchColors.textPrimary(isDarkMode)
+    val textSecondary = StitchColors.textSecondary(isDarkMode)
+    val border = StitchColors.border(isDarkMode)
+    val primary = StitchColors.primary(isDarkMode)
+    val onPrimary = StitchColors.onPrimary(isDarkMode)
 
     fun validateAndSave() {
         val v875 = hs875Venta.toDoubleOrNull()
@@ -94,7 +96,6 @@ fun ConfigurarPreciosScreen(
         scope.launch {
             isSaving = true
 
-            // Obtener el userId del usuario actual
             val userId = SessionManager.getUserId(context)
 
             val configUpdate = AppConfigUpdate(
@@ -108,7 +109,6 @@ fun ConfigurarPreciosScreen(
             )
 
             AdminRepository.updateAppConfig(context, configUpdate).onSuccess {
-                // Actualizar config local en PriceManager
                 val newConfig = AppConfig(
                     hs875PrecioVenta = v875,
                     hs875PrecioBase = b875,
@@ -133,44 +133,17 @@ fun ConfigurarPreciosScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            // StitchTopBar
-            Column(
-                modifier = Modifier
-                    .background(surface)
-                    .statusBarsPadding()
-            ) {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = surface
-                    ),
-                    title = {
-                        Text(
-                            "CONFIGURAR PRECIOS",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = textPrimary,
-                            letterSpacing = 0.5.sp
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_chevron_left),
-                                contentDescription = "Volver",
-                                tint = textPrimary
-                            )
-                        }
-                    }
-                )
-                HorizontalDivider(color = border, thickness = 1.dp)
-            }
+            StitchTopBar(
+                title = "Configurar Precios",
+                onBack = onBack,
+                isDarkMode = isDarkMode
+            )
         },
         bottomBar = {
+            // Boton fijo abajo
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = surface,
+                modifier = Modifier.fillMaxWidth(),
+                color = if (isDarkMode) Color.Black.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.9f),
                 shadowElevation = 8.dp
             ) {
                 Button(
@@ -179,29 +152,33 @@ fun ConfigurarPreciosScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
+                        .navigationBarsPadding()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981),
-                        disabledContainerColor = Color(0xFF10B981).copy(alpha = 0.5f)
+                        containerColor = primary,
+                        disabledContainerColor = primary.copy(alpha = 0.5f)
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            color = Color.White,
+                            color = onPrimary,
                             strokeWidth = 2.dp
                         )
                     } else {
                         Icon(
                             Icons.Default.Save,
                             contentDescription = null,
+                            tint = onPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "GUARDAR CAMBIOS",
+                            color = onPrimary,
                             fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
                             letterSpacing = 1.sp
                         )
                     }
@@ -216,24 +193,25 @@ fun ConfigurarPreciosScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF10B981))
+                CircularProgressIndicator(color = primary)
             }
         } else {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Info card
-                Card(
+                Spacer(Modifier.height(8.dp))
+
+                // Banner informativo
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                    color = if (isDarkMode) Color(0xFF1E3A5F).copy(alpha = 0.3f) else Color(0xFFE0F2FE),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF1E3A5F) else Color(0xFFBAE6FD))
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -242,190 +220,233 @@ fun ConfigurarPreciosScreen(
                         Icon(
                             Icons.Default.Info,
                             contentDescription = null,
-                            tint = Color(0xFF3B82F6),
+                            tint = if (isDarkMode) Color(0xFF60A5FA) else Color(0xFF0284C7),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(
-                            "Los cambios se aplicarán a todas las cotizaciones nuevas. Las cotizaciones existentes mantendrán sus precios originales.",
-                            color = Color(0xFF3B82F6),
+                            "Los cambios se aplicaran a todas las cotizaciones nuevas. Las cotizaciones existentes mantendran sus precios originales.",
+                            color = if (isDarkMode) Color(0xFF93C5FD) else Color(0xFF0369A1),
                             fontSize = 13.sp,
                             lineHeight = 18.sp
                         )
                     }
                 }
 
+                // Titulo de seccion con barra lateral
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(primary)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "PRECIOS ACTUALES",
+                        color = textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        letterSpacing = 1.sp
+                    )
+                }
+
                 // HS-875
-                PriceCard(
+                StitchPriceCard(
                     title = "HS-875",
                     subtitle = "Polipropileno",
-                    iconColor = Color(0xFF10B981),
                     precioVenta = hs875Venta,
                     onPrecioVentaChange = { hs875Venta = it; hasChanges = true },
                     precioBase = hs875Base,
                     onPrecioBaseChange = { hs875Base = it; hasChanges = true },
-                    isDarkMode = isDarkMode,
-                    card = card,
-                    border = border,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted,
-                    inputBg = inputBg
+                    isDarkMode = isDarkMode
                 )
 
                 // HS-1250
-                PriceCard(
+                StitchPriceCard(
                     title = "HS-1250",
-                    subtitle = "Poliéster y Aramida",
-                    iconColor = Color(0xFF3B82F6),
+                    subtitle = "Poliester y Aramida",
                     precioVenta = hs1250Venta,
                     onPrecioVentaChange = { hs1250Venta = it; hasChanges = true },
                     precioBase = hs1250Base,
                     onPrecioBaseChange = { hs1250Base = it; hasChanges = true },
-                    isDarkMode = isDarkMode,
-                    card = card,
-                    border = border,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted,
-                    inputBg = inputBg
+                    isDarkMode = isDarkMode
                 )
 
                 // HS-1500
-                PriceCard(
+                StitchPriceCard(
                     title = "HS-1500",
-                    subtitle = "Aramida Premium",
-                    iconColor = Color(0xFF8B5CF6),
+                    subtitle = "Nylon Balistico",
                     precioVenta = hs1500Venta,
                     onPrecioVentaChange = { hs1500Venta = it; hasChanges = true },
                     precioBase = hs1500Base,
                     onPrecioBaseChange = { hs1500Base = it; hasChanges = true },
-                    isDarkMode = isDarkMode,
-                    card = card,
-                    border = border,
-                    textPrimary = textPrimary,
-                    textMuted = textMuted,
-                    inputBg = inputBg
+                    isDarkMode = isDarkMode
                 )
 
-                Spacer(Modifier.height(80.dp))
+                // Espacio para el boton inferior
+                Spacer(Modifier.height(100.dp))
             }
         }
     }
 }
 
 @Composable
-private fun PriceCard(
+private fun StitchPriceCard(
     title: String,
     subtitle: String,
-    iconColor: Color,
     precioVenta: String,
     onPrecioVentaChange: (String) -> Unit,
     precioBase: String,
     onPrecioBaseChange: (String) -> Unit,
-    isDarkMode: Boolean,
-    card: Color,
-    border: Color,
-    textPrimary: Color,
-    textMuted: Color,
-    inputBg: Color
+    isDarkMode: Boolean
 ) {
-    val venta = precioVenta.toDoubleOrNull() ?: 0.0
-    val base = precioBase.toDoubleOrNull() ?: 0.0
-    val margen = if (venta > 0 && base > 0) ((venta - base) / venta * 100) else 0.0
+    val surface = StitchColors.surface(isDarkMode)
+    val textPrimary = StitchColors.textPrimary(isDarkMode)
+    val textSecondary = StitchColors.textSecondary(isDarkMode)
+    val border = StitchColors.border(isDarkMode)
+    val primary = StitchColors.primary(isDarkMode)
+    val onPrimary = StitchColors.onPrimary(isDarkMode)
+    val inputBg = StitchColors.surfaceVariant(isDarkMode)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = card,
-        shape = RoundedCornerShape(16.dp),
+        color = surface,
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, border)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Header
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column {
+            // Header con icono
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isDarkMode) Color(0xFF18181B) else Color(0xFFF9FAFB))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Icono de escudo
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(iconColor),
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Shield,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        tint = onPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(16.dp))
                 Column {
-                    Text(title, color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text(subtitle, color = textMuted, fontSize = 13.sp)
+                    Text(
+                        title,
+                        color = textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        subtitle,
+                        color = textSecondary,
+                        fontSize = 12.sp
+                    )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = border, thickness = 1.dp)
 
-            // Precio de Venta
-            Text("Precio de Venta (USD/m²)", color = textMuted, fontSize = 13.sp)
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = precioVenta,
-                onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onPrecioVentaChange(it) },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Text("$", color = textMuted, fontWeight = FontWeight.Bold) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = inputBg,
-                    unfocusedContainerColor = inputBg,
-                    focusedBorderColor = iconColor,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedTextColor = textPrimary,
-                    unfocusedTextColor = textPrimary
-                )
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Precio Base
-            Text("Precio Base / Costo (USD/m²)", color = textMuted, fontSize = 13.sp)
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = precioBase,
-                onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onPrecioBaseChange(it) },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Text("$", color = textMuted, fontWeight = FontWeight.Bold) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = inputBg,
-                    unfocusedContainerColor = inputBg,
-                    focusedBorderColor = iconColor,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedTextColor = textPrimary,
-                    unfocusedTextColor = textPrimary
-                )
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Margen
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(iconColor.copy(alpha = 0.1f))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // Campos de precio
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Margen de ganancia:", color = textMuted, fontSize = 13.sp)
-                Text(
-                    "${String.format("%.1f", margen)}%",
-                    color = iconColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
+                // Precio de Venta
+                Column {
+                    Text(
+                        "PRECIO DE VENTA (USD/m²)",
+                        color = textSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = precioVenta,
+                        onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onPrecioVentaChange(it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Text(
+                                "$",
+                                color = textSecondary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = inputBg,
+                            unfocusedContainerColor = inputBg,
+                            focusedBorderColor = primary,
+                            unfocusedBorderColor = border,
+                            focusedTextColor = textPrimary,
+                            unfocusedTextColor = textPrimary
+                        ),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                    )
+                }
+
+                // Precio Base
+                Column {
+                    Text(
+                        "PRECIO BASE / COSTO (USD/m²)",
+                        color = textSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = precioBase,
+                        onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onPrecioBaseChange(it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Text(
+                                "$",
+                                color = textSecondary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = inputBg,
+                            unfocusedContainerColor = inputBg,
+                            focusedBorderColor = primary,
+                            unfocusedBorderColor = border,
+                            focusedTextColor = textPrimary,
+                            unfocusedTextColor = textPrimary
+                        ),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
+                        )
+                    )
+                }
+                // SIN margen de ganancia
             }
         }
     }

@@ -1,7 +1,12 @@
 package com.example.hurricansolutionapp
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -9,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -23,15 +31,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.window.PopupProperties
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClienteScreen(
     draft: CotizacionDraft,
     isDarkMode: Boolean,
-    currentStep: Int = 1,   // ✅ Nuevo parámetro
-    totalSteps: Int = 3,    // ✅ Nuevo parámetro
+    currentStep: Int = 1,
+    totalSteps: Int = 3,
     onBack: () -> Unit,
     onContinuar: () -> Unit
 ) {
@@ -47,6 +55,29 @@ fun ClienteScreen(
     var colonia by rememberSaveable { mutableStateOf(draft.colonia) }
     var direccionDetalle by rememberSaveable { mutableStateOf(draft.direccionDetalle) }
 
+    // Estado para la zona detectada
+    var zonaDetectada by remember { mutableStateOf<ZonaGeografica?>(null) }
+    
+    // Estado para el autocompletado
+    var showSugerencias by remember { mutableStateOf(false) }
+    var sugerenciasCiudad by remember { mutableStateOf<List<Pair<String, ZonaGeografica>>>(emptyList()) }
+
+    // Detectar zona cuando cambia la ciudad
+    LaunchedEffect(ciudad) {
+        if (ciudad.length >= 3) {
+            sugerenciasCiudad = ZonasData.getSugerenciasPriorizadas(ciudad, 8)
+            showSugerencias = sugerenciasCiudad.isNotEmpty() && !sugerenciasCiudad.any { it.first == ciudad }
+        } else {
+            sugerenciasCiudad = emptyList()
+            showSugerencias = false
+        }
+        
+        if (ciudad.isNotBlank()) {
+            zonaDetectada = ZonasData.detectarZona(ciudad)
+            PriceManager.setZonaFromCiudad(ciudad)
+        }
+    }
+
     val hayCambios = nombre.isNotBlank()
             || telefono.isNotBlank()
             || ciudad.isNotBlank()
@@ -59,7 +90,6 @@ fun ClienteScreen(
 
     val isFormValid = nombre.isNotBlank() && telefono.isNotBlank() && ciudad.isNotBlank()
 
-    // ✅ Colores BLACK MODE (negro puro, no azul)
     val surface = if (isDarkMode) Color(0xFF0A0A0A) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
@@ -72,78 +102,38 @@ fun ClienteScreen(
                 CenterAlignedTopAppBar(
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = surface),
                     title = {
-                        Text(
-                            "Datos del Cliente",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = textPrimary
-                        )
+                        Text("Datos del Cliente", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textPrimary)
                     },
                     navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                if (hayCambios) showExitDialog = true else onBack()
-                            }
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_chevron_left),
-                                contentDescription = null,
-                                tint = textPrimary
-                            )
+                        IconButton(onClick = { if (hayCambios) showExitDialog = true else onBack() }) {
+                            Icon(painter = painterResource(id = R.drawable.ic_chevron_left), contentDescription = null, tint = textPrimary)
                         }
                     }
                 )
-
-                // ✅ STEPPER DINÁMICO
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(totalSteps) { step ->
                         val isCurrentStep = step + 1 == currentStep
                         val isPastStep = step + 1 < currentStep
-
                         Box(
                             modifier = if (isCurrentStep) {
-                                Modifier
-                                    .width(24.dp)
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (isDarkMode) Color.White else Color.Black)
+                                Modifier.width(24.dp).height(6.dp).clip(RoundedCornerShape(50)).background(if (isDarkMode) Color.White else Color.Black)
                             } else {
-                                Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isPastStep) {
-                                            if (isDarkMode) Color.White.copy(alpha = 0.6f) else Color.Black.copy(
-                                                alpha = 0.6f
-                                            )
-                                        } else {
-                                            textMuted.copy(alpha = 0.4f)
-                                        }
-                                    )
+                                Modifier.size(6.dp).clip(CircleShape).background(
+                                    if (isPastStep) (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.6f) else textMuted.copy(alpha = 0.4f)
+                                )
                             }
                         )
-
-                        if (step < totalSteps - 1) {
-                            Spacer(Modifier.width(6.dp))
-                        }
+                        if (step < totalSteps - 1) Spacer(Modifier.width(6.dp))
                     }
                 }
             }
         },
         bottomBar = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = surface,
-                tonalElevation = 0.dp
-            ) {
+            Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = surface, tonalElevation = 0.dp) {
                 Button(
                     onClick = {
                         draft.nombre = nombre
@@ -151,13 +141,11 @@ fun ClienteScreen(
                         draft.ciudad = ciudad
                         draft.colonia = colonia
                         draft.direccionDetalle = direccionDetalle
+                        draft.zonaGeografica = zonaDetectada ?: ZonaGeografica.CONTINENTAL
                         onContinuar()
                     },
                     enabled = isFormValid,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
-                        .height(56.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).height(56.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isDarkMode) Color.White else Color.Black,
                         disabledContainerColor = textMuted.copy(alpha = 0.3f)
@@ -165,19 +153,9 @@ fun ClienteScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Siguiente",
-                            color = if (isDarkMode) Color.Black else Color.White,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Siguiente", color = if (isDarkMode) Color.Black else Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(8.dp))
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            null,
-                            tint = if (isDarkMode) Color.Black else Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -185,195 +163,83 @@ fun ClienteScreen(
         containerColor = bg
     ) { inner ->
         Column(
-            modifier = Modifier
-                .padding(inner)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+            modifier = Modifier.padding(inner).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
-        )
-
-        {
+        ) {
+            // Sección: Información Personal
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    "INFORMACIÓN PERSONAL",
-                    color = textMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Text("INFORMACIÓN PERSONAL", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
-                // ✅ NUEVO: Banner informativo si es cliente del CRM
                 if (draft.esClienteActual) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isDarkMode) Color(0xFF1E3A8A).copy(alpha = 0.3f) else Color(0xFFDEEBFF)
-                        ),
+                        colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color(0xFF1E3A8A).copy(alpha = 0.3f) else Color(0xFFDEEBFF)),
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF3B82F6) else Color(0xFF2563EB))
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Info,  // ✅ Usa Material Icons
-                                contentDescription = null,
-                                tint = if (isDarkMode) Color(0xFF60A5FA) else Color(0xFF2563EB),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Cliente desde CRM: Nombre y teléfono no editables",
-                                fontSize = 13.sp,
-                                color = if (isDarkMode) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
-                                fontWeight = FontWeight.Medium
-                            )
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Info, null, tint = if (isDarkMode) Color(0xFF60A5FA) else Color(0xFF2563EB), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Cliente desde CRM: Nombre y teléfono no editables", fontSize = 13.sp, color = if (isDarkMode) Color(0xFFBFDBFE) else Color(0xFF1E40AF), fontWeight = FontWeight.Medium)
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
                 }
 
-                StitchField(
-                    label = "Nombre Completo",
-                    value = nombre,
-                    hint = "Ej. Juan Pérez",
-                    onValueChange = { nombre = it },
-                    isDarkMode = isDarkMode,
-                    textPrimary = textPrimary,
-                    surface = surface,
-                    border = border,
-                    icon = R.drawable.ic_user_lucide,
-                    readOnly = draft.esClienteActual
-                )
-
-                StitchField(
-                    label = "Número de Celular",
-                    value = telefono,
-                    hint = "55 1234 5678",
-                    onValueChange = { txt -> if (txt.all { ch -> ch.isDigit() }) telefono = txt },
-                    isDarkMode = isDarkMode,
-                    textPrimary = textPrimary,
-                    surface = surface,
-                    border = border,
-                    icon = R.drawable.ic_phone_lucide,
-                    isPhone = true,
-                    keyboardType = KeyboardType.Number,
-                    readOnly = draft.esClienteActual  // ✅ NUEVO: readonly si es cliente CRM
-                )
-
-                StitchField(
-                    label = "Fecha de Cotización",
-                    value = fechaActual,
-                    hint = "",
-                    onValueChange = { },
-                    isDarkMode = isDarkMode,
-                    textPrimary = textPrimary,
-                    surface = surface,
-                    border = border,
-                    icon = R.drawable.ic_calendar_lucide,
-                    readOnly = true
-                )
+                StitchField(label = "Nombre Completo", value = nombre, hint = "Ej. Juan Pérez", onValueChange = { nombre = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_user_lucide, readOnly = draft.esClienteActual)
+                StitchField(label = "Número de Celular", value = telefono, hint = "55 1234 5678", onValueChange = { txt -> if (txt.all { it.isDigit() }) telefono = txt }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_phone_lucide, isPhone = true, keyboardType = KeyboardType.Number, readOnly = draft.esClienteActual)
+                StitchField(label = "Fecha de Cotización", value = fechaActual, hint = "", onValueChange = { }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_calendar_lucide, readOnly = true)
             }
 
+            // Sección: Ubicación del Proyecto
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    "UBICACIÓN DEL PROYECTO",
-                    color = textMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Text("UBICACIÓN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
-                StitchField(
-                    label = "Ciudad / Municipio",
+                CiudadAutocompleteField(
                     value = ciudad,
-                    hint = "Ej. Monterrey",
                     onValueChange = { ciudad = it },
+                    sugerencias = sugerenciasCiudad,
+                    showSugerencias = showSugerencias,
+                    onSugerenciaSelected = { selectedCiudad, zona ->
+                        ciudad = selectedCiudad
+                        zonaDetectada = zona
+                        showSugerencias = false
+                        PriceManager.setZonaActual(zona)
+                    },
+                    onDismissSugerencias = { showSugerencias = false },
+                    zonaDetectada = zonaDetectada,
                     isDarkMode = isDarkMode,
                     textPrimary = textPrimary,
                     surface = surface,
-                    border = border,
-                    icon = R.drawable.ic_building_lucide
+                    border = border
                 )
 
-                StitchField(
-                    label = "Colonia / Fraccionamiento",
-                    value = colonia,
-                    hint = "Ej. Centro",
-                    onValueChange = { colonia = it },
-                    isDarkMode = isDarkMode,
-                    textPrimary = textPrimary,
-                    surface = surface,
-                    border = border,
-                    icon = R.drawable.ic_map_pin_lucide
-                )
-
-                StitchField(
-                    label = "Calle y Número",
-                    value = direccionDetalle,
-                    hint = "Ej. Av. Constitución #2000",
-                    onValueChange = { direccionDetalle = it },
-                    isDarkMode = isDarkMode,
-                    textPrimary = textPrimary,
-                    surface = surface,
-                    border = border,
-                    icon = R.drawable.ic_map_pinned_lucide,
-                    isTextArea = true,
-                    isLocate = true
-                )
+                StitchField(label = "Colonia / Fraccionamiento", value = colonia, hint = "Ej. Centro", onValueChange = { colonia = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pin_lucide)
+                StitchField(label = "Calle y Número", value = direccionDetalle, hint = "Ej. Av. Constitución #2000", onValueChange = { direccionDetalle = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pinned_lucide, isTextArea = true, isLocate = true)
             }
 
             Spacer(Modifier.height(40.dp))
         }
     }
 
-    // Dialog de salida
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
             containerColor = if (isDarkMode) Color(0xFF0A0A0A) else Color.White,
-            titleContentColor = if (isDarkMode) Color.White else Color(0xFF111418),
-            textContentColor = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563),
-            title = { Text("Salir de la cotización") },
-            text = { Text("¿Qué quieres hacer con el borrador actual?") },
+            title = { Text("Salir de la cotización", color = if (isDarkMode) Color.White else Color(0xFF111418)) },
+            text = { Text("¿Qué quieres hacer con el borrador actual?", color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563)) },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        draft.clear()
-                        showExitDialog = false
-                        onBack()
-                    }
-                ) { Text("Borrar y salir", color = Color(0xFFE7180B)) }
+                TextButton(onClick = { draft.clear(); showExitDialog = false; onBack() }) {
+                    Text("Borrar y salir", color = Color(0xFFE7180B))
+                }
             },
             dismissButton = {
                 Row {
-                    TextButton(
-                        onClick = {
-                            draft.nombre = nombre
-                            draft.telefono = telefono
-                            draft.ciudad = ciudad
-                            draft.colonia = colonia
-                            draft.direccionDetalle = direccionDetalle
-                            showExitDialog = false
-                            onBack()
-                        }
-                    ) {
-                        Text(
-                            "Salir sin borrar",
-                            color = if (isDarkMode) Color.White else Color.Black
-                        )
+                    TextButton(onClick = { draft.nombre = nombre; draft.telefono = telefono; draft.ciudad = ciudad; draft.colonia = colonia; draft.direccionDetalle = direccionDetalle; showExitDialog = false; onBack() }) {
+                        Text("Salir sin borrar", color = if (isDarkMode) Color.White else Color.Black)
                     }
-
                     Spacer(Modifier.width(8.dp))
-
-                    TextButton(onClick = { showExitDialog = false }) {
-                        Text("Cancelar", color = if (isDarkMode) Color.White else Color.Black)
-                    }
+                    TextButton(onClick = { showExitDialog = false }) { Text("Cancelar", color = if (isDarkMode) Color.White else Color.Black) }
                 }
             }
         )
@@ -381,99 +247,138 @@ fun ClienteScreen(
 }
 
 @Composable
-fun StitchField(
-    label: String,
+fun CiudadAutocompleteField(
     value: String,
-    hint: String = "",
     onValueChange: (String) -> Unit,
+    sugerencias: List<Pair<String, ZonaGeografica>>,
+    showSugerencias: Boolean,
+    onSugerenciaSelected: (String, ZonaGeografica) -> Unit,
+    onDismissSugerencias: () -> Unit,
+    zonaDetectada: ZonaGeografica?,
     isDarkMode: Boolean,
     textPrimary: Color,
     surface: Color,
-    border: Color,
-    icon: Int? = null,
-    isTextArea: Boolean = false,
-    readOnly: Boolean = false,
-    isPhone: Boolean = false,
-    isLocate: Boolean = false,
-    keyboardType: KeyboardType = KeyboardType.Text
+    border: Color
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "icons")
-
-    val scaleAnim by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = EaseInOutSine), RepeatMode.Reverse),
-        label = "scale"
-    )
-    val floatAnim by infiniteTransition.animateFloat(
-        initialValue = -2f,
-        targetValue = 2f,
-        animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOutSine), RepeatMode.Reverse),
-        label = "float"
-    )
-    val phoneShake by infiniteTransition.animateFloat(
-        initialValue = -8f,
-        targetValue = 8f,
-        animationSpec = infiniteRepeatable(tween(150, easing = LinearEasing), RepeatMode.Reverse),
-        label = "shake"
-    )
+    val floatAnim by infiniteTransition.animateFloat(initialValue = -2f, targetValue = 2f, animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOutSine), RepeatMode.Reverse), label = "float")
 
     val inputBg = if (isDarkMode) Color(0xFF18181B) else Color(0xFFF1F3F5)
     val inputBorder = if (isDarkMode) Color(0xFF3F3F46) else border.copy(alpha = 0.5f)
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            label,
-            color = textPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Text("Ciudad / Municipio", color = textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+
+        Box {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = { Text("Ej. Cancún, Playa del Carmen...", color = Color.Gray.copy(alpha = 0.6f)) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).onFocusChanged { isFocused = it.isFocused; if (!it.isFocused) onDismissSugerencias() },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = surface, unfocusedContainerColor = inputBg,
+                    focusedBorderColor = if (isDarkMode) Color.White else Color.Black, unfocusedBorderColor = inputBorder,
+                    focusedTextColor = textPrimary, unfocusedTextColor = textPrimary
+                ),
+                trailingIcon = {
+                    Box(modifier = Modifier.padding(end = 6.dp).size(38.dp).clip(RoundedCornerShape(8.dp)).background(if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)).graphicsLayer { if (isFocused) translationY = floatAnim }, contentAlignment = Alignment.Center) {
+                        Icon(painter = painterResource(R.drawable.ic_building_lucide), contentDescription = null, modifier = Modifier.size(18.dp), tint = textPrimary.copy(alpha = 0.8f))
+                    }
+                },
+                singleLine = true
+            )
+
+            DropdownMenu(
+                expanded = showSugerencias && sugerencias.isNotEmpty(),
+                onDismissRequest = onDismissSugerencias,
+                modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 300.dp).background(if (isDarkMode) Color(0xFF18181B) else Color.White),
+                properties = PopupProperties(focusable = false)
+            ) {
+                sugerencias.forEach { (ciudadSugerida, zona) ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Place, null, tint = textPrimary.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(ciudadSugerida, color = textPrimary, fontSize = 14.sp)
+                                }
+                                ZonaBadge(zona = zona, isDarkMode = isDarkMode)
+                            }
+                        },
+                        onClick = { onSugerenciaSelected(ciudadSugerida, zona) }
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(visible = zonaDetectada != null && value.isNotBlank(), enter = fadeIn() + slideInVertically(), exit = fadeOut() + slideOutVertically()) {
+            zonaDetectada?.let { zona ->
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Check, null, tint = Color(0xFF2AA63E), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Zona detectada: ", color = textPrimary.copy(alpha = 0.7f), fontSize = 13.sp)
+                    ZonaBadge(zona = zona, isDarkMode = isDarkMode)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ZonaBadge(zona: ZonaGeografica, isDarkMode: Boolean) {
+    val (bgColor, textColor) = when (zona) {
+        ZonaGeografica.CONTINENTAL -> if (isDarkMode) Color(0xFF166534).copy(alpha = 0.3f) to Color(0xFF4ADE80) else Color(0xFFDCFCE7) to Color(0xFF166534)
+        ZonaGeografica.ISLAS -> if (isDarkMode) Color(0xFF1E40AF).copy(alpha = 0.3f) to Color(0xFF60A5FA) else Color(0xFFDBEAFE) to Color(0xFF1E40AF)
+        ZonaGeografica.FORANEA -> if (isDarkMode) Color(0xFF92400E).copy(alpha = 0.3f) to Color(0xFFFBBF24) else Color(0xFFFEF3C7) to Color(0xFF92400E)
+    }
+    Surface(color = bgColor, shape = RoundedCornerShape(6.dp)) {
+        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(ZonasData.getZonaEmoji(zona), fontSize = 12.sp)
+            Spacer(Modifier.width(4.dp))
+            Text(zona.nombreDisplay, color = textColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+fun StitchField(
+    label: String, value: String, hint: String = "", onValueChange: (String) -> Unit,
+    isDarkMode: Boolean, textPrimary: Color, surface: Color, border: Color,
+    icon: Int? = null, isTextArea: Boolean = false, readOnly: Boolean = false,
+    isPhone: Boolean = false, isLocate: Boolean = false, keyboardType: KeyboardType = KeyboardType.Text
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val infiniteTransition = rememberInfiniteTransition(label = "icons")
+    val scaleAnim by infiniteTransition.animateFloat(initialValue = 0.85f, targetValue = 1.15f, animationSpec = infiniteRepeatable(tween(1200, easing = EaseInOutSine), RepeatMode.Reverse), label = "scale")
+    val floatAnim by infiniteTransition.animateFloat(initialValue = -2f, targetValue = 2f, animationSpec = infiniteRepeatable(tween(1000, easing = EaseInOutSine), RepeatMode.Reverse), label = "float")
+    val phoneShake by infiniteTransition.animateFloat(initialValue = -8f, targetValue = 8f, animationSpec = infiniteRepeatable(tween(150, easing = LinearEasing), RepeatMode.Reverse), label = "shake")
+
+    val inputBg = if (isDarkMode) Color(0xFF18181B) else Color(0xFFF1F3F5)
+    val inputBorder = if (isDarkMode) Color(0xFF3F3F46) else border.copy(alpha = 0.5f)
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(label, color = textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
         OutlinedTextField(
             value = value, onValueChange = onValueChange, readOnly = readOnly,
             placeholder = { Text(hint, color = Color.Gray.copy(alpha = 0.6f)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = if (isTextArea) 110.dp else 54.dp)
-                .onFocusChanged { isFocused = it.isFocused },
+            modifier = Modifier.fillMaxWidth().heightIn(min = if (isTextArea) 110.dp else 54.dp).onFocusChanged { isFocused = it.isFocused },
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = surface,
-                unfocusedContainerColor = inputBg,
-                focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
-                unfocusedBorderColor = inputBorder,
-                focusedTextColor = textPrimary,
-                unfocusedTextColor = textPrimary
+                focusedContainerColor = surface, unfocusedContainerColor = inputBg,
+                focusedBorderColor = if (isDarkMode) Color.White else Color.Black, unfocusedBorderColor = inputBorder,
+                focusedTextColor = textPrimary, unfocusedTextColor = textPrimary
             ),
             trailingIcon = icon?.let { resId ->
                 {
                     Box(
-                        modifier = Modifier
-                            .padding(end = 6.dp)
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB))
-                            .graphicsLayer {
-                                if (isFocused && !readOnly) {
-                                    when {
-                                        isLocate -> {
-                                            scaleX = scaleAnim; scaleY = scaleAnim
-                                        }; isPhone -> rotationZ = phoneShake; else -> translationY =
-                                        floatAnim
-                                    }
-                                }
-                            },
+                        modifier = Modifier.padding(end = 6.dp).size(38.dp).clip(RoundedCornerShape(8.dp)).background(if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB))
+                            .graphicsLayer { if (isFocused && !readOnly) { when { isLocate -> { scaleX = scaleAnim; scaleY = scaleAnim }; isPhone -> rotationZ = phoneShake; else -> translationY = floatAnim } } },
                         contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(resId),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = textPrimary.copy(alpha = 0.8f)
-                        )
-                    }
+                    ) { Icon(painter = painterResource(resId), contentDescription = null, modifier = Modifier.size(18.dp), tint = textPrimary.copy(alpha = 0.8f)) }
                 }
             }
         )

@@ -3,7 +3,6 @@ package com.example.hurricansolutionapp
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.graphics.Brush
 import android.graphics.Bitmap
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
@@ -14,8 +13,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,26 +24,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.draw.alpha
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTES DE COLOR - Usadas por MainActivity y otros archivos
+// ═══════════════════════════════════════════════════════════════════════════
 val Zinc950 = Color(0xFF09090B)
 val Zinc900 = Color(0xFF18181B)
 val Zinc800 = Color(0xFF27272A)
 val Zinc400 = Color(0xFF71717A)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HOME SCREEN - Diseño Stitch (igual que AdminHomeScreen)
+// ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
 fun HomeScreen(
@@ -54,34 +59,52 @@ fun HomeScreen(
     onVerCotizaciones: () -> Unit,
     onPendientes: () -> Unit,
     onPendientesDrive: () -> Unit,
-    onEnviosInstalacion: () -> Unit,  // ✅ NUEVO PARÁMETRO
+    onEnviosInstalacion: () -> Unit,
     logoutEnabled: Boolean,
     onCerrarSesion: () -> Unit
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
-    val bg = if (isDarkMode) Zinc950 else Color.White
-    val card = if (isDarkMode) Zinc900 else Color(0xFFF9FAFB)
-    val border = if (isDarkMode) Zinc800 else Color(0xFFE5E7EB)
-    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
-    val textMuted = if (isDarkMode) Zinc400 else Color(0xFF6B7280)
-
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Estadisticas del especialista
+    var totalCotizaciones by remember { mutableStateOf(0) }
+    var totalMetros by remember { mutableStateOf(0.0) }
+    var isLoadingStats by remember { mutableStateOf(true) }
+
+    // Cargar estadisticas al iniciar
+    LaunchedEffect(Unit) {
+        isLoadingStats = true
+        try {
+            val userId = SessionManager.getUserId(context)
+            val cotizaciones = AdminRepository.getAllCotizaciones()
+            val misCotizaciones = cotizaciones.filter { it.userId == userId }
+            totalCotizaciones = misCotizaciones.size
+            totalMetros = misCotizaciones.sumOf { it.areaTotal }
+        } catch (_: Exception) { }
+        isLoadingStats = false
+    }
+
+    // Verificar actualizacion de precios
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 scope.launch {
-                    try {
-                        PriceManager.checkForUpdates()
-                    } catch (_: Exception) {
-                    }
+                    try { PriceManager.checkForUpdates() } catch (_: Exception) { }
                 }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
+    // Colores Stitch (igual que AdminHomeScreen)
+    val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
+    val surface = if (isDarkMode) Color(0xFF111111) else Color.White
+    val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
+    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
 
     Column(
         modifier = Modifier
@@ -90,181 +113,219 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
-        Spacer(Modifier.height(20.dp))
-        TopBar(isDarkMode, onToggleDarkMode, card, border, textPrimary)
+        Spacer(Modifier.height(12.dp))
+
+        // ═══════════════════════════════════════════════════════════════════
+        // TOP BAR - Logo + Boton tema (sin badge ADMIN)
+        // ═══════════════════════════════════════════════════════════════════
+        HomeTopBar(
+            isDarkMode = isDarkMode,
+            onToggleDarkMode = onToggleDarkMode,
+            surface = surface,
+            border = border,
+            textPrimary = textPrimary
+        )
+
+        // Banner de precios actualizados
         PreciosActualizadosBanner(isDarkMode = isDarkMode)
-        Spacer(Modifier.height(32.dp))
 
-        var titleSize by remember { mutableStateOf(34.sp) }
-        val minTitle = 22.sp
+        Spacer(Modifier.height(24.dp))
 
+        // Fecha dinamica
         Text(
-            text = "Jueves, 24 de Octubre",
+            text = getHomeSpanishDate(),
             color = textMuted,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
         )
-        Text(
-            text = buildAnnotatedString {
-                withStyle(
-                    SpanStyle(
-                        color = textPrimary,
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.Black
-                    )
-                ) { append("Bienvenido, ") }
-                withStyle(
-                    SpanStyle(
-                        color = textMuted,
-                        fontSize = titleSize,
-                        fontWeight = FontWeight.Black
-                    )
-                ) { append(userFirstName) }
-            },
-            maxLines = 2,
-            overflow = TextOverflow.Clip,
-            onTextLayout = { result ->
-                if (result.hasVisualOverflow && titleSize > minTitle) titleSize =
-                    (titleSize.value - 1).sp
-            }
+
+        // Bienvenida (mismo estilo que Admin)
+        HomeWelcomeText(
+            userName = userFirstName,
+            textPrimary = textPrimary,
+            textMuted = textMuted
         )
 
-        Spacer(Modifier.height(18.dp))
-        HorizontalDivider(color = border, thickness = 1.dp)
-        Spacer(Modifier.height(18.dp))
-        Text(
-            text = "Acciones Rápidas",
-            color = textPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Spacer(Modifier.height(24.dp))
+
+        // ═══════════════════════════════════════════════════════════════════
+        // MIS ESTADISTICAS - con barra lateral
+        // ═══════════════════════════════════════════════════════════════════
+        HomeSectionTitle(title = "MIS ESTADISTICAS", isDarkMode = isDarkMode, textPrimary = textPrimary)
+
         Spacer(Modifier.height(16.dp))
 
-        BigActionCard(onNuevaCotizacion)
+        // Grid de 3 columnas
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HomeStatCard(
+                title = "COTIZACIONES",
+                value = if (isLoadingStats) "..." else totalCotizaciones.toString(),
+                icon = Icons.Default.Description,
+                modifier = Modifier.weight(1f),
+                isDarkMode = isDarkMode,
+                onClick = onVerCotizaciones
+            )
+            HomeStatCard(
+                title = "M² TOTAL",
+                value = if (isLoadingStats) "..." else String.format("%.0f", totalMetros),
+                icon = Icons.Default.SquareFoot,
+                modifier = Modifier.weight(1f),
+                isDarkMode = isDarkMode,
+                onClick = onVerCotizaciones
+            )
+            HomeStatCard(
+                title = "PENDIENTES",
+                value = pendingCount.toString(),
+                icon = Icons.Default.CloudUpload,
+                modifier = Modifier.weight(1f),
+                isDarkMode = isDarkMode,
+                onClick = onPendientes
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // ═══════════════════════════════════════════════════════════════════
+        // MENU - con barra lateral
+        // ═══════════════════════════════════════════════════════════════════
+        HomeSectionTitle(title = "MENU", isDarkMode = isDarkMode, textPrimary = textPrimary)
+
         Spacer(Modifier.height(16.dp))
 
-        SmallActionCard(
-            title = "Ver Cotizaciones",
-            subtitle = "Consultar historial reciente",
+        // Nueva Cotizacion (tarjeta grande negra)
+        HomeBigActionCard(isDarkMode = isDarkMode, onClick = onNuevaCotizacion)
+
+        Spacer(Modifier.height(12.dp))
+
+        // Historial de Cotizaciones
+        HomeMenuCard(
+            title = "Historial De Cotizaciones Generadas",
+            subtitle = "Ver mi historial de cotizaciones",
             iconRes = R.drawable.ic_history_lucide,
+            animationType = 1,
             onClick = onVerCotizaciones,
             isDarkMode = isDarkMode,
-            card = card,
-            border = border,
-            textPrimary = textPrimary,
-            textMuted = textMuted,
-            showArrow = true
-        )
-        Spacer(Modifier.height(16.dp))
-
-        SmallActionCard(
-            title = "Pendientes por subir",
-            subtitle = "Sincronizar datos locales",
-            badgeCount = pendingCount,
-            iconRes = R.drawable.ic_upload_lucide,
-            onClick = onPendientes,
-            isDarkMode = isDarkMode,
-            card = card,
+            surface = surface,
             border = border,
             textPrimary = textPrimary,
             textMuted = textMuted
         )
-        Spacer(Modifier.height(16.dp))
 
-        SmallActionCard(
+        Spacer(Modifier.height(12.dp))
+
+        // Sincronizaciones Pendientes
+        HomeMenuCard(
+            title = "Sincronizaciones Pendientes",
+            subtitle = "Subir Cotizaciones A La Nube",
+            badgeCount = pendingCount,
+            iconRes = R.drawable.ic_upload_lucide,
+            animationType = 2,
+            onClick = onPendientes,
+            isDarkMode = isDarkMode,
+            surface = surface,
+            border = border,
+            textPrimary = textPrimary,
+            textMuted = textMuted
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Pendientes Google Drive
+        HomeMenuCard(
             title = "Pendientes Google Drive",
             subtitle = "PDFs sin subir a Drive",
             iconRes = R.drawable.ic_google_drive,
+            animationType = 0,
             onClick = onPendientesDrive,
             isDarkMode = isDarkMode,
-            card = card,
+            surface = surface,
             border = border,
             textPrimary = textPrimary,
             textMuted = textMuted
         )
-        Spacer(Modifier.height(16.dp))
 
-        // ✅ NUEVO: Envíos a Instalación
-        SmallActionCard(
-            title = "Envíos a Instalación",
+        Spacer(Modifier.height(12.dp))
+
+        // Envios a Instalacion
+        HomeMenuCard(
+            title = "Envios a Instalacion",
             subtitle = "Enviar cotizaciones al instalador",
             iconRes = R.drawable.ic_upload_lucide,
+            animationType = 0,
             onClick = onEnviosInstalacion,
             isDarkMode = isDarkMode,
-            card = card,
+            surface = surface,
             border = border,
             textPrimary = textPrimary,
-            textMuted = textMuted,
-            showArrow = true
+            textMuted = textMuted
         )
+
         Spacer(Modifier.height(16.dp))
 
-        CerrarSesionButton(
+        // Cerrar Sesion
+        HomeLogoutButton(
             onClick = { if (logoutEnabled) showLogoutDialog = true },
             isDarkMode = isDarkMode,
             enabled = logoutEnabled
         )
 
-        val dialogBg = if (isDarkMode) Zinc900 else Color.White
-        val dialogTitle = if (isDarkMode) Color.White else Color(0xFF111418)
-        val dialogText = if (isDarkMode) Color(0xFFB0B0B0) else Color(0xFF374151)
-        val cancelColor = if (isDarkMode) Color.White else Color(0xFF111418)
-        val dangerColor = Color(0xFFE53935)
+        Spacer(Modifier.height(32.dp))
+    }
 
-        Spacer(Modifier.height(24.dp))
-        if (showLogoutDialog) {
-            AlertDialog(
-                onDismissRequest = { showLogoutDialog = false },
-                containerColor = dialogBg,
-                tonalElevation = 6.dp,
-                title = {
-                    Text(
-                        text = "Cerrar sesión",
-                        color = dialogTitle,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                },
-                text = {
-                    Text(
-                        text = "¿Deseas cerrar sesión?\nTendrás que volver a iniciar sesión.",
-                        color = dialogText,
-                        fontSize = 15.sp
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showLogoutDialog = false; onCerrarSesion()
-                    }) {
-                        Text(
-                            text = "Sí, salir",
-                            color = dangerColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
+    // Dialog de logout
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
+            tonalElevation = 6.dp,
+            title = {
+                Text(
+                    text = "Cerrar sesión",
+                    color = textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "¿Deseas cerrar sesión?\nTendrás que volver a iniciar sesión.",
+                    color = textMuted,
+                    fontSize = 15.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
                         showLogoutDialog = false
-                    }) {
-                        Text(
-                            text = "Cancelar",
-                            color = cancelColor,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        onCerrarSesion()
                     }
+                ) {
+                    Text("Sí, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                 }
-            )
-        }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancelar", color = textPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        )
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPONENTES PRIVADOS - Prefijo "Home" para evitar conflictos
+// ═══════════════════════════════════════════════════════════════════════════
+
 @Composable
-private fun TopBar(
+private fun HomeTopBar(
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
-    card: Color,
+    surface: Color,
     border: Color,
     textPrimary: Color
 ) {
@@ -273,289 +334,335 @@ private fun TopBar(
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "rotation"
     )
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        val logoRes =
-            if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
-        CroppedLogo(resId = logoRes, height = 48.dp, modifier = Modifier)
+        val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
+        HomeCroppedLogo(resId = logoRes, height = 48.dp)
+
         Box(
             modifier = Modifier
                 .size(46.dp)
                 .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
                 .clip(CircleShape)
-                .background(card)
+                .background(surface)
                 .border(1.5.dp, border, CircleShape)
                 .clickable { onToggleDarkMode() },
             contentAlignment = Alignment.Center
         ) {
-            val themeIcon = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon
             Icon(
-                painter = painterResource(id = themeIcon),
+                painter = painterResource(id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon),
                 contentDescription = null,
                 tint = textPrimary,
-                modifier = Modifier
-                    .size(20.dp)
-                    .graphicsLayer(rotationZ = rotation)
+                modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = rotation)
             )
         }
     }
 }
 
 @Composable
-private fun BigActionCard(onClick: () -> Unit) {
-    val shape = RoundedCornerShape(24.dp)
-    val scope = rememberCoroutineScope()
-    var isRotated by remember { mutableStateOf(false) }
-    val rotation by animateFloatAsState(
-        targetValue = if (isRotated) 90f else 0f,
-        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
-        label = "rotation"
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(150.dp)
-            .shadow(20.dp, shape, spotColor = Color.Black.copy(alpha = 0.5f))
-            .clip(shape)
-            .border(width = 1.dp, color = Color.Black.copy(alpha = 0.08f), shape = shape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF000000),
-                        Color(0xFF0B0B0D),
-                        Color(0xFF1A1A1D)
-                    ), start = Offset(0f, 0f), end = Offset(900f, 0f)
-                )
-            )
-            .clickable {
-                isRotated = true; scope.launch {
-                kotlinx.coroutines.delay(350); onClick(); isRotated = false
+private fun HomeWelcomeText(userName: String, textPrimary: Color, textMuted: Color) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = textPrimary, fontWeight = FontWeight.Black)) {
+                append("Bienvenido, ")
             }
-            }) {
-        Column(modifier = Modifier
-            .padding(20.dp)
-            .align(Alignment.CenterStart)) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(0.15f))
-                    .graphicsLayer(rotationZ = rotation),
-                contentAlignment = Alignment.Center
-            ) { Text("+", color = Color.White, fontSize = 26.sp) }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Nueva Cotización",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-        }
+            withStyle(SpanStyle(color = textMuted, fontWeight = FontWeight.Black)) {
+                append(userName)
+            }
+        },
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+        maxLines = 2
+    )
+}
+
+@Composable
+private fun HomeSectionTitle(title: String, isDarkMode: Boolean, textPrimary: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(24.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (isDarkMode) Color.White else Color.Black)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = title,
+            color = textPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp
+        )
     }
 }
 
 @Composable
-private fun SmallActionCard(
+private fun HomeStatCard(
     title: String,
-    subtitle: String,
-    iconRes: Int,
+    value: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
     isDarkMode: Boolean,
-    card: Color,
-    border: Color,
-    textPrimary: Color,
-    textMuted: Color,
-    badgeCount: Int? = null,
-    showArrow: Boolean = false,
     onClick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
-    val infiniteTransition = rememberInfiniteTransition(label = "icon_animations")
-    val rotationOscilation by infiniteTransition.animateFloat(
-        initialValue = -15f,
-        targetValue = 15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "oscilacion"
-    )
-    val uploadAnim by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = EaseInOutQuad),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "upload"
-    )
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "escala"
+        label = "scale"
     )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(card)
-            .border(1.dp, border, RoundedCornerShape(20.dp))
-            .clickable {
-                isPressed = true; scope.launch {
-                kotlinx.coroutines.delay(100); isPressed = false; onClick()
-            }
-            }
-            .padding(16.dp), verticalAlignment = Alignment.CenterVertically
+
+    val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
+    val leftBorderColor = if (isDarkMode) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.15f)
+    val borderColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+    val iconColor = Color(0xFF71717A)
+    val valueColor = if (isDarkMode) Color.White else Color(0xFF111418)
+    val titleColor = Color(0xFF71717A)
+
+    Surface(
+        modifier = modifier.height(120.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+        color = Color.Transparent,
+        shape = RoundedCornerShape(8.dp),
+        onClick = {
+            isPressed = true
+            scope.launch { kotlinx.coroutines.delay(100); isPressed = false; onClick() }
+        }
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (isDarkMode) Zinc800 else Color(0xFFE5E7EB))
-                .graphicsLayer {
-                    this.scaleX = scale; this.scaleY = scale; if (title == "Ver Cotizaciones") {
-                    this.rotationZ = rotationOscilation; this.transformOrigin =
-                        androidx.compose.ui.graphics.TransformOrigin.Center
-                } else if (title == "Pendientes por subir") {
-                    this.translationY = uploadAnim
-                }
-                }, contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .clip(RoundedCornerShape(8.dp))
+                .background(cardBg)
+                .border(1.dp, borderColor, RoundedCornerShape(8.dp))
         ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = textPrimary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Spacer(Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title,
-                color = textPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            ); Text(subtitle, color = textMuted, fontSize = 13.sp)
-        }
-        if (badgeCount != null) {
-            Text(
-                "• $badgeCount",
-                color = textPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp
-            )
+            Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(leftBorderColor))
+            Column(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(value, color = valueColor, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text(title, color = titleColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            }
         }
     }
 }
 
 @Composable
-private fun CerrarSesionButton(onClick: () -> Unit, isDarkMode: Boolean, enabled: Boolean) {
+private fun HomeBigActionCard(isDarkMode: Boolean, onClick: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+
+    val bgColor = if (isDarkMode) Color(0xFF111111) else Color.Black
+    val contentColor = Color.White
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale },
+        color = bgColor,
+        shape = RoundedCornerShape(12.dp),
+        shadowElevation = 8.dp,
+        onClick = {
+            isPressed = true
+            scope.launch { kotlinx.coroutines.delay(100); isPressed = false; onClick() }
+        }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
+                }
+                Text("NUEVA COTIZACIÓN", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = contentColor.copy(alpha = 0.6f), modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun HomeMenuCard(
+    title: String,
+    subtitle: String,
+    @DrawableRes iconRes: Int,
+    animationType: Int = 0,
+    badgeCount: Int? = null,
+    onClick: () -> Unit,
+    isDarkMode: Boolean,
+    surface: Color,
+    border: Color,
+    textPrimary: Color,
+    textMuted: Color
+) {
+    val scope = rememberCoroutineScope()
+    var isPressed by remember { mutableStateOf(false) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "menu_anim")
+    val rotationAnim by infiniteTransition.animateFloat(
+        initialValue = -10f, targetValue = 10f,
+        animationSpec = infiniteRepeatable(animation = tween(600, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse),
+        label = "rotation"
+    )
+    val bounceAnim by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = -6f,
+        animationSpec = infiniteRepeatable(animation = tween(500, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse),
+        label = "bounce"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale },
+        color = surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, border),
+        onClick = {
+            isPressed = true
+            scope.launch { kotlinx.coroutines.delay(100); isPressed = false; onClick() }
+        }
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6))
+                    .graphicsLayer {
+                        when (animationType) {
+                            1 -> rotationZ = rotationAnim
+                            2 -> translationY = bounceAnim
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(painter = painterResource(iconRes), contentDescription = null, tint = textMuted, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, color = textMuted, fontSize = 12.sp)
+            }
+            if (badgeCount != null && badgeCount > 0) {
+                Text("• $badgeCount", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeLogoutButton(onClick: () -> Unit, isDarkMode: Boolean, enabled: Boolean) {
     val scope = rememberCoroutineScope()
     val infiniteTransition = rememberInfiniteTransition(label = "logout_anim")
     val offsetX by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = if (enabled) 5f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(850, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logout_move"
+        initialValue = 0f, targetValue = if (enabled) 5f else 0f,
+        animationSpec = infiniteRepeatable(animation = tween(850, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse),
+        label = "offset"
     )
-    val redBg = if (isDarkMode) {
-        if (enabled) Color(0xFF451A1A) else Zinc900.copy(alpha = 0.5f)
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+
+    val contentColor = if (isDarkMode) {
+        if (enabled) Color(0xFFFCA5A5) else Color(0xFF6B7280)
     } else {
-        if (enabled) Color(0xFFFEF2F2) else Color(0xFFF3F4F6)
+        if (enabled) Color(0xFFDC2626) else Color(0xFF9CA3AF)
     }
-    val redBorder = if (isDarkMode) {
-        if (enabled) Color(0xFF7F1D1D) else Zinc800
-    } else {
-        if (enabled) Color(0xFFFEE2E2) else Color(0xFFE5E7EB)
-    }
-    val contentColor = if (enabled) Color(0xFFEF4444) else Zinc400
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(redBg)
-            .border(1.dp, redBorder, RoundedCornerShape(16.dp))
-            .alpha(if (enabled) 1f else 0.6f)
-            .clickable(enabled = enabled) { scope.launch { onClick() } }
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isDarkMode) Color(0xFF18181B) else Color(0xFFFEF2F2))
+            .border(1.dp, if (isDarkMode) Color(0xFF27272A) else Color(0xFFFECACA), RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled) {
+                isPressed = true
+                scope.launch { kotlinx.coroutines.delay(100); isPressed = false; onClick() }
+            }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    if (enabled) (if (isDarkMode) Color(0xFF7F1D1D).copy(alpha = 0.4f) else Color(
-                        0xFFFEE2E2
-                    )) else Color.Transparent
-                ), contentAlignment = Alignment.Center
+                .size(44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (isDarkMode) Color(0xFF27272A) else Color(0xFFFEE2E2))
+                .graphicsLayer { translationX = if (enabled) offsetX else 0f },
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_logout_lucide),
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer { this.translationX = offsetX })
+            Icon(painter = painterResource(R.drawable.ic_logout_lucide), contentDescription = null, tint = contentColor, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(16.dp))
         Column {
-            Text(
-                text = "Cerrar Sesión",
-                color = contentColor,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            ); Text(
-            text = if (enabled) "Salir de la cuenta" else "Acción no disponible",
-            color = if (isDarkMode) contentColor.copy(alpha = 0.6f) else contentColor.copy(0.7f),
-            fontSize = 12.sp
-        )
+            Text("Cerrar Sesión", color = contentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(if (enabled) "Salir de la cuenta" else "Acción no disponible", color = contentColor.copy(alpha = 0.7f), fontSize = 12.sp)
         }
     }
 }
 
 @Composable
-private fun CroppedLogo(@DrawableRes resId: Int, height: Dp, modifier: Modifier = Modifier) {
+private fun HomeCroppedLogo(@DrawableRes resId: Int, height: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val croppedBitmap = remember(resId) {
-        val bmp = BitmapFactory.decodeResource(context.resources, resId)
-            .copy(Bitmap.Config.ARGB_8888, false); trimTransparent(bmp)
+        val bmp = BitmapFactory.decodeResource(context.resources, resId).copy(Bitmap.Config.ARGB_8888, false)
+        trimTransparentHome(bmp)
     }
-    Image(
-        bitmap = croppedBitmap.asImageBitmap(),
-        contentDescription = "Logo Hurricane Solution",
-        modifier = modifier.height(height),
-        contentScale = ContentScale.Fit
-    )
+    Image(bitmap = croppedBitmap.asImageBitmap(), contentDescription = "Logo", modifier = modifier.height(height), contentScale = ContentScale.Fit)
 }
 
-private fun trimTransparent(src: Bitmap): Bitmap {
-    val w = src.width;
-    val h = src.height;
-    val pixels = IntArray(w * h); src.getPixels(pixels, 0, w, 0, 0, w, h)
-    var left = w;
-    var top = h;
-    var right = 0;
-    var bottom = 0;
+private fun trimTransparentHome(src: Bitmap): Bitmap {
+    val w = src.width
+    val h = src.height
+    val pixels = IntArray(w * h)
+    src.getPixels(pixels, 0, w, 0, 0, w, h)
+    var left = w
+    var top = h
+    var right = 0
+    var bottom = 0
     var found = false
     for (y in 0 until h) {
-        val row = y * w; for (x in 0 until w) {
-            val alpha = (pixels[row + x] ushr 24) and 0xFF; if (alpha > 10) {
-                found = true; if (x < left) left = x; if (x > right) right = x; if (y < top) top =
-                    y; if (y > bottom) bottom = y
+        for (x in 0 until w) {
+            if (((pixels[y * w + x] ushr 24) and 0xFF) > 10) {
+                found = true
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
             }
         }
     }
     if (!found) return src
-    val newW = (right - left + 1).coerceAtLeast(1);
-    val newH = (bottom - top + 1).coerceAtLeast(1)
-    return Bitmap.createBitmap(src, left, top, newW, newH)
+    return Bitmap.createBitmap(src, left, top, (right - left + 1).coerceAtLeast(1), (bottom - top + 1).coerceAtLeast(1))
+}
+
+private fun getHomeSpanishDate(): String {
+    val dias = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
+    val meses = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+    val cal = java.util.Calendar.getInstance()
+    return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"
 }

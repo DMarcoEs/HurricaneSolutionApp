@@ -12,11 +12,10 @@ enum class TipoProducto(val etiqueta: String, val etiquetaCorta: String) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRECIOS POR M² - VALORES POR DEFECTO (fallback si no hay conexión)
-// Estos valores ya NO se usan directamente, solo como fallback
 // ═══════════════════════════════════════════════════════════════════════════════
-const val HS875_SELL_PRICE = 150.0
-const val HS1250_SELL_PRICE = 180.0
-const val HS1500_SELL_PRICE = 210.0
+const val HS875_SELL_PRICE = 250.0
+const val HS1250_SELL_PRICE = 300.0
+const val HS1500_SELL_PRICE = 350.0
 
 const val HS875_BASE_PRICE = 130.0
 const val HS1250_BASE_PRICE = 150.0
@@ -28,29 +27,44 @@ const val HS1250_DEFAULT_PRICE = HS1250_SELL_PRICE
 const val HS1500_DEFAULT_PRICE = HS1500_SELL_PRICE
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FUNCIONES DE PRECIOS - AHORA USAN PRICEMANAGER (DINÁMICOS)
+// FUNCIONES DE PRECIOS - USAN PRICEMANAGER (DINÁMICOS)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Obtiene el precio de venta DINÁMICO desde PriceManager
+ * Obtiene el precio de venta DINÁMICO desde PriceManager (zona actual)
  */
 fun TipoProducto.getPrecioVenta(): Double = PriceManager.getPrecioVenta(this)
 
 /**
- * Obtiene el precio base DINÁMICO desde PriceManager
+ * Obtiene el precio de venta para una zona específica
+ */
+fun TipoProducto.getPrecioVenta(zona: ZonaGeografica): Double = PriceManager.getPrecioVenta(this, zona)
+
+/**
+ * Obtiene el precio base DINÁMICO desde PriceManager (zona actual)
  */
 fun TipoProducto.getPrecioBase(): Double = PriceManager.getPrecioBase(this)
+
+/**
+ * Obtiene el precio base para una zona específica
+ */
+fun TipoProducto.getPrecioBase(zona: ZonaGeografica): Double = PriceManager.getPrecioBase(this, zona)
 
 /**
  * Obtiene el descuento máximo permitido (diferencia entre venta y base)
  */
 fun TipoProducto.getMaxDescuento(): Double = PriceManager.getMaxDescuento(this)
 
+/**
+ * Obtiene el descuento máximo para una zona específica
+ */
+fun TipoProducto.getMaxDescuento(zona: ZonaGeografica): Double = PriceManager.getMaxDescuento(this, zona)
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ESTADO DEL FORMULARIO PARA UNA MEDIDA
 // ═══════════════════════════════════════════════════════════════════════════════
 data class VentanaFormState(
-    var zona: String = "",           // ✅ NUEVO: Zona (ej: Terraza, Sala, etc.)
+    var zona: String = "",           // Zona del área (ej: Terraza, Sala, etc.)
     var descripcion: String = "",
     var alto: String = "",
     var ancho: String = "",
@@ -63,7 +77,7 @@ data class VentanaFormState(
 // MEDIDA INDIVIDUAL (Ventana / Área a proteger)
 // ═══════════════════════════════════════════════════════════════════════════════
 data class Ventana(
-    val zona: String = "",           // ✅ NUEVO: Zona
+    val zona: String = "",           // Zona del área
     val descripcion: String,
     val alto: Double,
     val ancho: Double,
@@ -75,13 +89,32 @@ data class Ventana(
     val subtotal: Double get() = areaM2 * precioM2
 
     fun subtotalPorProducto(producto: TipoProducto): Double {
-        val precio = producto.getPrecioVenta()  // Ahora usa precio dinámico
+        val precio = producto.getPrecioVenta()
+        return areaM2 * precio
+    }
+    
+    /**
+     * Calcula subtotal para una zona geográfica específica
+     */
+    fun subtotalPorProducto(producto: TipoProducto, zonaGeografica: ZonaGeografica): Double {
+        val precio = producto.getPrecioVenta(zonaGeografica)
         return areaM2 * precio
     }
 
     fun subtotalConDescuento(producto: TipoProducto, descuentoPorM2: Double): Double {
-        val precioVenta = producto.getPrecioVenta()  // Ahora usa precio dinámico
-        val precioBase = producto.getPrecioBase()    // Ahora usa precio dinámico
+        val precioVenta = producto.getPrecioVenta()
+        val precioBase = producto.getPrecioBase()
+        val descuentoAplicado = descuentoPorM2.coerceAtMost(precioVenta - precioBase)
+        val precioFinal = (precioVenta - descuentoAplicado).coerceAtLeast(precioBase)
+        return areaM2 * precioFinal
+    }
+    
+    /**
+     * Calcula subtotal con descuento para una zona geográfica específica
+     */
+    fun subtotalConDescuento(producto: TipoProducto, descuentoPorM2: Double, zonaGeografica: ZonaGeografica): Double {
+        val precioVenta = producto.getPrecioVenta(zonaGeografica)
+        val precioBase = producto.getPrecioBase(zonaGeografica)
         val descuentoAplicado = descuentoPorM2.coerceAtMost(precioVenta - precioBase)
         val precioFinal = (precioVenta - descuentoAplicado).coerceAtLeast(precioBase)
         return areaM2 * precioFinal
@@ -101,9 +134,12 @@ data class CotizacionDraft(
     var direccionDetalle: String = "",
     var fecha: String = "",
 
-    // ✅ NUEVO: ID del lead si viene desde CRM
+    // ID del lead si viene desde CRM
     var leadId: String? = null,
-    var esClienteActual: Boolean = false,  // True si viene de CRM
+    var esClienteActual: Boolean = false,
+
+    // ✅ NUEVO: Zona geográfica detectada
+    var zonaGeografica: ZonaGeografica = ZonaGeografica.CONTINENTAL,
 
     var ventanasForm: MutableList<VentanaFormState> = mutableListOf(VentanaFormState()),
     var tipoMontaje: String = "Flush Mount",
@@ -123,8 +159,9 @@ data class CotizacionDraft(
         colonia = ""
         direccionDetalle = ""
         fecha = ""
-        leadId = null  // ✅ NUEVO
-        esClienteActual = false  // ✅ NUEVO
+        leadId = null
+        esClienteActual = false
+        zonaGeografica = ZonaGeografica.CONTINENTAL  // ✅ Reset zona
         ventanasForm = mutableListOf(VentanaFormState())
         tipoMontaje = "Flush Mount"
         productosSeleccionados = mutableListOf(TipoProducto.HS875)
@@ -148,6 +185,7 @@ data class CotizacionDraft(
         nombre = cotizacion.clienteNombre
         telefono = cotizacion.clienteTelefono
         ciudad = cotizacion.ciudad
+        zonaGeografica = cotizacion.zonaGeografica  // ✅ Cargar zona
 
         val partes = cotizacion.ubicacion.split(",").map { it.trim() }
         colonia = partes.getOrNull(1) ?: ""
@@ -164,7 +202,7 @@ data class CotizacionDraft(
 
         ventanasForm = cotizacion.ventanas.map { v ->
             VentanaFormState(
-                zona = v.zona,  // ✅ NUEVO
+                zona = v.zona,
                 descripcion = v.descripcion,
                 alto = String.format("%.2f", v.alto),
                 ancho = String.format("%.2f", v.ancho),
@@ -198,15 +236,20 @@ data class Cotizacion(
     val descuentoHS1250: Double = 0.0,
     val descuentoHS1500: Double = 0.0,
     val descuentoDolaresPorM2: Double = 0.0,
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    // ✅ NUEVO: Zona geográfica
+    val zonaGeografica: ZonaGeografica = ZonaGeografica.CONTINENTAL
 ) {
     val areaTotal: Double get() = ventanas.sumOf { it.areaM2 }
     val subtotal: Double get() = ventanas.sumOf { it.subtotal }
     val iva: Double get() = 0.0
     val total: Double get() = subtotal
 
+    /**
+     * Total por producto usando la zona de la cotización
+     */
     fun totalPorProducto(producto: TipoProducto): Double =
-        ventanas.sumOf { it.subtotalPorProducto(producto) }
+        ventanas.sumOf { it.subtotalPorProducto(producto, zonaGeografica) }
 
     fun getDescuentoPorProducto(producto: TipoProducto): Double = when (producto) {
         TipoProducto.HS875 -> descuentoHS875
@@ -215,18 +258,21 @@ data class Cotizacion(
         TipoProducto.PERSONALIZADO -> 0.0
     }
 
+    /**
+     * Total con descuento usando la zona de la cotización
+     */
     fun totalConDescuento(producto: TipoProducto): Double {
         val descuento = getDescuentoPorProducto(producto)
-        return ventanas.sumOf { it.subtotalConDescuento(producto, descuento) }
+        return ventanas.sumOf { it.subtotalConDescuento(producto, descuento, zonaGeografica) }
     }
 
     fun getPorcentajeDescuento(producto: TipoProducto): Double {
         val descuento = getDescuentoPorProducto(producto)
-        val precioVenta = producto.getPrecioVenta()  // Ahora usa precio dinámico
+        val precioVenta = producto.getPrecioVenta(zonaGeografica)
         return if (precioVenta > 0) (descuento / precioVenta) * 100 else 0.0
     }
 
-    fun productosOrdenados(): List<TipoProducto> = productos.sortedBy { it.getPrecioVenta() }
+    fun productosOrdenados(): List<TipoProducto> = productos.sortedBy { it.getPrecioVenta(zonaGeografica) }
 
     fun fueEditada(): Boolean = updatedAt > 0L
 
@@ -235,4 +281,9 @@ data class Cotizacion(
         val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
         return sdf.format(java.util.Date(updatedAt))
     }
+    
+    /**
+     * Obtiene el nombre de la zona para mostrar
+     */
+    fun getZonaNombre(): String = zonaGeografica.nombreDisplay
 }

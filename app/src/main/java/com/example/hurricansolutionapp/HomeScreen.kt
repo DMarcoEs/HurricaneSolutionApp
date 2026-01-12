@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -64,27 +63,8 @@ fun HomeScreen(
     onCerrarSesion: () -> Unit
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    // Estadisticas del especialista
-    var totalCotizaciones by remember { mutableStateOf(0) }
-    var totalMetros by remember { mutableStateOf(0.0) }
-    var isLoadingStats by remember { mutableStateOf(true) }
-
-    // Cargar estadisticas al iniciar
-    LaunchedEffect(Unit) {
-        isLoadingStats = true
-        try {
-            val userId = SessionManager.getUserId(context)
-            val cotizaciones = AdminRepository.getAllCotizaciones()
-            val misCotizaciones = cotizaciones.filter { it.userId == userId }
-            totalCotizaciones = misCotizaciones.size
-            totalMetros = misCotizaciones.sumOf { it.areaTotal }
-        } catch (_: Exception) { }
-        isLoadingStats = false
-    }
 
     // Verificar actualizacion de precios
     DisposableEffect(lifecycleOwner) {
@@ -151,47 +131,7 @@ fun HomeScreen(
         Spacer(Modifier.height(24.dp))
 
         // ═══════════════════════════════════════════════════════════════════
-        // MIS ESTADISTICAS - con barra lateral
-        // ═══════════════════════════════════════════════════════════════════
-        HomeSectionTitle(title = "MIS ESTADISTICAS", isDarkMode = isDarkMode, textPrimary = textPrimary)
-
-        Spacer(Modifier.height(16.dp))
-
-        // Grid de 3 columnas
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            HomeStatCard(
-                title = "COTIZACIONES",
-                value = if (isLoadingStats) "..." else totalCotizaciones.toString(),
-                icon = Icons.Default.Description,
-                modifier = Modifier.weight(1f),
-                isDarkMode = isDarkMode,
-                onClick = onVerCotizaciones
-            )
-            HomeStatCard(
-                title = "M² TOTAL",
-                value = if (isLoadingStats) "..." else String.format("%.0f", totalMetros),
-                icon = Icons.Default.SquareFoot,
-                modifier = Modifier.weight(1f),
-                isDarkMode = isDarkMode,
-                onClick = onVerCotizaciones
-            )
-            HomeStatCard(
-                title = "PENDIENTES",
-                value = pendingCount.toString(),
-                icon = Icons.Default.CloudUpload,
-                modifier = Modifier.weight(1f),
-                isDarkMode = isDarkMode,
-                onClick = onPendientes
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // ═══════════════════════════════════════════════════════════════════
-        // MENU - con barra lateral
+        // MENU - con barra lateral (SIN SECCION ESTADISTICAS)
         // ═══════════════════════════════════════════════════════════════════
         HomeSectionTitle(title = "MENU", isDarkMode = isDarkMode, textPrimary = textPrimary)
 
@@ -253,7 +193,7 @@ fun HomeScreen(
 
         // Envios a Instalacion
         HomeMenuCard(
-            title = "Envios a Instalacion",
+            title = "Envíos a Instalación",
             subtitle = "Enviar cotizaciones al instalador",
             iconRes = R.drawable.ic_upload_lucide,
             animationType = 0,
@@ -318,7 +258,7 @@ fun HomeScreen(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COMPONENTES PRIVADOS - Prefijo "Home" para evitar conflictos
+// COMPONENTES PRIVADOS
 // ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -398,61 +338,6 @@ private fun HomeSectionTitle(title: String, isDarkMode: Boolean, textPrimary: Co
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.5.sp
         )
-    }
-}
-
-@Composable
-private fun HomeStatCard(
-    title: String,
-    value: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    isDarkMode: Boolean,
-    onClick: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "scale"
-    )
-
-    val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
-    val leftBorderColor = if (isDarkMode) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.15f)
-    val borderColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-    val iconColor = Color(0xFF71717A)
-    val valueColor = if (isDarkMode) Color.White else Color(0xFF111418)
-    val titleColor = Color(0xFF71717A)
-
-    Surface(
-        modifier = modifier.height(120.dp).graphicsLayer { scaleX = scale; scaleY = scale },
-        color = Color.Transparent,
-        shape = RoundedCornerShape(8.dp),
-        onClick = {
-            isPressed = true
-            scope.launch { kotlinx.coroutines.delay(100); isPressed = false; onClick() }
-        }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(8.dp))
-                .background(cardBg)
-                .border(1.dp, borderColor, RoundedCornerShape(8.dp))
-        ) {
-            Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(leftBorderColor))
-            Column(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.height(8.dp))
-                Text(value, color = valueColor, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                Text(title, color = titleColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-            }
-        }
     }
 }
 

@@ -57,7 +57,6 @@ fun HistorialScreen(
     }
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
-    val surface = if (isDarkMode) Color(0xFF000000) else Color.White
     val cardBg = if (isDarkMode) Color(0xFF18181B) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
     val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
@@ -163,137 +162,116 @@ fun HistorialScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            Column(
-                modifier = Modifier
-                    .background(surface)
-                    .statusBarsPadding()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_chevron_left),
-                            contentDescription = "Volver",
-                            tint = textPrimary
-                        )
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "Cotizaciones Guardadas",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = textPrimary
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Spacer(Modifier.size(40.dp))
-                }
-
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = {
-                        Text(
-                            "Buscar por cliente, #cotización...",
-                            color = textMuted,
-                            fontSize = 14.sp
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = null,
-                            tint = textMuted,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 16.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = searchBg,
-                        unfocusedContainerColor = searchBg,
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = textPrimary,
-                        unfocusedTextColor = textPrimary
-                    ),
-                    singleLine = true
-                )
-
-                HorizontalDivider(color = border.copy(0.5f))
-            }
+            StitchTopBar(
+                title = "Cotizaciones Guardadas",
+                onBack = onBack,
+                isDarkMode = isDarkMode
+            )
         }
     ) { innerPadding ->
 
-        if (cotizacionesFiltradas.isEmpty()) {
-            Box(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // Barra de búsqueda
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.FolderOff,
-                        contentDescription = null,
-                        tint = textMuted,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        if (searchQuery.isNotBlank()) "No se encontraron resultados" else "No hay cotizaciones guardadas",
-                        color = textMuted,
-                        fontSize = 16.sp
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
-                itemsIndexed(
-                    items = cotizacionesFiltradas,
-                    key = { _, item -> item.id }
-                ) { index, c ->
-                    CotizacionCard(
-                        cotizacion = c,
-                        numeroOrden = cotizacionesFiltradas.size - index,
-                        isDarkMode = isDarkMode,
-                        cardBg = cardBg,
-                        textPrimary = textPrimary,
-                        textMuted = textMuted,
-                        border = border,
-                        formatMoney = ::formatMoney,
-                        onClick = { onVerDetalle(c) },
-                        onPdf = {
-                            val pdf = generarPdfCotizacion(context, c)
-                            if (pdf != null) verPdf(context, pdf)
-                            else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
-                        },
-                        onCompartir = {
-                            val pdf = generarPdfCotizacion(context, c)
-                            if (pdf != null) compartirPdf(context, pdf)
-                            else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
-                        },
-                        onEliminar = {
-                            cotizacionAEliminar = c
-                            showDeleteDialog = true
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                placeholder = {
+                    Text("Buscar por cliente, #cotización...", color = textMuted, fontSize = 14.sp)
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = textMuted)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpiar", tint = textMuted)
                         }
-                    )
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = searchBg,
+                    unfocusedContainerColor = searchBg,
+                    focusedBorderColor = border,
+                    unfocusedBorderColor = border,
+                    focusedTextColor = textPrimary,
+                    unfocusedTextColor = textPrimary
+                ),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            if (cotizacionesFiltradas.isEmpty()) {
+                // Estado vacío
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.Description,
+                            contentDescription = null,
+                            tint = textMuted,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            if (searchQuery.isNotBlank()) "No se encontraron resultados"
+                            else "No hay cotizaciones guardadas",
+                            color = textPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            if (searchQuery.isNotBlank()) "Intenta con otro término de búsqueda"
+                            else "Las cotizaciones creadas aparecerán aquí",
+                            color = textMuted,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    itemsIndexed(cotizacionesFiltradas.reversed()) { index, c ->
+                        val numeroOrden = cotizacionesFiltradas.size - index
+                        CotizacionCard(
+                            cotizacion = c,
+                            numeroOrden = numeroOrden,
+                            isDarkMode = isDarkMode,
+                            cardBg = cardBg,
+                            textPrimary = textPrimary,
+                            textMuted = textMuted,
+                            border = border,
+                            formatMoney = ::formatMoney,
+                            onClick = { onVerDetalle(c) },
+                            onPdf = {
+                                val pdf = generarPdfCotizacion(context, c)
+                                if (pdf != null) verPdf(context, pdf)
+                                else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                            },
+                            onCompartir = {
+                                val pdf = generarPdfCotizacion(context, c)
+                                if (pdf != null) compartirPdf(context, pdf)
+                                else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                            },
+                            onEliminar = {
+                                cotizacionAEliminar = c
+                                showDeleteDialog = true
+                            }
+                        )
+                    }
                 }
             }
         }

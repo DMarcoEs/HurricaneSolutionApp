@@ -27,8 +27,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Pantalla "Envíos a Instalación" para Especialistas y Admin
- * Muestra cotizaciones con 1 solo sistema que aún no se han enviado al instalador
+ * Pantalla "EnvÃ­os a InstalaciÃ³n" para Especialistas y Admin
+ * Muestra cotizaciones con 1 solo sistema que aÃºn no se han enviado al instalador
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +47,7 @@ fun EnviosInstalacionScreen(
     var refreshKey by remember { mutableIntStateOf(0) }
     var sendingFolio by remember { mutableStateOf<String?>(null) }
     var showConfirmDialog by remember { mutableStateOf<Cotizacion?>(null) }
-    var fechaSolicitada by remember { mutableStateOf("") }  // ✅ NUEVO
+    var fechaSolicitada by remember { mutableStateOf("") }  // âœ… NUEVO
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
@@ -61,7 +61,7 @@ fun EnviosInstalacionScreen(
     val userRole = remember { SessionManager.getRole(context) }
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
-    // Cargar cotizaciones pendientes de envío
+    // Cargar cotizaciones pendientes de envÃ­o
     LaunchedEffect(refreshKey) {
         scope.launch {
             isLoading = true
@@ -82,7 +82,7 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // Filtrar por búsqueda
+    // Filtrar por bÃºsqueda
     val filteredList = remember(cotizaciones, searchQuery) {
         if (searchQuery.isBlank()) cotizaciones
         else cotizaciones.filter { cot ->
@@ -91,7 +91,7 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // Función para enviar a instalación
+    // FunciÃ³n para enviar a instalaciÃ³n
     fun enviarAInstalacion(cotizacion: Cotizacion, fecha: String) {
         scope.launch {
             sendingFolio = cotizacion.folio
@@ -106,14 +106,14 @@ fun EnviosInstalacionScreen(
                     sistemaSeleccionado = sistemaSeleccionado,
                     especialistaId = userId,
                     especialistaNombre = userName,
-                    fechaSolicitada = fecha.ifBlank { null }  // ✅ NUEVO
+                    fechaSolicitada = fecha.ifBlank { null }  // âœ… NUEVO
                 )
 
                 if (result.isSuccess) {
-                    // 2. Marcar cotización como enviada (localmente)
+                    // 2. Marcar cotizaciÃ³n como enviada (localmente)
                     EnviosInstalacionRepository.marcarComoEnviada(context, cotizacion.folio)
 
-                    Toast.makeText(context, "✅ Enviado a instalación", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "âœ… Enviado a instalaciÃ³n", Toast.LENGTH_SHORT).show()
                     refreshKey++
                 } else {
                     Toast.makeText(
@@ -130,7 +130,7 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // Diálogo de confirmación con campo de fecha
+    // DiÃ¡logo de confirmaciÃ³n con campo de fecha
     if (showConfirmDialog != null) {
         AlertDialog(
             onDismissRequest = {
@@ -139,11 +139,11 @@ fun EnviosInstalacionScreen(
             },
             containerColor = cardBg,
             title = {
-                Text("Enviar a Instalación", color = textPrimary, fontWeight = FontWeight.Bold)
+                Text("Enviar a InstalaciÃ³n", color = textPrimary, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("¿Enviar esta cotización al instalador?", color = textPrimary)
+                    Text("Â¿Enviar esta cotizaciÃ³n al instalador?", color = textPrimary)
 
                     Surface(color = inputBg, shape = RoundedCornerShape(8.dp)) {
                         Column(Modifier.padding(12.dp)) {
@@ -158,7 +158,7 @@ fun EnviosInstalacionScreen(
                                 fontSize = 13.sp
                             )
                             Text(
-                                "Sistema: ${showConfirmDialog!!.productos.firstOrNull()?.etiquetaCorta ?: "—"}",
+                                "Sistema: ${showConfirmDialog!!.productos.firstOrNull()?.etiquetaCorta ?: "â€”"}",
                                 color = accentGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
@@ -166,10 +166,10 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // ✅ NUEVO: Campo de fecha solicitada
+                    // âœ… NUEVO: Campo de fecha solicitada
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "FECHA SOLICITADA DE INSTALACIÓN",
+                        "FECHA SOLICITADA DE INSTALACIÃ“N",
                         color = textMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -235,15 +235,10 @@ fun EnviosInstalacionScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            StitchTopBarWithDivider(
+            StitchTopBar(
                 title = "Envíos a Instalación",
                 onBack = onBack,
-                isDarkMode = isDarkMode,
-                actions = {
-                    IconButton(onClick = { refreshKey++ }) {
-                        Icon(Icons.Default.Refresh, "Actualizar", tint = textPrimary)
-                    }
-                }
+                isDarkMode = isDarkMode
             )
         }
     ) { innerPadding ->
@@ -252,46 +247,79 @@ fun EnviosInstalacionScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Barra de búsqueda
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+            // Barra de búsqueda + Botón Actualizar
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                placeholder = {
-                    Text(
-                        "Buscar por nombre o folio...",
-                        color = textMuted,
-                        fontSize = 14.sp
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Search,
-                        null,
-                        tint = textMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, "Limpiar", tint = textMuted)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text(
+                            "Buscar por nombre o folio...",
+                            color = textMuted,
+                            fontSize = 14.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            null,
+                            tint = textMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, "Limpiar", tint = textMuted)
+                            }
                         }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg,
+                        focusedBorderColor = border,
+                        unfocusedBorderColor = border,
+                        focusedTextColor = textPrimary,
+                        unfocusedTextColor = textPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                // Botón Actualizar
+                Surface(
+                    onClick = { refreshKey++ },
+                    color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, border)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = null,
+                            tint = textPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            "Actualizar",
+                            color = textPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = inputBg,
-                    unfocusedContainerColor = inputBg,
-                    focusedBorderColor = border,
-                    unfocusedBorderColor = border,
-                    focusedTextColor = textPrimary,
-                    unfocusedTextColor = textPrimary
-                ),
-                shape = RoundedCornerShape(10.dp),
-                singleLine = true
-            )
+                }
+            }
 
             // Info banner
             Surface(
@@ -348,7 +376,7 @@ fun EnviosInstalacionScreen(
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 if (searchQuery.isNotBlank()) "No se encontraron resultados"
-                                else "No hay envíos pendientes",
+                                else "No hay envÃ­os pendientes",
                                 color = textMuted,
                                 fontSize = 16.sp,
                                 textAlign = TextAlign.Center
@@ -356,7 +384,7 @@ fun EnviosInstalacionScreen(
                             if (searchQuery.isBlank()) {
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "Las cotizaciones con 1 sistema\naparecerán aquí",
+                                    "Las cotizaciones con 1 sistema\naparecerÃ¡n aquÃ­",
                                     color = textMuted.copy(alpha = 0.7f),
                                     fontSize = 13.sp,
                                     textAlign = TextAlign.Center
@@ -372,7 +400,7 @@ fun EnviosInstalacionScreen(
                         ) {
                             item {
                                 Text(
-                                    "${filteredList.size} cotización${if (filteredList.size != 1) "es" else ""} pendiente${if (filteredList.size != 1) "s" else ""}",
+                                    "${filteredList.size} cotizaciÃ³n${if (filteredList.size != 1) "es" else ""} pendiente${if (filteredList.size != 1) "s" else ""}",
                                     color = textMuted,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(bottom = 4.dp)
@@ -416,12 +444,12 @@ private fun EnvioInstalacionCard(
 ) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val fecha = try {
-        cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "—"
+        cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "â€”"
     } catch (e: Exception) {
-        "—"
+        "â€”"
     }
 
-    val sistema = cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "—"
+    val sistema = cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "â€”"
     val areaTotal = cotizacion.ventanas.sumOf { it.alto * it.ancho }
     val numVentanas = cotizacion.ventanas.size
 
@@ -517,7 +545,7 @@ private fun EnvioInstalacionCard(
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        "${String.format("%.1f", areaTotal)} m²",
+                        "${String.format("%.1f", areaTotal)} mÂ²",
                         color = textMuted,
                         fontSize = 12.sp
                     )
@@ -526,7 +554,7 @@ private fun EnvioInstalacionCard(
 
             HorizontalDivider(color = border.copy(alpha = 0.3f))
 
-            // Botón enviar
+            // BotÃ³n enviar
             Button(
                 onClick = onEnviar,
                 enabled = !isSending,
@@ -558,7 +586,7 @@ private fun EnvioInstalacionCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Enviar a Instalación",
+                        "Enviar a InstalaciÃ³n",
                         color = if (isDarkMode) Color.Black else Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold

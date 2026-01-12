@@ -17,16 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // COLORES PARA LOS ESTADOS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
 // PENDING - Gris neutro
 private val PendingBgLight = Color(0xFFF3F4F6)
@@ -101,43 +100,11 @@ fun PendingUploadsScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = surface,
-                shadowElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_chevron_left),
-                            contentDescription = "Volver",
-                            tint = textPrimary
-                        )
-                    }
-
-                    Spacer(Modifier.weight(1f))
-
-                    Text(
-                        "PENDIENTES POR SUBIR",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = textPrimary,
-                        letterSpacing = 0.5.sp
-                    )
-
-                    Spacer(Modifier.weight(1f))
-                    Spacer(Modifier.size(40.dp))
-                }
-            }
+            StitchTopBar(
+                title = "Pendientes Por Subir",
+                onBack = onBack,
+                isDarkMode = isDarkMode
+            )
         }
     ) { innerPadding ->
 

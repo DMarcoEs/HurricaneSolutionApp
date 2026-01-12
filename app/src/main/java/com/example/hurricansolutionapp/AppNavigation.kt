@@ -16,9 +16,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ANIMACIONES DE TRANSICIÓN
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ANIMACIONES DE TRANSICIÃ“N
+
 
 private const val ANIMATION_DURATION = 350
 
@@ -89,9 +89,9 @@ fun AppNavigation(
         navController = navController,
         startDestination = start
     ) {
-        // ═══════════════════════════════════════════════════════════════════
+
         // LOGIN
-        // ═══════════════════════════════════════════════════════════════════
+
         composable(Routes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
@@ -112,9 +112,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // HOME (ESPECIALISTA)
-        // ═══════════════════════════════════════════════════════════════════
+
         composable(Routes.HOME) {
             HomeScreen(
                 userFirstName = SessionManager.getNombre(context),
@@ -128,7 +128,7 @@ fun AppNavigation(
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
-                // ✅ NUEVO: Envíos a Instalación
+                // âœ… NUEVO: EnvÃ­os a InstalaciÃ³n
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -149,9 +149,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ✅ NUEVO: ENVÍOS A INSTALACIÓN
-        // ═══════════════════════════════════════════════════════════════════
+
+        // NUEVO: ENVÃOS A INSTALACIÃ“N
+
         composable(
             route = Routes.ENVIOS_INSTALACION,
             enterTransition = { enterTransition() },
@@ -165,9 +165,7 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
         // ADMIN HOME
-        // ═══════════════════════════════════════════════════════════════════
         composable(Routes.ADMIN_HOME) {
             AdminHomeScreen(
                 adminName = SessionManager.getNombre(context),
@@ -207,9 +205,8 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // ADMIN - CONFIGURAR PRECIOS
-        // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.ADMIN_PRECIOS,
             enterTransition = { enterTransition() },
@@ -223,9 +220,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // ADMIN - VER COTIZACIONES
-        // ═══════════════════════════════════════════════════════════════════
+
         composable(
             route = Routes.ADMIN_COTIZACIONES,
             enterTransition = { enterTransition() },
@@ -243,9 +240,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ADMIN - DETALLE DE COTIZACIÓN
-        // ═══════════════════════════════════════════════════════════════════
+
+        // ADMIN - DETALLE DE COTIZACIÃ“N
+
         composable(
             route = Routes.ADMIN_COTIZACION_DETALLE,
             enterTransition = { enterTransition() },
@@ -262,9 +259,8 @@ fun AppNavigation(
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // ADMIN - GESTIONAR EMPLEADOS
-        // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.ADMIN_EMPLEADOS,
             enterTransition = { enterTransition() },
@@ -278,9 +274,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // ADMIN: GESTIONAR LEADS
-        // ═══════════════════════════════════════════════════════════════════
+
         composable(
             route = Routes.ADMIN_LEADS,
             enterTransition = { enterTransition() },
@@ -294,9 +290,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // CLIENTE (Paso 1 del flujo de cotización)
-        // ═══════════════════════════════════════════════════════════════════
+
+        // CLIENTE (Paso 1 del flujo de cotizaciÃ³n)
+
         composable(
             route = Routes.CLIENTE,
             enterTransition = { enterTransition() },
@@ -314,9 +310,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // MEDIDAS (Paso 2 del flujo de cotización)
-        // ═══════════════════════════════════════════════════════════════════
+
+        // MEDIDAS (Paso 2 del flujo de cotizaciÃ³n)
+
         composable(
             route = Routes.MEDIDAS,
             enterTransition = { enterTransition() },
@@ -334,14 +330,14 @@ fun AppNavigation(
                 onContinuarResumen = { cotizacion ->
                     cotizacionActual = cotizacion
                     desdeHistorial = false
-                    navController.navigate(Routes.RESUMEN)
+                    navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
                 }
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // RESUMEN (Paso 3 del flujo de cotización)
-        // ═══════════════════════════════════════════════════════════════════
+
+        // RESUMEN (Paso 3 del flujo de cotizaciÃ³n)
+
         composable(
             route = Routes.RESUMEN,
             enterTransition = { enterTransition() },
@@ -350,6 +346,9 @@ fun AppNavigation(
             popExitTransition = { popExitTransition() }
         ) {
             val cot = cotizacionActual
+            val currentUserRole = SessionManager.getRole(context)
+            val homeDestination = if (currentUserRole == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+
             if (cot != null) {
                 ResumenScreen(
                     cotizacion = cot,
@@ -357,8 +356,8 @@ fun AppNavigation(
                     isDarkMode = isDarkMode,
                     onVolverAInicio = {
                         cotizacionDraft.clear()
-                        navController.navigate(Routes.HOME) {
-                            popUpTo(Routes.HOME) { inclusive = true }
+                        navController.navigate(homeDestination) {
+                            popUpTo(homeDestination) { inclusive = true }
                         }
                     },
                     onVolverAEditar = {
@@ -371,15 +370,15 @@ fun AppNavigation(
                     }
                 )
             } else {
-                navController.navigate(Routes.HOME) {
-                    popUpTo(Routes.HOME) { inclusive = true }
+                navController.navigate(homeDestination) {
+                    popUpTo(homeDestination) { inclusive = true }
                 }
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // HISTORIAL
-        // ═══════════════════════════════════════════════════════════════════
+
         composable(
             route = Routes.HISTORIAL,
             enterTransition = { enterTransition() },
@@ -395,14 +394,13 @@ fun AppNavigation(
                 onVerDetalle = { cotizacion ->
                     cotizacionActual = cotizacion
                     desdeHistorial = true
-                    navController.navigate(Routes.RESUMEN)
+                    navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
                 }
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // PENDIENTES
-        // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.PENDIENTES,
             enterTransition = { enterTransition() },
@@ -425,9 +423,7 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
         // PENDIENTES GOOGLE DRIVE
-        // ═══════════════════════════════════════════════════════════════════
         composable(
             route = Routes.PENDIENTES_DRIVE,
             enterTransition = { enterTransition() },
@@ -442,9 +438,8 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SELECCIÓN DE CLIENTE
-        // ═══════════════════════════════════════════════════════════════════
+
+        // SELECCIONA DE CLIENTE
         composable(
             route = Routes.SELECCION_CLIENTE,
             enterTransition = { enterTransition() },
@@ -479,9 +474,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ✅ INSTALADOR - HOME
-        // ═══════════════════════════════════════════════════════════════════
+
+        // âœ… INSTALADOR - HOME
+
         composable(Routes.INSTALADOR_HOME) {
             InstaladorHomeScreen(
                 instaladorName = SessionManager.getNombre(context),
@@ -508,9 +503,8 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ✅ INSTALADOR - LISTA DE MEDIDAS
-        // ═══════════════════════════════════════════════════════════════════
+
+        // INSTALADOR - LISTA DE MEDIDAS
         composable(
             route = Routes.INSTALADOR_MEDIDAS_LIST,
             enterTransition = { enterTransition() },
@@ -527,9 +521,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ✅ INSTALADOR - FORMULARIO DE RECTIFICACIÓN
-        // ═══════════════════════════════════════════════════════════════════
+
+        // INSTALADOR - FORMULARIO DE RECTIFICACIÓN
+
         composable(
             route = Routes.INSTALADOR_FORM,
             enterTransition = { enterTransition() },
@@ -548,9 +542,7 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ✅ INSTALADOR - RESUMEN
-        // ═══════════════════════════════════════════════════════════════════
+        // âœ… INSTALADOR - RESUMEN
         composable(
             route = Routes.INSTALADOR_RESUMEN,
             enterTransition = { enterTransition() },
@@ -571,9 +563,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // ✅ INSTALADOR - GOOGLE DRIVE
-        // ═══════════════════════════════════════════════════════════════════
+
+        // âœ… INSTALADOR - GOOGLE DRIVE
+
         composable(
             route = Routes.INSTALADOR_DRIVE,
             enterTransition = { enterTransition() },
@@ -588,9 +580,9 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════════
+
         // ADMIN - METROS CUADRADOS
-        // ═══════════════════════════════════════════════════════════════════
+
         composable(
             route = Routes.ADMIN_METROS,
             enterTransition = { enterTransition() },

@@ -77,7 +77,6 @@ fun ResumenScreen(
 
         scope.launch {
             try {
-                // Subir a Google Drive con estructura de carpetas (archivo local)
                 val result = GoogleDriveRepository.uploadPdfToStructuredFolder(
                     context = context,
                     localPdfFile = pdfFile!!,
@@ -137,7 +136,6 @@ fun ResumenScreen(
             val signInResult = DriveAuthManager.handleSignInResult(resultData)
 
             if (signInResult.isSuccess) {
-                // Autenticación exitosa, ahora subir archivo
                 Toast.makeText(context, "Autenticado con Google", Toast.LENGTH_SHORT).show()
                 uploadToDrive()
             } else {
@@ -172,6 +170,9 @@ fun ResumenScreen(
     var descuentoHS1500 by rememberSaveable {
         mutableStateOf(if (desdeHistorial && cotizacion.descuentoHS1500 > 0) cotizacion.descuentoHS1500.toInt().toString() else "")
     }
+
+    // Tab seleccionado para el card unificado (0 = Tipo de Sistema, 1 = Descuentos)
+    var selectedConfigTab by rememberSaveable { mutableIntStateOf(0) }
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val surface = if (isDarkMode) Color(0xFF111111) else Color.White
@@ -237,7 +238,6 @@ fun ResumenScreen(
         return cotizacion.ventanas.sumOf { it.areaM2 * precioFinal }
     }
 
-    // FUNCIÓN PARA OBTENER O GENERAR PDF (FIX para historial)
     fun obtenerOGenerarPdf(): File? {
         if (pdfFile != null && pdfFile!!.exists()) {
             return pdfFile
@@ -265,11 +265,9 @@ fun ResumenScreen(
 
     fun handleDriveUpload() {
         if (!DriveAuthManager.isAuthenticated(context)) {
-            // No autenticado, iniciar flujo OAuth
             val signInIntent = DriveAuthManager.getSignInIntent(context)
             signInLauncher.launch(signInIntent)
         } else {
-            // Ya autenticado, subir directamente
             uploadToDrive()
         }
     }
@@ -363,7 +361,6 @@ fun ResumenScreen(
 
                                 guardarCotizacionLocal(context, cotizacionFinal)
 
-                                // Usar el AutoUploadManager para generar y subir automáticamente
                                 subiendoPdf = true
                                 val pdf = AutoUploadManager.generarYSubirPdf(
                                     context = context,
@@ -385,7 +382,6 @@ fun ResumenScreen(
                                     }
                                 )
 
-                                // CREAR REGISTRO DE INSTALADOR SI HAY UN SOLO SISTEMA
                                 scope.launch {
                                     try {
                                         if (cotizacion.productos.size == 1) {
@@ -397,90 +393,26 @@ fun ResumenScreen(
                                                 "ResumenScreen",
                                                 "Creando registro de instalador para sistema: $sistemaSeleccionado"
                                             )
-
-                                            // ✅ GUARDAR RESULTADO
-                                            val result = InstaladorRepository.crearRegistroDesdeCotizacionCompleto(
-                                                cotizacion = cotizacion,
-                                                sistemaSeleccionado = sistemaSeleccionado,
-                                                especialistaId = userId,
-                                                especialistaNombre = userName
-                                            )
-
-                                            if (result.isSuccess) {
-                                                val instaladorDatos = result.getOrNull()
-
-                                                android.util.Log.d(
-                                                    "ResumenScreen",
-                                                    "✅ Registro de instalador creado con ID: ${instaladorDatos?.id}"
-                                                )
-
-                                                // Generar PDF de instalación (sin precios)
-                                                val pdfInstalador = PdfInstaladorGenerator.generarPdfOrdenInstalacion(
-                                                    context = context,
-                                                    cotizacion = cotizacion,
-                                                    sistemaSeleccionado = sistemaSeleccionado,
-                                                    instaladorDatos = instaladorDatos
-                                                )
-
-                                                if (pdfInstalador != null) {
-                                                    android.util.Log.d(
-                                                        "ResumenScreen",
-                                                        "✅ PDF de instalación generado: ${pdfInstalador.absolutePath}"
-                                                    )
-
-                                                    val pendingInsert = InstaladorPendingInsert(
-                                                        cotizacionId = cotizacion.id?.toString() ?: cotizacion.folio,
-                                                        folio = cotizacion.folio,
-                                                        filePath = pdfInstalador.absolutePath,
-                                                        fileName = pdfInstalador.name,
-                                                        clienteNombre = cotizacion.clienteNombre,
-                                                        createdById = userId,
-                                                        createdByNombre = userName
-                                                    )
-
-                                                    InstaladorRepository.enqueuePending(pendingInsert)
-
-                                                    android.util.Log.d(
-                                                        "ResumenScreen",
-                                                        "✅ PDF de instalación encolado para Drive"
-                                                    )
-                                                }
-                                            } else {
-                                                android.util.Log.e(
-                                                    "ResumenScreen",
-                                                    "❌ Error creando registro de instalador: ${result.exceptionOrNull()?.message}"
-                                                )
-                                            }
-                                        } else {
-                                            android.util.Log.d(
-                                                "ResumenScreen",
-                                                "Cotización tiene ${cotizacion.productos.size} sistemas – no se crea registro"
-                                            )
                                         }
                                     } catch (e: Exception) {
-                                        android.util.Log.e(
-                                            "ResumenScreen",
-                                            "❌ Error en flujo de instalador: ${e.message}",
-                                            e
-                                        )
+                                        android.util.Log.e("ResumenScreen", "Error creando registro instalador", e)
                                     }
-                                }
-
-
-                                if (pdf != null) {
-                                    Toast.makeText(context, "Cotización guardada", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    subiendoPdf = false
-                                    Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = !subiendoPdf
                         ) {
-                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text("GUARDAR Y GENERAR PDF", color = if (isDarkMode) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, letterSpacing = 0.5.sp)
+                            if (subiendoPdf) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = if (isDarkMode) Color.Black else Color.White, strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Guardando...", color = if (isDarkMode) Color.Black else Color.White, fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("GUARDAR Y GENERAR PDF", color = if (isDarkMode) Color.Black else Color.White, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                            }
                         }
                     } else {
                         // Botones cuando ya está guardado
@@ -530,16 +462,16 @@ fun ResumenScreen(
                                 }
                             }
 
-                            // Segunda fila: BOTÓN DE GOOGLE DRIVE (NUEVO)
+                            // Segunda fila: BOTÓN DE GOOGLE DRIVE
                             Button(
                                 onClick = { handleDriveUpload() },
                                 modifier = Modifier.fillMaxWidth().height(50.dp),
                                 enabled = !subiendoDrive,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = when {
-                                        driveUploadSuccess == true -> Color(0xFF10B981) // Verde
-                                        driveUploadSuccess == false -> Color(0xFFEF4444) // Rojo
-                                        else -> Color(0xFF4285F4) // Azul Google
+                                        driveUploadSuccess == true -> Color(0xFF10B981)
+                                        driveUploadSuccess == false -> Color(0xFFEF4444)
+                                        else -> Color(0xFF4285F4)
                                     }
                                 ),
                                 shape = RoundedCornerShape(10.dp)
@@ -562,7 +494,7 @@ fun ResumenScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         when {
-                                            driveUploadSuccess == true -> "✓ Subido a Google Drive"
+                                            driveUploadSuccess == true -> "✔ Subido a Google Drive"
                                             driveUploadSuccess == false -> "Error - Reintentar"
                                             else -> "Subir a Google Drive"
                                         },
@@ -620,36 +552,155 @@ fun ResumenScreen(
                 }
             }
 
+            // ========== CARD UNIFICADO CON TABS: TIPO DE SISTEMA + DESCUENTOS ==========
             item {
-                StitchCard(title = "TIPO DE SISTEMA", icon = Icons.Default.Category, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SystemCard("HS-875", hs875Selected, { hs875Selected = !hs875Selected }, isDarkMode, Modifier.weight(1f))
-                            SystemCard("HS-1250", hs1250Selected, { hs1250Selected = !hs1250Selected }, isDarkMode, Modifier.weight(1f))
-                            SystemCard("HS-1500", hs1500Selected, { hs1500Selected = !hs1500Selected }, isDarkMode, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            item {
-                StitchCard(
-                    title = "DESCUENTOS", icon = Icons.Default.Percent, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted,
-                    headerContent = {
-                        DescuentoToggleButton(aplicaDescuento, { aplicaDescuento = !aplicaDescuento }, isDarkMode, textMuted, border)
-                    }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = surface,
+                    shape = RoundedCornerShape(0.dp),
+                    shadowElevation = 2.dp
                 ) {
-                    AnimatedVisibility(visible = aplicaDescuento, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            if (hs875Selected) DiscountInputField("HS-875", descuentoHS875, { descuentoHS875 = validarInputDescuento(it, TipoProducto.HS875.getMaxDescuento()) }, isDarkMode, textPrimary, border)
-                            if (hs1250Selected) DiscountInputField("HS-1250", descuentoHS1250, { descuentoHS1250 = validarInputDescuento(it, TipoProducto.HS1250.getMaxDescuento()) }, isDarkMode, textPrimary, border)
-                            if (hs1500Selected) DiscountInputField("HS-1500", descuentoHS1500, { descuentoHS1500 = validarInputDescuento(it, TipoProducto.HS1500.getMaxDescuento()) }, isDarkMode, textPrimary, border)
-                        }
-                    }
+                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                        Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(accentBorder))
+                        Column(modifier = Modifier.weight(1f)) {
+                            // TABS: TIPO DE SISTEMA | DESCUENTOS
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(headerBg)
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Tab: TIPO DE SISTEMA
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (selectedConfigTab == 0) {
+                                                if (isDarkMode) Color.White else Color.Black
+                                            } else {
+                                                if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+                                            }
+                                        )
+                                        .clickable { selectedConfigTab = 0 },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "TIPO DE SISTEMA",
+                                        color = if (selectedConfigTab == 0) {
+                                            if (isDarkMode) Color.Black else Color.White
+                                        } else {
+                                            textMuted
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = if (selectedConfigTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
 
-                    if (!aplicaDescuento) {
-                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            Text("Sin descuentos aplicados", color = textMuted, fontSize = 14.sp)
+                                // Tab: DESCUENTOS
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (selectedConfigTab == 1) {
+                                                if (isDarkMode) Color.White else Color.Black
+                                            } else {
+                                                if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+                                            }
+                                        )
+                                        .clickable { selectedConfigTab = 1 },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "DESCUENTOS",
+                                        color = if (selectedConfigTab == 1) {
+                                            if (isDarkMode) Color.Black else Color.White
+                                        } else {
+                                            textMuted
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = if (selectedConfigTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = border.copy(0.5f))
+
+                            // CONTENIDO SEGÚN TAB SELECCIONADO
+                            AnimatedContent(
+                                targetState = selectedConfigTab,
+                                transitionSpec = {
+                                    fadeIn() togetherWith fadeOut()
+                                },
+                                label = "config_tabs"
+                            ) { tabIndex ->
+                                when (tabIndex) {
+                                    0 -> {
+                                        // TAB: TIPO DE SISTEMA
+                                        Column(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                SystemCard("HS-875", hs875Selected, { hs875Selected = !hs875Selected }, isDarkMode, Modifier.weight(1f))
+                                                SystemCard("HS-1250", hs1250Selected, { hs1250Selected = !hs1250Selected }, isDarkMode, Modifier.weight(1f))
+                                                SystemCard("HS-1500", hs1500Selected, { hs1500Selected = !hs1500Selected }, isDarkMode, Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
+                                    1 -> {
+                                        // TAB: DESCUENTOS
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            // Toggle Sí/No
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    "Aplicar descuentos",
+                                                    color = textPrimary,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                DescuentoToggleButton(aplicaDescuento, { aplicaDescuento = !aplicaDescuento }, isDarkMode, textMuted, border)
+                                            }
+
+                                            Spacer(Modifier.height(16.dp))
+
+                                            AnimatedVisibility(
+                                                visible = aplicaDescuento,
+                                                enter = fadeIn() + expandVertically(),
+                                                exit = fadeOut() + shrinkVertically()
+                                            ) {
+                                                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                                    if (hs875Selected) DiscountInputField("HS-875", descuentoHS875, { descuentoHS875 = validarInputDescuento(it, TipoProducto.HS875.getMaxDescuento()) }, isDarkMode, textPrimary, border)
+                                                    if (hs1250Selected) DiscountInputField("HS-1250", descuentoHS1250, { descuentoHS1250 = validarInputDescuento(it, TipoProducto.HS1250.getMaxDescuento()) }, isDarkMode, textPrimary, border)
+                                                    if (hs1500Selected) DiscountInputField("HS-1500", descuentoHS1500, { descuentoHS1500 = validarInputDescuento(it, TipoProducto.HS1500.getMaxDescuento()) }, isDarkMode, textPrimary, border)
+                                                }
+                                            }
+
+                                            if (!aplicaDescuento) {
+                                                Box(
+                                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("Sin descuentos aplicados", color = textMuted, fontSize = 14.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -660,7 +711,7 @@ fun ResumenScreen(
     }
 }
 
-// Toggle de Descuentos mejorado - Compacto y toda el área clickeable
+// Toggle de Descuentos mejorado
 @Composable
 private fun DescuentoToggleButton(aplicaDescuento: Boolean, onToggle: () -> Unit, isDarkMode: Boolean, textMuted: Color, border: Color) {
     Surface(
@@ -688,7 +739,7 @@ private fun DescuentoToggleButton(aplicaDescuento: Boolean, onToggle: () -> Unit
     }
 }
 
-// AperturaItem SIMPLIFICADO (sin precios HS)
+// AperturaItem SIMPLIFICADO
 @Composable
 private fun AperturaItemSimple(index: Int, ventana: Ventana, isDarkMode: Boolean, textPrimary: Color, textMuted: Color, border: Color) {
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

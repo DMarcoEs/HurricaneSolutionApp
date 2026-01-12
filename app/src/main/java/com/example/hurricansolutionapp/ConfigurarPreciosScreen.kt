@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,6 +43,7 @@ fun ConfigurarPreciosScreen(
     // Tab seleccionado (0 = Continental, 1 = Islas, 2 = Foránea)
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val zonas = listOf(ZonaGeografica.CONTINENTAL, ZonaGeografica.ISLAS, ZonaGeografica.FORANEA)
+    val zonasNombres = listOf("CONTINENTAL", "ISLAS", "FORÁNEA")
 
     // Estados de edición para cada zona
     // Continental
@@ -230,7 +232,7 @@ fun ConfigurarPreciosScreen(
                         Icon(Icons.Default.Save, null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "GUARDAR ${zonas[selectedTabIndex].nombreDisplay.uppercase()}",
+                            "GUARDAR ${zonasNombres[selectedTabIndex]}",
                             fontWeight = FontWeight.Bold,
                             color = onPrimary
                         )
@@ -275,34 +277,56 @@ fun ConfigurarPreciosScreen(
                 }
             }
 
-            // Tabs de zonas
-            TabRow(
-                selectedTabIndex = selectedTabIndex,
-                containerColor = surface,
-                contentColor = textPrimary
+            // ========== TABS DE ZONAS - DISEÑO PROFESIONAL ==========
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                zonas.forEachIndexed { index, zona ->
-                    Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(ZonasData.getZonaEmoji(zona), fontSize = 14.sp)
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    when (zona) {
-                                        ZonaGeografica.CONTINENTAL -> "Continental"
-                                        ZonaGeografica.ISLAS -> "Islas"
-                                        ZonaGeografica.FORANEA -> "Foránea"
-                                    },
-                                    fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    )
+                zonasNombres.forEachIndexed { index, nombre ->
+                    val isSelected = selectedTabIndex == index
+
+                    // Colores según selección y modo
+                    val buttonBg = if (isSelected) {
+                        if (isDarkMode) Color.White else Color.Black
+                    } else {
+                        if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+                    }
+
+                    val buttonText = if (isSelected) {
+                        if (isDarkMode) Color.Black else Color.White
+                    } else {
+                        if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(buttonBg)
+                            .clickable { selectedTabIndex = index },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = nombre,
+                            color = buttonText,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 12.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
                 }
             }
+
+            // Línea divisora sutil
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                thickness = 1.dp,
+                color = border
+            )
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -319,7 +343,7 @@ fun ConfigurarPreciosScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                         Box(modifier = Modifier.width(4.dp).height(20.dp).clip(RoundedCornerShape(2.dp)).background(primary))
                         Spacer(Modifier.width(12.dp))
-                        Text("PRECIOS ${zonas[selectedTabIndex].nombreDisplay.uppercase()}", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp)
+                        Text("PRECIOS ZONA ${zonasNombres[selectedTabIndex]}", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp)
                     }
 
                     when (selectedTabIndex) {

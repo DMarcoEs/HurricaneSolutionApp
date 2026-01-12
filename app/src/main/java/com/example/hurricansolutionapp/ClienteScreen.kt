@@ -1,12 +1,7 @@
 package com.example.hurricansolutionapp
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -14,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
@@ -55,26 +49,26 @@ fun ClienteScreen(
     var colonia by rememberSaveable { mutableStateOf(draft.colonia) }
     var direccionDetalle by rememberSaveable { mutableStateOf(draft.direccionDetalle) }
 
-    // Estado para la zona detectada
+    // Estado para la zona detectada (interno, no se muestra)
     var zonaDetectada by remember { mutableStateOf<ZonaGeografica?>(null) }
-    
+
     // Estado para el autocompletado
     var showSugerencias by remember { mutableStateOf(false) }
-    var sugerenciasCiudad by remember { mutableStateOf<List<Pair<String, ZonaGeografica>>>(emptyList()) }
+    var sugerenciasCiudad by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // Detectar zona cuando cambia la ciudad
+    // Detectar zona cuando cambia la ciudad - DESDE 1 LETRA
     LaunchedEffect(ciudad) {
-        if (ciudad.length >= 3) {
-            sugerenciasCiudad = ZonasData.getSugerenciasPriorizadas(ciudad, 8)
-            showSugerencias = sugerenciasCiudad.isNotEmpty() && !sugerenciasCiudad.any { it.first == ciudad }
+        if (ciudad.isNotEmpty()) {
+            // Obtener sugerencias desde 1 letra
+            sugerenciasCiudad = ZonasData.getSugerencias(ciudad, 8)
+            showSugerencias = sugerenciasCiudad.isNotEmpty() && !sugerenciasCiudad.any { it.equals(ciudad, ignoreCase = true) }
+
+            // Detectar zona silenciosamente
+            zonaDetectada = ZonasData.detectarZona(ciudad)
+            PriceManager.setZonaFromCiudad(ciudad)
         } else {
             sugerenciasCiudad = emptyList()
             showSugerencias = false
-        }
-        
-        if (ciudad.isNotBlank()) {
-            zonaDetectada = ZonasData.detectarZona(ciudad)
-            PriceManager.setZonaFromCiudad(ciudad)
         }
     }
 
@@ -195,19 +189,19 @@ fun ClienteScreen(
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("UBICACIÓN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
+                // Campo de Ciudad con Autocompletado LIMPIO (sin badges)
                 CiudadAutocompleteField(
                     value = ciudad,
                     onValueChange = { ciudad = it },
                     sugerencias = sugerenciasCiudad,
                     showSugerencias = showSugerencias,
-                    onSugerenciaSelected = { selectedCiudad, zona ->
+                    onSugerenciaSelected = { selectedCiudad ->
                         ciudad = selectedCiudad
-                        zonaDetectada = zona
+                        zonaDetectada = ZonasData.detectarZona(selectedCiudad)
                         showSugerencias = false
-                        PriceManager.setZonaActual(zona)
+                        PriceManager.setZonaActual(zonaDetectada ?: ZonaGeografica.CONTINENTAL)
                     },
                     onDismissSugerencias = { showSugerencias = false },
-                    zonaDetectada = zonaDetectada,
                     isDarkMode = isDarkMode,
                     textPrimary = textPrimary,
                     surface = surface,
@@ -246,15 +240,18 @@ fun ClienteScreen(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CAMPO DE CIUDAD CON AUTOCOMPLETADO - LIMPIO SIN BADGES
+// ═══════════════════════════════════════════════════════════════════════════════
+
 @Composable
 fun CiudadAutocompleteField(
     value: String,
     onValueChange: (String) -> Unit,
-    sugerencias: List<Pair<String, ZonaGeografica>>,
+    sugerencias: List<String>,
     showSugerencias: Boolean,
-    onSugerenciaSelected: (String, ZonaGeografica) -> Unit,
+    onSugerenciaSelected: (String) -> Unit,
     onDismissSugerencias: () -> Unit,
-    zonaDetectada: ZonaGeografica?,
     isDarkMode: Boolean,
     textPrimary: Color,
     surface: Color,
@@ -290,58 +287,33 @@ fun CiudadAutocompleteField(
                 singleLine = true
             )
 
+            // Dropdown LIMPIO - Solo nombres de ciudades
             DropdownMenu(
                 expanded = showSugerencias && sugerencias.isNotEmpty(),
                 onDismissRequest = onDismissSugerencias,
                 modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 300.dp).background(if (isDarkMode) Color(0xFF18181B) else Color.White),
                 properties = PopupProperties(focusable = false)
             ) {
-                sugerencias.forEach { (ciudadSugerida, zona) ->
+                sugerencias.forEach { ciudadSugerida ->
                     DropdownMenuItem(
                         text = {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.Default.Place, null, tint = textPrimary.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(ciudadSugerida, color = textPrimary, fontSize = 14.sp)
-                                }
-                                ZonaBadge(zona = zona, isDarkMode = isDarkMode)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Place, null, tint = textPrimary.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(ciudadSugerida, color = textPrimary, fontSize = 15.sp)
                             }
                         },
-                        onClick = { onSugerenciaSelected(ciudadSugerida, zona) }
+                        onClick = { onSugerenciaSelected(ciudadSugerida) }
                     )
                 }
             }
         }
-
-        AnimatedVisibility(visible = zonaDetectada != null && value.isNotBlank(), enter = fadeIn() + slideInVertically(), exit = fadeOut() + slideOutVertically()) {
-            zonaDetectada?.let { zona ->
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Check, null, tint = Color(0xFF2AA63E), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Zona detectada: ", color = textPrimary.copy(alpha = 0.7f), fontSize = 13.sp)
-                    ZonaBadge(zona = zona, isDarkMode = isDarkMode)
-                }
-            }
-        }
     }
 }
 
-@Composable
-fun ZonaBadge(zona: ZonaGeografica, isDarkMode: Boolean) {
-    val (bgColor, textColor) = when (zona) {
-        ZonaGeografica.CONTINENTAL -> if (isDarkMode) Color(0xFF166534).copy(alpha = 0.3f) to Color(0xFF4ADE80) else Color(0xFFDCFCE7) to Color(0xFF166534)
-        ZonaGeografica.ISLAS -> if (isDarkMode) Color(0xFF1E40AF).copy(alpha = 0.3f) to Color(0xFF60A5FA) else Color(0xFFDBEAFE) to Color(0xFF1E40AF)
-        ZonaGeografica.FORANEA -> if (isDarkMode) Color(0xFF92400E).copy(alpha = 0.3f) to Color(0xFFFBBF24) else Color(0xFFFEF3C7) to Color(0xFF92400E)
-    }
-    Surface(color = bgColor, shape = RoundedCornerShape(6.dp)) {
-        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(ZonasData.getZonaEmoji(zona), fontSize = 12.sp)
-            Spacer(Modifier.width(4.dp))
-            Text(zona.nombreDisplay, color = textColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// CAMPO GENÉRICO STITCH
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 fun StitchField(

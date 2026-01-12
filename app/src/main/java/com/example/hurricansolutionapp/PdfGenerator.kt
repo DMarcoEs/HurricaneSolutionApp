@@ -249,7 +249,13 @@ fun generarPdfCotizacion(
             colorFilter = PorterDuffColorFilter(Color.DKGRAY, PorterDuff.Mode.SRC_IN)
         }
 
-        fun drawIcon(bitmap: Bitmap?, centerX: Float, centerY: Float, size: Float = iconSize, iconPaint: Paint? = null) {
+        fun drawIcon(
+            bitmap: Bitmap?,
+            centerX: Float,
+            centerY: Float,
+            size: Float = iconSize,
+            iconPaint: Paint? = null
+        ) {
             if (bitmap == null) return
             val half = size / 2f
             val rect = RectF(centerX - half, centerY - half, centerX + half, centerY + half)
@@ -290,13 +296,25 @@ fun generarPdfCotizacion(
         textPaint.textAlign = Paint.Align.LEFT
         val webTextWidth = textPaint.measureText(web)
         val webIconX = rightTextEndX - webTextWidth - iconSize - 4f
-        drawIcon(iconWeb, webIconX + iconSize / 2f, iconCenterYForText(line1Y), iconSize, iconPaintGray)
+        drawIcon(
+            iconWeb,
+            webIconX + iconSize / 2f,
+            iconCenterYForText(line1Y),
+            iconSize,
+            iconPaintGray
+        )
         canvas.drawText(web, webIconX + iconSize + 4f, line1Y, textPaint)
 
         // Teléfonos - segunda línea derecha
         val phoneTextWidth = textPaint.measureText(phone)
         val phoneIconX = rightTextEndX - phoneTextWidth - iconSize - 4f
-        drawIcon(iconWhatsRaw, phoneIconX + iconSize / 2f, iconCenterYForText(line2Y), iconSize, iconPaintGray)
+        drawIcon(
+            iconWhatsRaw,
+            phoneIconX + iconSize / 2f,
+            iconCenterYForText(line2Y),
+            iconSize,
+            iconPaintGray
+        )
         canvas.drawText(phone, phoneIconX + iconSize + 4f, line2Y, textPaint)
 
         // Redes sociales - tercera línea derecha
@@ -309,7 +327,13 @@ fun generarPdfCotizacion(
         val socialY = line3Y
 
         fun drawSocialIcon(bitmap: Bitmap?, centerX: Float) {
-            drawIcon(bitmap, centerX, iconCenterYForText(socialY), size = 9f, iconPaint = iconPaintGray)
+            drawIcon(
+                bitmap,
+                centerX,
+                iconCenterYForText(socialY),
+                size = 9f,
+                iconPaint = iconPaintGray
+            )
         }
 
         val socialGap = 14f
@@ -357,7 +381,8 @@ fun generarPdfCotizacion(
             (colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW)
     val colPriceW = colPricesTotalW / priceColumnsCount
 
-    val startPreciosX = tableLeft + colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW
+    val startPreciosX =
+        tableLeft + colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW
 
     // ======================= PRE-CÁLCULO DE FILAS =======================
     data class RowLayout(
@@ -378,7 +403,8 @@ fun generarPdfCotizacion(
         val txtArea = v.descripcion
         val txtAreaTotal = "%.2f".format(v.areaM2)
         val txtMontaje = v.tipoMontaje.ifBlank { cotizacion.tipoMontaje }
-        val txtAdecuaciones = if (v.adecuacion == "No" || v.adecuacion.isBlank()) "Ninguna" else v.adecuacion
+        val txtAdecuaciones =
+            if (v.adecuacion == "No" || v.adecuacion.isBlank()) "Ninguna" else v.adecuacion
 
         val preciosPorProducto: List<String> = productosSeleccionados.map { producto ->
             val monto = v.subtotalPorProducto(producto)
@@ -540,14 +566,37 @@ fun generarPdfCotizacion(
     var rightY = y
 
     // IZQUIERDA - Con soporte multilinea
-    leftY = drawInfoRowMultiline(canvas, leftX, leftY, "Nombre del Cliente:", cotizacion.clienteNombre, leftBlockWidth)
-    leftY = drawInfoRowMultiline(canvas, leftX, leftY, "Dirección:", direccionCompleta, leftBlockWidth)
+    leftY = drawInfoRowMultiline(
+        canvas,
+        leftX,
+        leftY,
+        "Nombre del Cliente:",
+        cotizacion.clienteNombre,
+        leftBlockWidth
+    )
+    leftY =
+        drawInfoRowMultiline(canvas, leftX, leftY, "Dirección:", direccionCompleta, leftBlockWidth)
 
     // DERECHA
     val metrajeFinal = cotizacion.ventanas.sumOf { it.areaM2 }
-    rightY = drawInfoRowMultiline(canvas, rightX, rightY, "Especialista:", cotizacion.especialista, rightBlockWidth)
-    rightY = drawInfoRowMultiline(canvas, rightX, rightY, "Fecha:", cotizacion.fecha, rightBlockWidth)
-    rightY = drawInfoRowMultiline(canvas, rightX, rightY, "Metraje Total:", "%.2f m²".format(metrajeFinal), rightBlockWidth)
+    rightY = drawInfoRowMultiline(
+        canvas,
+        rightX,
+        rightY,
+        "Especialista:",
+        cotizacion.especialista,
+        rightBlockWidth
+    )
+    rightY =
+        drawInfoRowMultiline(canvas, rightX, rightY, "Fecha:", cotizacion.fecha, rightBlockWidth)
+    rightY = drawInfoRowMultiline(
+        canvas,
+        rightX,
+        rightY,
+        "Metraje Total:",
+        "%.2f m²".format(metrajeFinal),
+        rightBlockWidth
+    )
 
     y = maxOf(leftY, rightY) + 12f
 
@@ -726,7 +775,8 @@ fun generarPdfCotizacion(
     val footerTop = pageHeight.toFloat() - bottomBarHeight
 
     val margenSobreFooter = 10f
-    val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - bloqueAltura
+    val resumenTopDesdeAbajo =
+        pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - bloqueAltura
 
     val espacioEntreTablaYResumen = 20f
     val resumenTop = maxOf(y + espacioEntreTablaYResumen, resumenTopDesdeAbajo)
@@ -744,7 +794,6 @@ fun generarPdfCotizacion(
         isLastRow: Boolean = false
     ) {
         val filaBottom = filaTop + rowHeightResumen
-
 
 
         // Celda negra con el label
@@ -844,18 +893,7 @@ fun generarPdfCotizacion(
         boldLabel = true
     )
 
-    // FILA 2: Total IVA sin descuento
-    drawResumenDataRow(
-        label = "Total IVA sin descuento",
-        getTextForCol = { _, producto ->
-            val subtotalProducto = totalesPorProducto[producto] ?: 0.0
-            val subtotalConIvaSinDesc = subtotalProducto * (1.0 + IVA_RATE)
-            "$ " + "%,.2f".format(subtotalConIvaSinDesc)
-        },
-        boldLabel = false
-    )
-
-    // FILA 3: Descuento (%)
+    // FILA 2: Descuento (%)
     drawResumenDataRow(
         label = "Descuento",
         getTextForCol = { _, producto ->
@@ -865,7 +903,7 @@ fun generarPdfCotizacion(
         boldLabel = false
     )
 
-    // FILA 4: Subtotal con descuento
+    // FILA 3: Subtotal con descuento
     drawResumenDataRow(
         label = "Subtotal con descuento",
         getTextForCol = { _, producto ->
@@ -873,6 +911,17 @@ fun generarPdfCotizacion(
             "$ " + "%,.2f".format(subtotalConDescSinIva)
         },
         boldLabel = true
+    )
+
+    // FILA 4: IVA (16%)
+    drawResumenDataRow(
+        label = "IVA",
+        getTextForCol = { _, producto ->
+            val subtotalConDesc = preciosFinalesPorProducto[producto] ?: 0.0
+            val iva = subtotalConDesc * IVA_RATE
+            "$ " + "%,.2f".format(iva)
+        },
+        boldLabel = false
     )
 
     // FILA 5: Precio Final con IVA

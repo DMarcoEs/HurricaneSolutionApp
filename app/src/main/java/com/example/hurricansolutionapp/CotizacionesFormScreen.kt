@@ -129,62 +129,11 @@ fun CotizacionesFormScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            Column(modifier = Modifier.background(surface)) {
-                Surface(modifier = Modifier.fillMaxWidth(), color = surface) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { onBack() }, modifier = Modifier.size(40.dp)) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_chevron_left),
-                                contentDescription = "Atrás",
-                                tint = textPrimary
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "Captura de Medidas",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = textPrimary
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Spacer(Modifier.size(40.dp))
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(totalSteps) { step ->
-                        val isCurrentStep = step + 1 == currentStep
-                        val isPastStep = step + 1 < currentStep
-                        Box(
-                            modifier = if (isCurrentStep) Modifier
-                                .width(24.dp)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(if (isDarkMode) Color.White else Color.Black)
-                            else Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isPastStep) (if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(
-                                        0.6f
-                                    )) else textMuted.copy(0.4f)
-                                )
-                        )
-                        if (step < totalSteps - 1) Spacer(Modifier.width(6.dp))
-                    }
-                }
-            }
+            StitchTopBar(
+                title = "Captura de Medidas",
+                onBack = onBack,
+                isDarkMode = isDarkMode
+            )
         },
         bottomBar = {
             Surface(
@@ -656,9 +605,9 @@ fun CotizacionesFormScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // COMPONENTES PRIVADOS
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 private fun MeasurementInputField(

@@ -75,7 +75,7 @@ fun SeleccionClienteScreen(
         }
     }
 
-    // Filtrar por búsqueda
+    // Filtrar por bÃºsqueda
     LaunchedEffect(searchQuery, allLeads) {
         filteredLeads = if (searchQuery.isBlank()) {
             if (userRole == "ADMIN") allLeads else allLeads.filter { it.assignedToUserId == userId }
@@ -92,7 +92,7 @@ fun SeleccionClienteScreen(
 
     Scaffold(
         topBar = {
-            StitchTopBarWithDivider(
+            StitchTopBar(
                 title = "Leads Nuevos",
                 onBack = onBack,
                 isDarkMode = isDarkMode
@@ -153,7 +153,7 @@ fun SeleccionClienteScreen(
                 }
             }
 
-            // Botón "CLIENTE NUEVO"
+            // BotÃ³n "CLIENTE NUEVO"
             Button(
                 onClick = onClienteNuevo,
                 modifier = Modifier
@@ -185,7 +185,7 @@ fun SeleccionClienteScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Título "LEADS DEL CRM" centrado
+            // TÃ­tulo "LEADS DEL CRM" centrado
             Text(
                 text = "LEADS DEL CRM",
                 fontSize = 16.sp,
@@ -198,13 +198,13 @@ fun SeleccionClienteScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Barra de búsqueda + Botón Actualizar
+            // Barra de bÃºsqueda + BotÃ³n Actualizar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Campo de búsqueda
+                // Campo de bÃºsqueda
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -245,7 +245,7 @@ fun SeleccionClienteScreen(
                     )
                 )
 
-                // Botón Actualizar
+                // BotÃ³n Actualizar
                 Button(
                     onClick = {
                         scope.launch {
@@ -307,7 +307,7 @@ fun SeleccionClienteScreen(
 
                 if (userRole != "ADMIN") {
                     Text(
-                        text = "(Solo tus leads asignados)",
+                        text = "(Solo Tus Leads Asignados)",
                         fontSize = 12.sp,
                         color = textMuted,
                         fontStyle = FontStyle.Italic
@@ -440,7 +440,7 @@ private fun StitchLeadCard(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // Información del lead
+                // InformaciÃ³n del lead
                 Column(modifier = Modifier.weight(1f)) {
                     // Nombre
                     Text(
@@ -454,7 +454,7 @@ private fun StitchLeadCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Teléfono
+                    // TelÃ©fono
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_phone_lucide),

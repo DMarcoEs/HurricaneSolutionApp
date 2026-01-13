@@ -416,7 +416,7 @@ fun InstaladorResumenScreen(
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        "Area Total: ${String.format("%.2f", areaTotal)} m2",
+                                        "Área Total: ${String.format("%.2f", areaTotal)} m2",
                                         modifier = Modifier.padding(
                                             horizontal = 10.dp,
                                             vertical = 6.dp

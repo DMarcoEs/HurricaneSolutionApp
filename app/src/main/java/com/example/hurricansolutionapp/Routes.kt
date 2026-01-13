@@ -15,6 +15,7 @@ object Routes {
     const val HOME = "home"
     const val CLIENTE = "cliente"
     const val SELECCION_CLIENTE = "seleccion_cliente"
+    const val TIPO_PROPIEDAD = "tipo_propiedad"
     const val MEDIDAS = "medidas"
     const val RESUMEN = "resumen"
     const val HISTORIAL = "historial"

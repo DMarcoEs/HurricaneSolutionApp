@@ -92,39 +92,11 @@ fun ClienteScreen(
 
     Scaffold(
         topBar = {
-            Column(modifier = Modifier.background(surface)) {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = surface),
-                    title = {
-                        Text("Datos del Cliente", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textPrimary)
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { if (hayCambios) showExitDialog = true else onBack() }) {
-                            Icon(painter = painterResource(id = R.drawable.ic_chevron_left), contentDescription = null, tint = textPrimary)
-                        }
-                    }
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(totalSteps) { step ->
-                        val isCurrentStep = step + 1 == currentStep
-                        val isPastStep = step + 1 < currentStep
-                        Box(
-                            modifier = if (isCurrentStep) {
-                                Modifier.width(24.dp).height(6.dp).clip(RoundedCornerShape(50)).background(if (isDarkMode) Color.White else Color.Black)
-                            } else {
-                                Modifier.size(6.dp).clip(CircleShape).background(
-                                    if (isPastStep) (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.6f) else textMuted.copy(alpha = 0.4f)
-                                )
-                            }
-                        )
-                        if (step < totalSteps - 1) Spacer(Modifier.width(6.dp))
-                    }
-                }
-            }
+            StitchTopBar(
+                title = "Datos del Cliente",
+                onBack = { if (hayCambios) showExitDialog = true else onBack() },
+                isDarkMode = isDarkMode
+            )
         },
         bottomBar = {
             Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = surface, tonalElevation = 0.dp) {
@@ -187,7 +159,7 @@ fun ClienteScreen(
 
             // Sección: Ubicación del Proyecto
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("UBICACIÓN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("UBICACIN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
                 // Campo de Ciudad con Autocompletado LIMPIO (sin badges)
                 CiudadAutocompleteField(
@@ -240,9 +212,9 @@ fun ClienteScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // CAMPO DE CIUDAD CON AUTOCOMPLETADO - LIMPIO SIN BADGES
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 fun CiudadAutocompleteField(
@@ -311,9 +283,9 @@ fun CiudadAutocompleteField(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CAMPO GENÉRICO STITCH
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CAMPO GENRICO STITCH
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 fun StitchField(

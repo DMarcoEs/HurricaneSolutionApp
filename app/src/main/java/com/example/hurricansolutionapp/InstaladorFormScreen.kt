@@ -101,14 +101,14 @@ fun InstaladorFormScreen(
                                 createdAt = m.createdAt
                             )
                         }
-                        android.util.Log.d("InstaladorForm", "ðŸ“ Datos cargados: ${datos.folio}")
+                        android.util.Log.d("InstaladorForm", "Datos cargados: ${datos.folio}")
                         android.util.Log.d(
                             "InstaladorForm",
-                            "ðŸ“ Medidas encontradas: ${medidasList.size}"
+                            "Medidas encontradas: ${medidasList.size}"
                         )
                         android.util.Log.d(
                             "InstaladorForm",
-                            "ðŸ“ Medidas ORIGINALES guardadas: ${medidasOriginales.size}"
+                            "Medidas ORIGINALES guardadas: ${medidasOriginales.size}"
                         )
                         medidasList.forEach { m ->
                             android.util.Log.d(
@@ -161,7 +161,7 @@ fun InstaladorFormScreen(
             },
             text = {
                 Text(
-                    "EstÃ¡ por editar la fecha solicitada por el especialista. Â¿EstÃ¡ seguro de querer hacerlo?",
+                    "Estás por editar la fecha solicitada por el especialista. ¿Estás seguro de querer hacerlo?",
                     color = textMuted
                 )
             },
@@ -175,7 +175,7 @@ fun InstaladorFormScreen(
                         containerColor = Color(0xFF10B981)
                     )
                 ) {
-                    Text("SÃ­, editar")
+                    Text("Si, editar")
                 }
             },
             dismissButton = {
@@ -190,7 +190,7 @@ fun InstaladorFormScreen(
         containerColor = bg,
         topBar = {
             StitchTopBarWithDivider(
-                title = "Rectificar Â· $folio",
+                title = "Rectificar $folio",
                 onBack = onBack,
                 isDarkMode = isDarkMode
             )
@@ -269,7 +269,7 @@ fun InstaladorFormScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Text(
-                                "DATOS DE INSTALACIÃ“N",
+                                "DATOS DE INSTALACIÓN",
                                 color = textMuted,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -351,7 +351,7 @@ fun InstaladorFormScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Â¿Requiere Andamios?", color = textPrimary, fontSize = 14.sp)
+                                Text("¿Requiere Andamios?", color = textPrimary, fontSize = 14.sp)
                                 Switch(
                                     checked = requiereAndamios,
                                     onCheckedChange = { requiereAndamios = it },
@@ -513,7 +513,7 @@ fun InstaladorFormScreen(
                                             it[indexActual] = it[indexActual].copy(descripcion = v)
                                         }
                                     },
-                                    label = { Text("DescripciÃ³n", fontSize = 12.sp) },
+                                    label = { Text("Descripción", fontSize = 12.sp) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = inputBg,
@@ -575,7 +575,7 @@ fun InstaladorFormScreen(
                                     (m.alto.toDoubleOrNull() ?: 0.0) * (m.ancho.toDoubleOrNull()
                                         ?: 0.0)
                                 Text(
-                                    "Ãrea: ${String.format("%.2f", area)} mÂ²",
+                                    "Área: ${String.format("%.2f", area)} m²",
                                     color = textMuted,
                                     fontSize = 13.sp
                                 )
@@ -615,7 +615,7 @@ fun InstaladorFormScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "Â¿Requiere Adecuaciones?",
+                                        "¿Requiere Adecuaciones?",
                                         color = textPrimary,
                                         fontSize = 14.sp
                                     )
@@ -726,7 +726,7 @@ fun InstaladorFormScreen(
                                     // Detectar si hay cambios en las medidas
                                     android.util.Log.d(
                                         "InstaladorForm",
-                                        "ðŸ“ Comparando medidas..."
+                                        "Comparando medidas..."
                                     )
                                     val hayRectificaciones = medidasEditables.any { editable ->
                                         val original =
@@ -734,7 +734,7 @@ fun InstaladorFormScreen(
                                         if (original == null) {
                                             android.util.Log.d(
                                                 "InstaladorForm",
-                                                "  âš ï¸ Medida nueva (sin original): ${editable.descripcion}"
+                                                "Medida nueva (sin original): ${editable.descripcion}"
                                             )
                                             true
                                         } else {
@@ -764,18 +764,18 @@ fun InstaladorFormScreen(
                                             )
                                             android.util.Log.d(
                                                 "InstaladorForm",
-                                                "     Â¿CambiÃ³?: $cambio"
+                                                "     ¿Cambios?: $cambio"
                                             )
                                             cambio
                                         }
                                     }
                                     android.util.Log.d(
                                         "InstaladorForm",
-                                        "ðŸ“ Â¿Hay rectificaciones?: $hayRectificaciones"
+                                        "¿Hay rectificaciones?: $hayRectificaciones"
                                     )
 
                                     // Actualizar instalador_datos
-                                    android.util.Log.d("InstaladorForm", "ðŸ“ Guardando datos:")
+                                    android.util.Log.d("InstaladorForm", "Guardando datos:")
                                     android.util.Log.d(
                                         "InstaladorForm",
                                         "   tipoPropiedad: '$tipoPropiedad'"
@@ -808,12 +808,12 @@ fun InstaladorFormScreen(
                                         )
                                         android.util.Log.d(
                                             "InstaladorForm",
-                                            "ðŸ“ Update instalador_datos: ${updateResult.isSuccess}"
+                                            "Update instalador_datos: ${updateResult.isSuccess}"
                                         )
                                         if (updateResult.isFailure) {
                                             android.util.Log.e(
                                                 "InstaladorForm",
-                                                "âŒ Error update: ${updateResult.exceptionOrNull()?.message}"
+                                                "Error update: ${updateResult.exceptionOrNull()?.message}"
                                             )
                                         }
                                     }
@@ -845,7 +845,7 @@ fun InstaladorFormScreen(
                                         if (medidasResult.isFailure) {
                                             android.util.Log.e(
                                                 "InstaladorForm",
-                                                "âŒ Error medidas: ${medidasResult.exceptionOrNull()?.message}"
+                                                "Error medidas: ${medidasResult.exceptionOrNull()?.message}"
                                             )
                                         }
                                     }

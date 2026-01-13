@@ -92,7 +92,7 @@ data class Ventana(
         val precio = producto.getPrecioVenta()
         return areaM2 * precio
     }
-    
+
     /**
      * Calcula subtotal para una zona geográfica específica
      */
@@ -108,7 +108,7 @@ data class Ventana(
         val precioFinal = (precioVenta - descuentoAplicado).coerceAtLeast(precioBase)
         return areaM2 * precioFinal
     }
-    
+
     /**
      * Calcula subtotal con descuento para una zona geográfica específica
      */
@@ -141,6 +141,9 @@ data class CotizacionDraft(
     // ✅ NUEVO: Zona geográfica detectada
     var zonaGeografica: ZonaGeografica = ZonaGeografica.CONTINENTAL,
 
+    // ✅ NUEVO: Tipo de propiedad
+    var tipoPropiedad: String = "",
+
     var ventanasForm: MutableList<VentanaFormState> = mutableListOf(VentanaFormState()),
     var tipoMontaje: String = "Flush Mount",
     var productosSeleccionados: MutableList<TipoProducto> = mutableListOf(TipoProducto.HS875),
@@ -161,7 +164,8 @@ data class CotizacionDraft(
         fecha = ""
         leadId = null
         esClienteActual = false
-        zonaGeografica = ZonaGeografica.CONTINENTAL  // ✅ Reset zona
+        zonaGeografica = ZonaGeografica.CONTINENTAL
+        tipoPropiedad = ""  // ✅ Reset tipo propiedad
         ventanasForm = mutableListOf(VentanaFormState())
         tipoMontaje = "Flush Mount"
         productosSeleccionados = mutableListOf(TipoProducto.HS875)
@@ -281,7 +285,7 @@ data class Cotizacion(
         val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
         return sdf.format(java.util.Date(updatedAt))
     }
-    
+
     /**
      * Obtiene el nombre de la zona para mostrar
      */

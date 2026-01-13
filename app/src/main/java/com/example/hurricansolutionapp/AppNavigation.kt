@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 
-// ANIMACIONES DE TRANSICIÃ“N
+// ANIMACIONES DE TRANSICIÃƒâ€œN
 
 
 private const val ANIMATION_DURATION = 350
@@ -128,7 +128,7 @@ fun AppNavigation(
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
-                // âœ… NUEVO: EnvÃ­os a InstalaciÃ³n
+                // Ã¢Å“â€¦ NUEVO: EnvÃƒÂ­os a InstalaciÃƒÂ³n
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -150,7 +150,7 @@ fun AppNavigation(
         }
 
 
-        // NUEVO: ENVÃOS A INSTALACIÃ“N
+        // NUEVO: ENVÃƒÂOS A INSTALACIÃƒâ€œN
 
         composable(
             route = Routes.ENVIOS_INSTALACION,
@@ -241,7 +241,7 @@ fun AppNavigation(
         }
 
 
-        // ADMIN - DETALLE DE COTIZACIÃ“N
+        // ADMIN - DETALLE DE COTIZACIÃƒâ€œN
 
         composable(
             route = Routes.ADMIN_COTIZACION_DETALLE,
@@ -291,7 +291,7 @@ fun AppNavigation(
         }
 
 
-        // CLIENTE (Paso 1 del flujo de cotizaciÃ³n)
+        // CLIENTE (Paso 1 del flujo de cotizaciÃƒÂ³n)
 
         composable(
             route = Routes.CLIENTE,
@@ -306,12 +306,30 @@ fun AppNavigation(
                 currentStep = 1,
                 totalSteps = 3,
                 onBack = { navController.popBackStack() },
-                onContinuar = { navController.navigate(Routes.MEDIDAS) }
+                onContinuar = { navController.navigate(Routes.TIPO_PROPIEDAD) }
+            )
+        }
+
+        // ✅ NUEVO: TIPO DE PROPIEDAD (Paso 2 del flujo)
+        composable(
+            route = Routes.TIPO_PROPIEDAD,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            TipoPropiedadScreen(
+                draft = cotizacionDraft,
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onTipoPropiedadSelected = { tipo ->
+                    navController.navigate(Routes.MEDIDAS)
+                }
             )
         }
 
 
-        // MEDIDAS (Paso 2 del flujo de cotizaciÃ³n)
+        // MEDIDAS (Captura de medidas)
 
         composable(
             route = Routes.MEDIDAS,
@@ -323,8 +341,6 @@ fun AppNavigation(
             MedidasScreen(
                 draft = cotizacionDraft,
                 isDarkMode = isDarkMode,
-                currentStep = 2,
-                totalSteps = 3,
                 onDraftChange = { },
                 onBack = { navController.popBackStack() },
                 onContinuarResumen = { cotizacion ->
@@ -336,7 +352,7 @@ fun AppNavigation(
         }
 
 
-        // RESUMEN (Paso 3 del flujo de cotizaciÃ³n)
+        // RESUMEN (Paso 3 del flujo de cotizaciÃƒÂ³n)
 
         composable(
             route = Routes.RESUMEN,
@@ -475,7 +491,7 @@ fun AppNavigation(
         }
 
 
-        // âœ… INSTALADOR - HOME
+        // Ã¢Å“â€¦ INSTALADOR - HOME
 
         composable(Routes.INSTALADOR_HOME) {
             InstaladorHomeScreen(
@@ -522,7 +538,7 @@ fun AppNavigation(
         }
 
 
-        // INSTALADOR - FORMULARIO DE RECTIFICACIÓN
+        // INSTALADOR - FORMULARIO DE RECTIFICACIÃ“N
 
         composable(
             route = Routes.INSTALADOR_FORM,
@@ -542,7 +558,7 @@ fun AppNavigation(
             )
         }
 
-        // âœ… INSTALADOR - RESUMEN
+        // Ã¢Å“â€¦ INSTALADOR - RESUMEN
         composable(
             route = Routes.INSTALADOR_RESUMEN,
             enterTransition = { enterTransition() },
@@ -564,7 +580,7 @@ fun AppNavigation(
         }
 
 
-        // âœ… INSTALADOR - GOOGLE DRIVE
+        // Ã¢Å“â€¦ INSTALADOR - GOOGLE DRIVE
 
         composable(
             route = Routes.INSTALADOR_DRIVE,

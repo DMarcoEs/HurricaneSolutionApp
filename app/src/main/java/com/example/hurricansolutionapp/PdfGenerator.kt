@@ -361,7 +361,7 @@ fun generarPdfCotizacion(
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     paint.textAlign = Paint.Align.CENTER
 
-    val titulo = "COTIZACIÓN DE PROYECTO"
+    val titulo = "COTIZACIN DE PROYECTO"
     val tituloY = 105f
 
     canvas.drawText(titulo, pageWidth / 2f, tituloY, paint)
@@ -571,7 +571,7 @@ fun generarPdfCotizacion(
         canvas.drawText("#${filaIndex + 1}", cellX + colNumeroW / 2f, numY, paint)
         cellX += colNumeroW
 
-        // ========== FUNCIÓN PARA DIBUJAR CELDA CON TEXTO CENTRADO VERTICAL Y HORIZONTAL ==========
+        // ========== FUNCIN PARA DIBUJAR CELDA CON TEXTO CENTRADO VERTICAL Y HORIZONTAL ==========
         fun drawCenteredTextCell(lines: List<String>, width: Float) {
             paint.style = Paint.Style.FILL
             paint.color = Color.WHITE
@@ -784,7 +784,7 @@ fun generarPdfCotizacion(
     )
 
     // ======================= CONDICIONES COMERCIALES =======================
-    // Área disponible: desde margin izquierdo hasta boxLeft, desde resumenTop hasta resumenBottom
+    // rea disponible: desde margin izquierdo hasta boxLeft, desde resumenTop hasta resumenBottom
     val condicionesLeft = margin
     val condicionesRight = boxLeft - 15f  // Espacio entre condiciones y tabla de precios
     val maxCondicionesWidth = condicionesRight - condicionesLeft
@@ -807,7 +807,7 @@ fun generarPdfCotizacion(
         "Las Medidas Contempladas En Esta Propuesta Pueden Variar Después De La Rectificación.",
         "La Instalación Se Programará Con Base En La Agenda Y Todo Proyecto Entrará A Una Fila De Instalación. Los Tiempos De Instalación Serán De Acuerdo A Las Fechas Que Se Tengan Programadas en Acapulco, En Caso De Existir Algún Espacio Disponible Antes Del Periodo Máximo, Se Le Notificará Al Cliente.",
         "Aplicará La Garantía De Acuerdo Al Sistema Contratado Y Siempre Y Cuando Cumpla Con Los Cuidados Y Recomendaciones Entregadas Al Termino De La Instalación.",
-        "Los Descuentos Concedidos En Esta Cotización Podrán Modificarse Si El Metraje Total Disminuye O Se Cancela Algún Área.",
+        "Los Descuentos Concedidos En Esta Cotización Podrán Modificarse Si El Metraje Total Disminuye O Se Cancela Algún rea.",
         "El Costo De Adecuaciones O Modificaciones Estructurales Como Instalación De PTR o Cajillos En Prefabricados NO ESTAN INCLUIDOS."
     )
 

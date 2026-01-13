@@ -186,7 +186,7 @@ fun InstaladorMedidasListScreen(
                         )
                         if (searchQuery.isBlank()) {
                             Spacer(Modifier.height(8.dp)); Text(
-                                "Las medidas aparecerÃ¡n aquÃ­\ncuando te sean asignadas",
+                                "Las medidas aparecerán aquí cuando te sean asignadas",
                                 color = textMuted.copy(alpha = 0.7f),
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center

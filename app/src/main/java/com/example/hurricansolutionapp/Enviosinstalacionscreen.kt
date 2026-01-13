@@ -113,7 +113,7 @@ fun EnviosInstalacionScreen(
                     // 2. Marcar cotizaciÃ³n como enviada (localmente)
                     EnviosInstalacionRepository.marcarComoEnviada(context, cotizacion.folio)
 
-                    Toast.makeText(context, "âœ… Enviado a instalaciÃ³n", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Enviado a instalación.", Toast.LENGTH_SHORT).show()
                     refreshKey++
                 } else {
                     Toast.makeText(
@@ -139,11 +139,11 @@ fun EnviosInstalacionScreen(
             },
             containerColor = cardBg,
             title = {
-                Text("Enviar a InstalaciÃ³n", color = textPrimary, fontWeight = FontWeight.Bold)
+                Text("Enviar a Instalación", color = textPrimary, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Â¿Enviar esta cotizaciÃ³n al instalador?", color = textPrimary)
+                    Text("¿Enviar esta cotización al instalador?", color = textPrimary)
 
                     Surface(color = inputBg, shape = RoundedCornerShape(8.dp)) {
                         Column(Modifier.padding(12.dp)) {
@@ -169,7 +169,7 @@ fun EnviosInstalacionScreen(
                     // âœ… NUEVO: Campo de fecha solicitada
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "FECHA SOLICITADA DE INSTALACIÃ“N",
+                        "FECHA SOLICITADA DE INSTALACIÓN",
                         color = textMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -376,7 +376,7 @@ fun EnviosInstalacionScreen(
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 if (searchQuery.isNotBlank()) "No se encontraron resultados"
-                                else "No hay envÃ­os pendientes",
+                                else "No hay envios pendientes",
                                 color = textMuted,
                                 fontSize = 16.sp,
                                 textAlign = TextAlign.Center
@@ -384,7 +384,7 @@ fun EnviosInstalacionScreen(
                             if (searchQuery.isBlank()) {
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "Las cotizaciones con 1 sistema\naparecerÃ¡n aquÃ­",
+                                    "Las cotizaciones con 1 sistema aparecerán aquí.",
                                     color = textMuted.copy(alpha = 0.7f),
                                     fontSize = 13.sp,
                                     textAlign = TextAlign.Center
@@ -400,7 +400,7 @@ fun EnviosInstalacionScreen(
                         ) {
                             item {
                                 Text(
-                                    "${filteredList.size} cotizaciÃ³n${if (filteredList.size != 1) "es" else ""} pendiente${if (filteredList.size != 1) "s" else ""}",
+                                    "${filteredList.size} cotización${if (filteredList.size != 1) "es" else ""} pendiente${if (filteredList.size != 1) "s" else ""}",
                                     color = textMuted,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(bottom = 4.dp)
@@ -586,7 +586,7 @@ private fun EnvioInstalacionCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Enviar a InstalaciÃ³n",
+                        "Enviar a Instalación",
                         color = if (isDarkMode) Color.Black else Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold

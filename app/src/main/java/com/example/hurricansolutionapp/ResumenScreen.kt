@@ -283,43 +283,17 @@ fun ResumenScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            Column(modifier = Modifier.background(surface)) {
-                Surface(modifier = Modifier.fillMaxWidth(), color = surface, shadowElevation = 2.dp) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                when {
-                                    desdeHistorial -> onVolverAHistorial()
-                                    guardado -> onVolverAInicio()
-                                    else -> onVolverAEditar()
-                                }
-                            },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(painter = painterResource(id = R.drawable.ic_chevron_left), contentDescription = "Atrás", tint = textPrimary)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Text("RESUMEN DE COTIZACIÓN", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = textPrimary, letterSpacing = 0.5.sp)
-                        Spacer(Modifier.weight(1f))
-                        Spacer(Modifier.size(40.dp))
+            StitchTopBar(
+                title = "Resumen de Cotización",
+                onBack = {
+                    when {
+                        desdeHistorial -> onVolverAHistorial()
+                        guardado -> onVolverAInicio()
+                        else -> onVolverAEditar()
                     }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().background(surface).padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)))
-                    Spacer(Modifier.width(6.dp))
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(if (isDarkMode) Color.White.copy(0.6f) else Color.Black.copy(0.6f)))
-                    Spacer(Modifier.width(6.dp))
-                    Box(Modifier.width(24.dp).height(6.dp).clip(RoundedCornerShape(50)).background(if (isDarkMode) Color.White else Color.Black))
-                }
-            }
+                },
+                isDarkMode = isDarkMode
+            )
         },
         bottomBar = {
             Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = surface.copy(alpha = 0.95f), shadowElevation = 8.dp) {
@@ -462,7 +436,7 @@ fun ResumenScreen(
                                 }
                             }
 
-                            // Segunda fila: BOTÓN DE GOOGLE DRIVE
+                            // Segunda fila: BOTN DE GOOGLE DRIVE
                             Button(
                                 onClick = { handleDriveUpload() },
                                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -494,7 +468,7 @@ fun ResumenScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         when {
-                                            driveUploadSuccess == true -> "✔ Subido a Google Drive"
+                                            driveUploadSuccess == true -> "âœ” Subido a Google Drive"
                                             driveUploadSuccess == false -> "Error - Reintentar"
                                             else -> "Subir a Google Drive"
                                         },
@@ -632,7 +606,7 @@ fun ResumenScreen(
 
                             HorizontalDivider(color = border.copy(0.5f))
 
-                            // CONTENIDO SEGÚN TAB SELECCIONADO
+                            // CONTENIDO SEGN TAB SELECCIONADO
                             AnimatedContent(
                                 targetState = selectedConfigTab,
                                 transitionSpec = {

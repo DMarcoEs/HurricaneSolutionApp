@@ -1,5 +1,7 @@
 package com.example.hurricansolutionapp
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -9,6 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,18 +25,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
+import java.io.File
 
-/**
- * Lista de instalaciones asignadas al instalador
- * Cards con: Folio, Cliente, Ubicación, Sistema, botones "Ver Resumen" y "PDF"
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InstaladorMedidasListScreen(
     isDarkMode: Boolean,
     onBack: () -> Unit,
-    onNavigateToForm: (String) -> Unit  // Navegar al formulario/resumen con folio
+    onNavigateToResumen: (String) -> Unit
 ) {
     BackHandler { onBack() }
 
@@ -43,8 +45,8 @@ fun InstaladorMedidasListScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var datosList by remember { mutableStateOf<List<InstaladorDatos>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
+    var generatingPdfForFolio by remember { mutableStateOf<String?>(null) }
 
-    // Colores Stitch
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
@@ -53,6 +55,79 @@ fun InstaladorMedidasListScreen(
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
 
     val userId = remember { SessionManager.getUserId(context) }
+
+    // Función para generar y mostrar PDF
+    fun generarYMostrarPdf(datos: InstaladorDatos) {
+        scope.launch {
+            generatingPdfForFolio = datos.folio
+            try {
+                // Obtener medidas
+                val medidasResult = InstaladorRepository.getMedidasByDatosId(datos.id)
+                val medidas = if (medidasResult.isSuccess) {
+                    medidasResult.getOrNull() ?: emptyList()
+                } else {
+                    emptyList()
+                }
+
+                // Crear Cotizacion dummy para el generador de PDF
+                val cotizacionDummy = Cotizacion(
+                    id = datos.cotizacionId ?: 0,
+                    folio = datos.folio,
+                    clienteNombre = datos.nombreCliente,
+                    clienteTelefono = datos.telefonoCliente ?: "",
+                    ubicacion = datos.getDireccionSegura(),
+                    ciudad = datos.getCiudadSegura(),
+                    especialista = datos.getEspecialistaNombreSeguro(),
+                    fecha = "",
+                    producto = TipoProducto.HS875, // No importa, usamos sistemaSeleccionado
+                    ventanas = medidas.map { m ->
+                        Ventana(
+                            zona = m.getZonaSegura(),
+                            descripcion = m.descripcion,
+                            alto = m.alto,
+                            ancho = m.ancho,
+                            precioM2 = 0.0,
+                            adecuacion = if (m.requiereAdecuacion) m.getAdecuacionDetalleSeguro() else "No",
+                            tipoMontaje = m.getTipoMontajeSeguro()
+                        )
+                    }
+                )
+
+                // Generar PDF
+                val pdfFile = PdfInstaladorGenerator.generarPdfOrdenInstalacion(
+                    context = context,
+                    cotizacion = cotizacionDummy,
+                    sistemaSeleccionado = datos.sistemaSeleccionado,
+                    instaladorDatos = datos,
+                    medidasRectificadas = medidas
+                )
+
+                if (pdfFile != null && pdfFile.exists()) {
+                    // Abrir PDF
+                    try {
+                        val uri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.provider",
+                            pdfFile
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/pdf")
+                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "No hay app para abrir PDFs", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Error generando PDF", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                generatingPdfForFolio = null
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         scope.launch {
@@ -84,8 +159,8 @@ fun InstaladorMedidasListScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            StitchTopBar(
-                title = "Medidas Asignadas",
+            StitchTopBarWithDivider(
+                title = "MEDIDAS ASIGNADAS",
                 onBack = onBack,
                 isDarkMode = isDarkMode
             )
@@ -104,7 +179,11 @@ fun InstaladorMedidasListScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 placeholder = {
-                    Text("Buscar por nombre o folio...", color = textMuted, fontSize = 14.sp)
+                    Text(
+                        "Buscar por nombre o folio...",
+                        color = textMuted,
+                        fontSize = 14.sp
+                    )
                 },
                 leadingIcon = {
                     Icon(
@@ -135,93 +214,93 @@ fun InstaladorMedidasListScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
-                    isLoading -> {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = textPrimary, strokeWidth = 2.dp)
-                        }
+                    isLoading -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = textPrimary, strokeWidth = 2.dp)
                     }
 
-                    error != null -> {
-                        Column(
-                            Modifier.fillMaxSize().padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Outlined.ErrorOutline,
-                                null,
-                                tint = Color(0xFFEF4444),
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(Modifier.height(16.dp))
+                    error != null -> Column(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.ErrorOutline,
+                            null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            error ?: "Error",
+                            color = textMuted,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    filteredList.isEmpty() -> Column(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Straighten,
+                            null,
+                            tint = textMuted.copy(alpha = 0.5f),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            if (searchQuery.isNotBlank()) "No se encontraron resultados"
+                            else "No hay medidas asignadas",
+                            color = textMuted,
+                            fontSize = 16.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        if (searchQuery.isBlank()) {
+                            Spacer(Modifier.height(8.dp))
                             Text(
-                                error ?: "Error",
-                                color = textMuted,
-                                fontSize = 14.sp,
+                                "Las medidas aparecerán aquí cuando te sean asignadas",
+                                color = textMuted.copy(alpha = 0.7f),
+                                fontSize = 13.sp,
                                 textAlign = TextAlign.Center
                             )
                         }
                     }
 
-                    filteredList.isEmpty() -> {
-                        Column(
-                            Modifier.fillMaxSize().padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Straighten,
-                                null,
-                                tint = textMuted.copy(alpha = 0.5f),
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Spacer(Modifier.height(16.dp))
+                    else -> LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        item {
                             Text(
-                                if (searchQuery.isNotBlank()) "No se encontraron resultados"
-                                else "No hay medidas asignadas",
+                                "${filteredList.size} instalación${if (filteredList.size != 1) "es" else ""}",
                                 color = textMuted,
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Center
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(bottom = 4.dp)
                             )
-                            if (searchQuery.isBlank()) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "Las medidas aparecerán aquí cuando te sean asignadas",
-                                    color = textMuted.copy(alpha = 0.7f),
-                                    fontSize = 13.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
                         }
-                    }
-
-                    else -> {
-                        LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                Text(
-                                    "${filteredList.size} instalación${if (filteredList.size != 1) "es" else ""}",
-                                    color = textMuted,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                            }
-                            items(filteredList, key = { it.id }) { datos ->
-                                InstaladorCard(
-                                    datos = datos,
-                                    isDarkMode = isDarkMode,
-                                    cardBg = cardBg,
-                                    textPrimary = textPrimary,
-                                    textMuted = textMuted,
-                                    border = border,
-                                    onVerResumen = { onNavigateToForm(datos.folio) },
-                                    onVerPdf = { onNavigateToForm(datos.folio) }  // Por ahora va al mismo lugar
-                                )
-                            }
-                            item { Spacer(Modifier.height(16.dp)) }
+                        items(filteredList, key = { it.id }) { datos ->
+                            InstaladorMedidaCardWithButtons(
+                                datos = datos,
+                                isDarkMode = isDarkMode,
+                                cardBg = cardBg,
+                                textPrimary = textPrimary,
+                                textMuted = textMuted,
+                                border = border,
+                                isGeneratingPdf = generatingPdfForFolio == datos.folio,
+                                onVerResumen = { onNavigateToResumen(datos.folio) },
+                                onVerPdf = { generarYMostrarPdf(datos) }
+                            )
                         }
+                        item { Spacer(Modifier.height(16.dp)) }
                     }
                 }
             }
@@ -229,54 +308,38 @@ fun InstaladorMedidasListScreen(
     }
 }
 
-/**
- * Card de instalación con diseño solicitado:
- * - Folio + Badge sistema
- * - Nombre cliente
- * - Ubicación
- * - Fecha solicitada
- * - Botones: Ver Resumen | PDF
- */
 @Composable
-private fun InstaladorCard(
+private fun InstaladorMedidaCardWithButtons(
     datos: InstaladorDatos,
     isDarkMode: Boolean,
     cardBg: Color,
     textPrimary: Color,
     textMuted: Color,
     border: Color,
+    isGeneratingPdf: Boolean,
     onVerResumen: () -> Unit,
     onVerPdf: () -> Unit
 ) {
-    // Badge de estado: Rectificadas (verde oscuro) o Pendiente (gris)
-    val isRectificada = datos.rectificadas
-    val statusColor = if (isRectificada) Color(0xFF2AA63E) else textMuted
-    val statusText = if (isRectificada) "RECTIFICADAS" else "PENDIENTE"
-
-    // Construir dirección
-    val direccion = buildString {
-        if (!datos.ciudad.isNullOrBlank()) append(datos.ciudad)
-        if (!datos.colonia.isNullOrBlank()) {
-            if (isNotBlank()) append(", ")
-            append(datos.colonia)
-        }
-        if (!datos.direccion.isNullOrBlank()) {
-            if (isNotBlank()) append(", ")
-            append(datos.direccion)
-        }
+    // Estado: Verde si rectificadas, Gris oscuro si pendiente
+    val statusColor = if (datos.rectificadas) Color(0xFF10B981) else Color(0xFF6B7280)
+    val statusText = if (datos.rectificadas) "RECTIFICADAS" else "PENDIENTE"
+    val statusBgColor = if (datos.rectificadas) {
+        Color(0xFF10B981).copy(alpha = 0.15f)
+    } else {
+        if (isDarkMode) Color(0xFF374151) else Color(0xFFE5E7EB)
     }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = cardBg,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, border.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Fila 1: Folio + Badge Sistema
+            // Header: Folio + Badge Sistema
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -288,19 +351,17 @@ private fun InstaladorCard(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-
-                // Badge del sistema (negro/blanco)
+                // Badge del sistema (negro)
                 Surface(
-                    color = if (isDarkMode) Color.White else Color.Black,
+                    color = Color.Black,
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         datos.sistemaSeleccionado.getSistemaDisplayName(),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = if (isDarkMode) Color.Black else Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -309,14 +370,25 @@ private fun InstaladorCard(
             Text(
                 datos.nombreCliente,
                 color = textPrimary,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
             // Ubicación
-            if (direccion.isNotBlank()) {
+            val ubicacion = buildString {
+                if (datos.getCiudadSegura().isNotBlank()) append(datos.getCiudadSegura())
+                if (datos.getColoniaSegura().isNotBlank()) {
+                    if (isNotBlank()) append(", ")
+                    append(datos.getColoniaSegura())
+                }
+                if (datos.getDireccionSegura().isNotBlank()) {
+                    if (isNotBlank()) append(", ")
+                    append(datos.getDireccionSegura())
+                }
+            }
+            if (ubicacion.isNotBlank()) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -328,100 +400,90 @@ private fun InstaladorCard(
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        direccion,
+                        ubicacion,
                         color = textMuted,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Fecha solicitada (si existe)
-            if (!datos.fechaSolicitada.isNullOrBlank()) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = null,
-                        tint = textMuted,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        "Fecha solicitada: ${datos.fechaSolicitada}",
-                        color = textMuted,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
             // Badge de estado
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                color = statusBgColor,
+                shape = RoundedCornerShape(4.dp)
             ) {
-                Surface(
-                    color = statusColor.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        statusText,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = statusColor,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
-                }
+                Text(
+                    statusText,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    color = statusColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
             }
 
             Spacer(Modifier.height(4.dp))
 
-            // ═══════════════════════════════════════════════════════════════
-            // BOTONES: Ver Resumen | PDF
-            // ═══════════════════════════════════════════════════════════════
+            // Botones: Ver Resumen y PDF
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Botón Ver Resumen
+                // Botón Ver Resumen (outline)
                 OutlinedButton(
                     onClick = onVerResumen,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, border),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = textPrimary
-                    ),
-                    border = BorderStroke(1.dp, border),
-                    shape = RoundedCornerShape(8.dp)
+                    )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Visibility,
+                        imageVector = Icons.Outlined.Visibility,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Ver Resumen", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Ver Resumen",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
 
-                // Botón PDF
+                // Botón PDF (filled negro)
                 Button(
                     onClick = onVerPdf,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isDarkMode) Color.White else Color.Black,
-                        contentColor = if (isDarkMode) Color.Black else Color.White
+                        containerColor = Color.Black,
+                        contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(8.dp)
+                    enabled = !isGeneratingPdf
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PictureAsPdf,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                    if (isGeneratingPdf) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.PictureAsPdf,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "PDF",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("PDF", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }

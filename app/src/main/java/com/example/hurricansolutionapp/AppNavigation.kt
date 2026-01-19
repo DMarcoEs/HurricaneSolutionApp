@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 
-// ANIMACIONES DE TRANSICIÓN
+// ANIMACIONES DE TRANSICIÃƒÆ’Ã¢â‚¬Å“N
 
 
 private const val ANIMATION_DURATION = 350
@@ -128,7 +128,7 @@ fun AppNavigation(
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
-                // OK NUEVO: Envíos a Instalación
+                // ✓ NUEVO: EnvÃƒÆ’Ã‚Â­os a InstalaciÃƒÆ’Ã‚Â³n
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -150,7 +150,7 @@ fun AppNavigation(
         }
 
 
-        // NUEVO: ENVÍOS A INSTALACIÓN
+        // NUEVO: ENVÃƒÆ’Ã‚ÂOS A INSTALACIÃƒÆ’Ã¢â‚¬Å“N
 
         composable(
             route = Routes.ENVIOS_INSTALACION,
@@ -241,7 +241,7 @@ fun AppNavigation(
         }
 
 
-        // ADMIN - DETALLE DE COTIZACIÓN
+        // ADMIN - DETALLE DE COTIZACIÃƒÆ’Ã¢â‚¬Å“N
 
         composable(
             route = Routes.ADMIN_COTIZACION_DETALLE,
@@ -291,7 +291,7 @@ fun AppNavigation(
         }
 
 
-        // CLIENTE (Paso 1 del flujo de cotización)
+        // CLIENTE (Paso 1 del flujo de cotizaciÃƒÆ’Ã‚Â³n)
 
         composable(
             route = Routes.CLIENTE,
@@ -310,7 +310,7 @@ fun AppNavigation(
             )
         }
 
-        // [OK] NUEVO: TIPO DE PROPIEDAD (Paso 2 del flujo)
+        // âœ… NUEVO: TIPO DE PROPIEDAD (Paso 2 del flujo)
         composable(
             route = Routes.TIPO_PROPIEDAD,
             enterTransition = { enterTransition() },
@@ -352,7 +352,7 @@ fun AppNavigation(
         }
 
 
-        // RESUMEN (Paso 3 del flujo de cotización)
+        // RESUMEN (Paso 3 del flujo de cotizaciÃƒÆ’Ã‚Â³n)
 
         composable(
             route = Routes.RESUMEN,
@@ -531,14 +531,14 @@ fun AppNavigation(
             InstaladorMedidasListScreen(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() },
-                onNavigateToForm = { folio ->
-                    navController.navigate(Routes.instaladorForm(folio))
+                onNavigateToResumen = { folio ->
+                    navController.navigate(Routes.instaladorResumen(folio))
                 }
             )
         }
 
 
-        // INSTALADOR - FORMULARIO DE RECTIFICACI"N
+        // INSTALADOR - FORMULARIO DE RECTIFICACIÓN
 
         composable(
             route = Routes.INSTALADOR_FORM,

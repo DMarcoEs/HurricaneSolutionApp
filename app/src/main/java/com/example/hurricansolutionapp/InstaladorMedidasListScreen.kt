@@ -61,13 +61,18 @@ fun InstaladorMedidasListScreen(
         scope.launch {
             generatingPdfForFolio = datos.folio
             try {
+                android.util.Log.d("InstaladorMedidas", "Generando PDF para: ${datos.folio}")
+
                 // Obtener medidas
                 val medidasResult = InstaladorRepository.getMedidasByDatosId(datos.id)
                 val medidas = if (medidasResult.isSuccess) {
                     medidasResult.getOrNull() ?: emptyList()
                 } else {
+                    android.util.Log.e("InstaladorMedidas", "Error obteniendo medidas: ${medidasResult.exceptionOrNull()?.message}")
                     emptyList()
                 }
+
+                android.util.Log.d("InstaladorMedidas", "Medidas encontradas: ${medidas.size}")
 
                 // Crear Cotizacion dummy para el generador de PDF
                 val cotizacionDummy = Cotizacion(
@@ -79,7 +84,7 @@ fun InstaladorMedidasListScreen(
                     ciudad = datos.getCiudadSegura(),
                     especialista = datos.getEspecialistaNombreSeguro(),
                     fecha = "",
-                    producto = TipoProducto.HS875, // No importa, usamos sistemaSeleccionado
+                    producto = TipoProducto.HS875,
                     ventanas = medidas.map { m ->
                         Ventana(
                             zona = m.getZonaSegura(),
@@ -102,6 +107,8 @@ fun InstaladorMedidasListScreen(
                     medidasRectificadas = medidas
                 )
 
+                android.util.Log.d("InstaladorMedidas", "PDF generado: ${pdfFile?.absolutePath}, existe: ${pdfFile?.exists()}")
+
                 if (pdfFile != null && pdfFile.exists()) {
                     // Abrir PDF
                     try {
@@ -110,18 +117,36 @@ fun InstaladorMedidasListScreen(
                             "${context.packageName}.provider",
                             pdfFile
                         )
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
+
+                        // Intentar abrir con ACTION_VIEW
+                        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
                             setDataAndType(uri, "application/pdf")
-                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
                         }
-                        context.startActivity(intent)
+
+                        // Verificar si hay app que pueda abrir PDFs
+                        if (viewIntent.resolveActivity(context.packageManager) != null) {
+                            context.startActivity(viewIntent)
+                        } else {
+                            // Fallback: compartir el archivo
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Abrir PDF con..."))
+                        }
+
+                        Toast.makeText(context, "✓ PDF generado", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
-                        Toast.makeText(context, "No hay app para abrir PDFs", Toast.LENGTH_SHORT).show()
+                        android.util.Log.e("InstaladorMedidas", "Error abriendo PDF: ${e.message}", e)
+                        Toast.makeText(context, "Error abriendo PDF: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 } else {
                     Toast.makeText(context, "Error generando PDF", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
+                android.util.Log.e("InstaladorMedidas", "Error general: ${e.message}", e)
                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 generatingPdfForFolio = null

@@ -73,6 +73,7 @@ fun InstaladorHomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
 
+        // TopBar corregido: Logo + Badge INSTALADOR juntos + Botón tema
         InstaladorTopBar(isDarkMode, onToggleDarkMode, surface, border, textPrimary)
 
         Spacer(Modifier.height(24.dp))
@@ -112,6 +113,7 @@ fun InstaladorHomeScreen(
         Spacer(Modifier.height(32.dp))
     }
 
+    // Diálogo de confirmación de logout
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -133,6 +135,10 @@ fun InstaladorHomeScreen(
     }
 }
 
+/**
+ * TopBar CORREGIDO: Logo + Badge INSTALADOR pegados + Botón tema a la derecha
+ * (Igual que AdminHomeScreen)
+ */
 @Composable
 private fun InstaladorTopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, surface: Color, border: Color, textPrimary: Color) {
     val rotation by animateFloatAsState(
@@ -146,26 +152,52 @@ private fun InstaladorTopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
-        Image(painter = painterResource(id = logoRes), contentDescription = "Hurricane Solution", modifier = Modifier.height(48.dp))
+        // Logo + Badge INSTALADOR juntos (igual que Admin)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Logo
+            val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
+            Image(
+                painter = painterResource(id = logoRes),
+                contentDescription = "Hurricane Solution",
+                modifier = Modifier.height(48.dp)
+            )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = if (isDarkMode) Color.White else Color.Black, shape = RoundedCornerShape(8.dp)) {
-                Text("INSTALADOR", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), color = if (isDarkMode) Color.Black else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(surface)
-                    .border(1.5.dp, border, CircleShape)
-                    .clickable { onToggleDarkMode() },
-                contentAlignment = Alignment.Center
+            // Badge INSTALADOR pegado al logo
+            Surface(
+                color = if (isDarkMode) Color.White else Color.Black,
+                shape = RoundedCornerShape(4.dp)
             ) {
-                Icon(painter = painterResource(id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon), contentDescription = null, tint = textPrimary, modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = rotation))
+                Text(
+                    "INSTALADOR",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    color = if (isDarkMode) Color.Black else Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
             }
+        }
+
+        // Botón tema a la derecha
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
+                .clip(CircleShape)
+                .background(surface)
+                .border(1.5.dp, border, CircleShape)
+                .clickable { onToggleDarkMode() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon),
+                contentDescription = null,
+                tint = textPrimary,
+                modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = rotation)
+            )
         }
     }
 }

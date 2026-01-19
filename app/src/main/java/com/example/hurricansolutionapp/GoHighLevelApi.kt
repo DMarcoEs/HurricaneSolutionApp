@@ -35,9 +35,9 @@ object GoHighLevelApi {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
     // CONTACTS (Contactos) - ESTRATEGIA PRINCIPAL
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
 
     /**
      * Obtiene todos los contactos de la ubicación
@@ -66,7 +66,7 @@ object GoHighLevelApi {
 
             if (response.status.isSuccess()) {
                 val data = response.body<GHLContactsResponse>()
-                log("✅ Contactos obtenidos: ${data.contacts.size}")
+                log("[OK] Contactos obtenidos: ${data.contacts.size}")
                 Result.success(data)
             } else {
                 val error = "Error HTTP ${response.status.value}: ${response.bodyAsText()}"
@@ -80,9 +80,9 @@ object GoHighLevelApi {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
     // OPPORTUNITIES (Oportunidades) - NO DISPONIBLE EN v1
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
 
     /**
      * NOTA: El endpoint /opportunities/ NO existe en GoHighLevel API v1
@@ -123,7 +123,7 @@ object GoHighLevelApi {
 
             if (response.status.isSuccess()) {
                 val data = response.body<GHLOpportunitiesResponse>()
-                log("✅ Oportunidades obtenidas: ${data.opportunities.size}")
+                log("[OK] Oportunidades obtenidas: ${data.opportunities.size}")
                 Result.success(data)
             } else {
                 val error = "Error HTTP ${response.status.value}: ${response.bodyAsText()}"
@@ -173,9 +173,9 @@ object GoHighLevelApi {
                 val opportunity = data.opportunities.firstOrNull()
 
                 if (opportunity != null) {
-                    log("✅ Oportunidad encontrada: ${opportunity.id} → Asignado a: ${opportunity.assignedTo ?: "Sin asignar"}")
+                    log("[OK] Oportunidad encontrada: ${opportunity.id} â†’ Asignado a: ${opportunity.assignedTo ?: "Sin asignar"}")
                 } else {
-                    log("⚠️ No hay oportunidad para contacto $contactId")
+                    log("âš ï¸ No hay oportunidad para contacto $contactId")
                 }
 
                 Result.success(opportunity)
@@ -216,7 +216,7 @@ object GoHighLevelApi {
             }
 
             if (response.status.isSuccess()) {
-                log("✅ Oportunidad actualizada correctamente")
+                log("[OK] Oportunidad actualizada correctamente")
                 Result.success(Unit)
             } else {
                 val error = "Error HTTP ${response.status.value}: ${response.bodyAsText()}"
@@ -230,9 +230,9 @@ object GoHighLevelApi {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
     // CONTACTS (Contactos)
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
 
     /**
      * Obtiene un contacto por ID
@@ -254,7 +254,7 @@ object GoHighLevelApi {
 
             if (response.status.isSuccess()) {
                 val contact = response.body<GHLContact>()
-                log("✅ Contacto obtenido: ${contact.getFullName()}")
+                log("[OK] Contacto obtenido: ${contact.getFullName()}")
                 Result.success(contact)
             } else {
                 val error = "Error HTTP ${response.status.value}: ${response.bodyAsText()}"
@@ -293,7 +293,7 @@ object GoHighLevelApi {
             }
 
             if (response.status.isSuccess()) {
-                log("✅ Contacto actualizado correctamente")
+                log("[OK] Contacto actualizado correctamente")
                 Result.success(Unit)
             } else {
                 val error = "Error HTTP ${response.status.value}: ${response.bodyAsText()}"
@@ -328,7 +328,7 @@ object GoHighLevelApi {
 
             // Si ya tiene el tag, no hacemos nada
             if (currentTags.contains(tag)) {
-                log("ℹ️ El contacto ya tiene el tag '$tag'")
+                log("â„¹ï¸ El contacto ya tiene el tag '$tag'")
                 return Result.success(Unit)
             }
 
@@ -346,9 +346,9 @@ object GoHighLevelApi {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
     // NOTES (Notas)
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
 
     /**
      * Agrega una nota a una oportunidad
@@ -375,7 +375,7 @@ object GoHighLevelApi {
             }
 
             if (response.status.isSuccess()) {
-                log("✅ Nota agregada correctamente")
+                log("[OK] Nota agregada correctamente")
                 Result.success(Unit)
             } else {
                 val error = "Error HTTP ${response.status.value}: ${response.bodyAsText()}"
@@ -389,9 +389,9 @@ object GoHighLevelApi {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
     // UTILITIES
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ===============================================================================
 
     /**
      * Cierra el cliente HTTP (llamar al cerrar la app)

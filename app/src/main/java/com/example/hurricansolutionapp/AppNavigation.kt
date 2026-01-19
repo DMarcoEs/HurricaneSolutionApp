@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 
-// ANIMACIONES DE TRANSICIÃƒâ€œN
+// ANIMACIONES DE TRANSICIÓN
 
 
 private const val ANIMATION_DURATION = 350
@@ -128,7 +128,7 @@ fun AppNavigation(
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
-                // Ã¢Å“â€¦ NUEVO: EnvÃƒÂ­os a InstalaciÃƒÂ³n
+                // OK NUEVO: Envíos a Instalación
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -150,7 +150,7 @@ fun AppNavigation(
         }
 
 
-        // NUEVO: ENVÃƒÂOS A INSTALACIÃƒâ€œN
+        // NUEVO: ENVÍOS A INSTALACIÓN
 
         composable(
             route = Routes.ENVIOS_INSTALACION,
@@ -241,7 +241,7 @@ fun AppNavigation(
         }
 
 
-        // ADMIN - DETALLE DE COTIZACIÃƒâ€œN
+        // ADMIN - DETALLE DE COTIZACIÓN
 
         composable(
             route = Routes.ADMIN_COTIZACION_DETALLE,
@@ -291,7 +291,7 @@ fun AppNavigation(
         }
 
 
-        // CLIENTE (Paso 1 del flujo de cotizaciÃƒÂ³n)
+        // CLIENTE (Paso 1 del flujo de cotización)
 
         composable(
             route = Routes.CLIENTE,
@@ -310,7 +310,7 @@ fun AppNavigation(
             )
         }
 
-        // ✅ NUEVO: TIPO DE PROPIEDAD (Paso 2 del flujo)
+        // [OK] NUEVO: TIPO DE PROPIEDAD (Paso 2 del flujo)
         composable(
             route = Routes.TIPO_PROPIEDAD,
             enterTransition = { enterTransition() },
@@ -352,7 +352,7 @@ fun AppNavigation(
         }
 
 
-        // RESUMEN (Paso 3 del flujo de cotizaciÃƒÂ³n)
+        // RESUMEN (Paso 3 del flujo de cotización)
 
         composable(
             route = Routes.RESUMEN,
@@ -491,7 +491,7 @@ fun AppNavigation(
         }
 
 
-        // Ã¢Å“â€¦ INSTALADOR - HOME
+        // ✓ INSTALADOR - HOME
 
         composable(Routes.INSTALADOR_HOME) {
             InstaladorHomeScreen(
@@ -538,7 +538,7 @@ fun AppNavigation(
         }
 
 
-        // INSTALADOR - FORMULARIO DE RECTIFICACIÃ“N
+        // INSTALADOR - FORMULARIO DE RECTIFICACI"N
 
         composable(
             route = Routes.INSTALADOR_FORM,
@@ -558,7 +558,7 @@ fun AppNavigation(
             )
         }
 
-        // Ã¢Å“â€¦ INSTALADOR - RESUMEN
+        // ✓ INSTALADOR - RESUMEN
         composable(
             route = Routes.INSTALADOR_RESUMEN,
             enterTransition = { enterTransition() },
@@ -580,7 +580,7 @@ fun AppNavigation(
         }
 
 
-        // Ã¢Å“â€¦ INSTALADOR - GOOGLE DRIVE
+        // ✓ INSTALADOR - GOOGLE DRIVE
 
         composable(
             route = Routes.INSTALADOR_DRIVE,

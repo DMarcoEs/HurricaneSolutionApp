@@ -90,7 +90,7 @@ object AutoUploadManager {
                                 val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${cotizacion.folio}.pdf"
                                 actualizarPdfPathEnSupabase(cotizacion.folio, pdfRemotePath)
 
-                                // ✅ NUEVO: Subir automáticamente a Google Drive
+                                // [OK] NUEVO: Subir automáticamente a Google Drive
                                 val userName = SessionManager.getNombre(context)
                                 val userRole = SessionManager.getRole(context)
                                 if (userName.isNotBlank() && userRole.isNotBlank()) {
@@ -107,7 +107,7 @@ object AutoUploadManager {
                                     }
                                 }
 
-                                // ✅ NUEVO: Llamar webhook de Make.com para subir a Google Drive
+                                // [OK] NUEVO: Llamar webhook de Make.com para subir a Google Drive
                                 // y actualizar GoHighLevel
                                 val leadId = obtenerLeadIdDeCotizacion(context, cotizacion)
                                 if (leadId != null) {
@@ -473,7 +473,7 @@ object AutoUploadManager {
                     val driveFileUrl = jsonResponse["drive_file_url"]?.jsonPrimitive?.content
                     val folderPath = jsonResponse["folder_path"]?.jsonPrimitive?.content
 
-                    android.util.Log.d("AutoUploadManager", "✅ PDF subido a Google Drive")
+                    android.util.Log.d("AutoUploadManager", "[OK] PDF subido a Google Drive")
                     android.util.Log.d("AutoUploadManager", "   URL: $driveFileUrl")
                     android.util.Log.d("AutoUploadManager", "   Carpeta: $folderPath")
 
@@ -487,14 +487,14 @@ object AutoUploadManager {
                     android.util.Log.w("AutoUploadManager", "No se pudo parsear respuesta JSON: ${e.message}")
                 }
             } else {
-                android.util.Log.e("AutoUploadManager", "❌ Error en webhook: HTTP $statusCode")
+                android.util.Log.e("AutoUploadManager", "âŒ Error en webhook: HTTP $statusCode")
                 android.util.Log.e("AutoUploadManager", "   Body: $responseBody")
             }
 
             client.close()
 
         } catch (e: Exception) {
-            android.util.Log.e("AutoUploadManager", "❌ Error llamando webhook: ${e.message}", e)
+            android.util.Log.e("AutoUploadManager", "âŒ Error llamando webhook: ${e.message}", e)
             e.printStackTrace()
         }
     }

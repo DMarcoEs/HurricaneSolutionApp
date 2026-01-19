@@ -27,8 +27,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Pantalla "EnvÃ­os a InstalaciÃ³n" para Especialistas y Admin
- * Muestra cotizaciones con 1 solo sistema que aÃºn no se han enviado al instalador
+ * Pantalla "Envíos a Instalación" para Especialistas y Admin
+ * Muestra cotizaciones con 1 solo sistema que aún no se han enviado al instalador
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +47,7 @@ fun EnviosInstalacionScreen(
     var refreshKey by remember { mutableIntStateOf(0) }
     var sendingFolio by remember { mutableStateOf<String?>(null) }
     var showConfirmDialog by remember { mutableStateOf<Cotizacion?>(null) }
-    var fechaSolicitada by remember { mutableStateOf("") }  // âœ… NUEVO
+    var fechaSolicitada by remember { mutableStateOf("") }  // OK NUEVO
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
@@ -61,7 +61,7 @@ fun EnviosInstalacionScreen(
     val userRole = remember { SessionManager.getRole(context) }
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
-    // Cargar cotizaciones pendientes de envÃ­o
+    // Cargar cotizaciones pendientes de envío
     LaunchedEffect(refreshKey) {
         scope.launch {
             isLoading = true
@@ -82,7 +82,7 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // Filtrar por bÃºsqueda
+    // Filtrar por búsqueda
     val filteredList = remember(cotizaciones, searchQuery) {
         if (searchQuery.isBlank()) cotizaciones
         else cotizaciones.filter { cot ->
@@ -91,7 +91,7 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // FunciÃ³n para enviar a instalaciÃ³n
+    // Función para enviar a instalación
     fun enviarAInstalacion(cotizacion: Cotizacion, fecha: String) {
         scope.launch {
             sendingFolio = cotizacion.folio
@@ -106,11 +106,11 @@ fun EnviosInstalacionScreen(
                     sistemaSeleccionado = sistemaSeleccionado,
                     especialistaId = userId,
                     especialistaNombre = userName,
-                    fechaSolicitada = fecha.ifBlank { null }  // âœ… NUEVO
+                    fechaSolicitada = fecha.ifBlank { null }  // OK NUEVO
                 )
 
                 if (result.isSuccess) {
-                    // 2. Marcar cotizaciÃ³n como enviada (localmente)
+                    // 2. Marcar cotización como enviada (localmente)
                     EnviosInstalacionRepository.marcarComoEnviada(context, cotizacion.folio)
 
                     Toast.makeText(context, "Enviado a instalación.", Toast.LENGTH_SHORT).show()
@@ -130,7 +130,7 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // DiÃ¡logo de confirmaciÃ³n con campo de fecha
+    // Diálogo de confirmación con campo de fecha
     if (showConfirmDialog != null) {
         AlertDialog(
             onDismissRequest = {
@@ -158,7 +158,7 @@ fun EnviosInstalacionScreen(
                                 fontSize = 13.sp
                             )
                             Text(
-                                "Sistema: ${showConfirmDialog!!.productos.firstOrNull()?.etiquetaCorta ?: "â€”"}",
+                                "Sistema: ${showConfirmDialog!!.productos.firstOrNull()?.etiquetaCorta ?: "-"}",
                                 color = accentGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
@@ -166,7 +166,7 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // âœ… NUEVO: Campo de fecha solicitada
+                    // OK NUEVO: Campo de fecha solicitada
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "FECHA SOLICITADA DE INSTALACIÓN",
@@ -444,12 +444,12 @@ private fun EnvioInstalacionCard(
 ) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val fecha = try {
-        cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "â€”"
+        cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "-"
     } catch (e: Exception) {
-        "â€”"
+        "-"
     }
 
-    val sistema = cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "â€”"
+    val sistema = cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "-"
     val areaTotal = cotizacion.ventanas.sumOf { it.alto * it.ancho }
     val numVentanas = cotizacion.ventanas.size
 
@@ -545,7 +545,7 @@ private fun EnvioInstalacionCard(
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        "${String.format("%.1f", areaTotal)} mÂ²",
+                        "${String.format("%.1f", areaTotal)} m²",
                         color = textMuted,
                         fontSize = 12.sp
                     )
@@ -554,7 +554,7 @@ private fun EnvioInstalacionCard(
 
             HorizontalDivider(color = border.copy(alpha = 0.3f))
 
-            // BotÃ³n enviar
+            // Botón enviar
             Button(
                 onClick = onEnviar,
                 enabled = !isSending,

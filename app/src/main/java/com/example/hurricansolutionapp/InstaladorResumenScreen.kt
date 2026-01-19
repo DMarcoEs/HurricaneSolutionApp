@@ -38,7 +38,7 @@ fun InstaladorResumenScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var instaladorDatos by remember { mutableStateOf<InstaladorDatos?>(null) }
     var medidas by remember { mutableStateOf<List<MedidaInstalador>>(emptyList()) }
-    var medidasOriginales by remember { mutableStateOf<List<MedidaInstalador>>(emptyList()) }  // âœ… NUEVO
+    var medidasOriginales by remember { mutableStateOf<List<MedidaInstalador>>(emptyList()) }  // OK NUEVO
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
@@ -155,7 +155,7 @@ fun InstaladorResumenScreen(
                     producto = TipoProducto.HS875,
                     ventanas = medidas.map { m ->
                         Ventana(
-                            zona = m.getZonaSegura(),  // âœ… NUEVO
+                            zona = m.getZonaSegura(),  // OK NUEVO
                             descripcion = m.descripcion,
                             alto = m.alto,
                             ancho = m.ancho,
@@ -177,7 +177,7 @@ fun InstaladorResumenScreen(
                 if (pdfFile != null) {
                     android.util.Log.d(
                         "InstaladorResumen",
-                        "âœ“ PDF generado: ${pdfFile.absolutePath}"
+                        "✓ PDF generado: ${pdfFile.absolutePath}"
                     )
 
                     // 3. Subir a Google Drive automaticamente si hay conexion
@@ -194,7 +194,7 @@ fun InstaladorResumenScreen(
                         if (uploadResult.isSuccess && uploadResult.getOrNull()?.success == true) {
                             Toast.makeText(
                                 context,
-                                "âœ“ Rectificacion guardada y PDF subido a Drive",
+                                "✓ Rectificacion guardada y PDF subido a Drive",
                                 Toast.LENGTH_LONG
                             ).show()
                         } else {
@@ -202,7 +202,7 @@ fun InstaladorResumenScreen(
                             enqueueForLater(pdfFile, instaladorDatos!!)
                             Toast.makeText(
                                 context,
-                                "âœ“ Guardado. PDF pendiente de subir a Drive",
+                                "✓ Guardado. PDF pendiente de subir a Drive",
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -211,14 +211,14 @@ fun InstaladorResumenScreen(
                         enqueueForLater(pdfFile, instaladorDatos!!)
                         Toast.makeText(
                             context,
-                            "âœ“ Guardado. PDF se subira cuando haya conexion",
+                            "✓ Guardado. PDF se subira cuando haya conexion",
                             Toast.LENGTH_LONG
                         ).show()
                     }
                 } else {
                     Toast.makeText(
                         context,
-                        "âœ“ Guardado (error generando PDF)",
+                        "✓ Guardado (error generando PDF)",
                         Toast.LENGTH_SHORT
                     )
                         .show()
@@ -445,7 +445,7 @@ fun InstaladorResumenScreen(
                                             )
                                             val zona = medida.getZonaSegura()
                                             if (zona.isNotBlank()) Text(
-                                                " â€¢ $zona",
+                                                " - $zona",
                                                 color = textMuted,
                                                 fontSize = 11.sp
                                             )
@@ -467,13 +467,13 @@ fun InstaladorResumenScreen(
                                                     "%.2f",
                                                     medida.alto
                                                 )
-                                            } m â€¢ ${medida.getTipoMontajeSeguro()}",
+                                            } m - ${medida.getTipoMontajeSeguro()}",
                                             color = textMuted,
                                             fontSize = 12.sp
                                         )
                                     }
                                     Text(
-                                        "${String.format("%.2f", medida.alto * medida.ancho)} mÂ²",
+                                        "${String.format("%.2f", medida.alto * medida.ancho)} m²",
                                         color = textPrimary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold

@@ -23,9 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ===========================================================================
 // COLORES PARA LOS ESTADOS
-// ═══════════════════════════════════════════════════════════════════════════
+// ===========================================================================
 
 // PENDING - Gris neutro
 private val PendingBgLight = Color(0xFFF3F4F6)
@@ -244,7 +244,7 @@ private fun PendingUploadCard(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header: Cliente • Folio + Badge
+            // Header: Cliente * Folio + Badge
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Título principal: Nombre del cliente
                 val tituloCliente = item.clienteNombre?.takeIf { it.isNotBlank() } ?: "Cliente"

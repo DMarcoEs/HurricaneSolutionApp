@@ -88,7 +88,7 @@ fun guardarCotizacionLocal(
         val ventanasArray = JSONArray()
         cotizacion.ventanas.forEach { v ->
             val vObj = JSONObject().apply {
-                put("zona", v.zona)  // ✅ NUEVO
+                put("zona", v.zona)  // [OK] NUEVO
                 put("descripcion", v.descripcion)
                 put("alto", v.alto)
                 put("ancho", v.ancho)
@@ -163,7 +163,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
         val ventanas = mutableListOf<Ventana>()
         for (j in 0 until ventanasJson.length()) {
             val vObj = ventanasJson.getJSONObject(j)
-            val zona = vObj.optString("zona", "")  // ✅ NUEVO
+            val zona = vObj.optString("zona", "")  // [OK] NUEVO
             val descripcion = vObj.optString("descripcion", "Apertura")
             val alto = vObj.optDouble("alto", 0.0)
             val ancho = vObj.optDouble("ancho", 0.0)
@@ -173,7 +173,7 @@ fun obtenerCotizacionesLocal(context: Context): List<Cotizacion> {
 
             ventanas.add(
                 Ventana(
-                    zona = zona,  // ✅ NUEVO
+                    zona = zona,  // [OK] NUEVO
                     descripcion = descripcion,
                     alto = alto,
                     ancho = ancho,

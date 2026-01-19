@@ -245,7 +245,7 @@ fun CotizacionesFormScreen(
                                         ).show(); return@Button
                                     }
                                     Ventana(
-                                        zona = v.zona.trim(),  // ✅ NUEVO
+                                        zona = v.zona.trim(),  // [OK] NUEVO
                                         descripcion = desc,
                                         alto = alto,
                                         ancho = ancho,
@@ -386,7 +386,7 @@ fun CotizacionesFormScreen(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        // ✅ NUEVO: Campo ZONA antes de descripción
+                        // [OK] NUEVO: Campo ZONA antes de descripción
                         StitchInputFieldMaterial(
                             "ZONA",
                             actual.zona,
@@ -605,9 +605,9 @@ fun CotizacionesFormScreen(
     }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ===============================================================================
 // COMPONENTES PRIVADOS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ===============================================================================
 
 @Composable
 private fun MeasurementInputField(

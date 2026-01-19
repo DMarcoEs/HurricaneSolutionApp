@@ -83,7 +83,7 @@ fun InstaladorDriveScreen(isDarkMode: Boolean, isOnline: Boolean = true, onBack:
                 if (result.isSuccess && result.getOrNull()?.success == true) {
                     val ur = result.getOrNull()!!
                     InstaladorRepository.markPendingDone(p.id, ur.fileId ?: "", ur.folderPath)
-                    Toast.makeText(context, "✅ Subido", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "[OK] Subido", Toast.LENGTH_SHORT).show()
                 } else {
                     InstaladorRepository.markPendingError(
                         p.id,
@@ -250,7 +250,7 @@ fun InstaladorDriveScreen(isDarkMode: Boolean, isOnline: Boolean = true, onBack:
                                 )
                                 val err = p.getErrorMessageSeguro()
                                 if (p.status == InstaladorUploadStatus.ERROR && err.isNotBlank()) Text(
-                                    "⚠️ $err",
+                                    "âš ï¸ $err",
                                     color = Color(0xFFEF4444),
                                     fontSize = 11.sp
                                 )

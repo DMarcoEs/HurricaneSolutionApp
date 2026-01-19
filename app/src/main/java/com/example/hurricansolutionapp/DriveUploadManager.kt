@@ -33,11 +33,11 @@ object DriveUploadManager {
         folio: String
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🚀 Intentando subida automática a Drive: ${pdfFile.name}")
+            Log.d(TAG, "ðŸš€ Intentando subida automática a Drive: ${pdfFile.name}")
 
             // Verificar autenticación
             if (!DriveAuthManager.isAuthenticated(context)) {
-                Log.w(TAG, "⚠️ No autenticado - Encolando para subida manual")
+                Log.w(TAG, "âš ï¸ No autenticado - Encolando para subida manual")
                 enqueueDriveUpload(context, pdfFile, userName, userRole, folio)
                 return@withContext false
             }
@@ -53,21 +53,21 @@ object DriveUploadManager {
             if (result.isSuccess) {
                 val uploadResult = result.getOrNull()
                 if (uploadResult?.success == true) {
-                    Log.d(TAG, "✅ Subida automática a Drive exitosa: ${pdfFile.name}")
+                    Log.d(TAG, "[OK] Subida automática a Drive exitosa: ${pdfFile.name}")
                     return@withContext true
                 } else {
-                    Log.w(TAG, "⚠️ Subida falló: ${uploadResult?.error} - Encolando")
+                    Log.w(TAG, "âš ï¸ Subida falló: ${uploadResult?.error} - Encolando")
                     enqueueDriveUpload(context, pdfFile, userName, userRole, folio, uploadResult?.error)
                     return@withContext false
                 }
             } else {
-                Log.w(TAG, "⚠️ Error en subida: ${result.exceptionOrNull()?.message} - Encolando")
+                Log.w(TAG, "âš ï¸ Error en subida: ${result.exceptionOrNull()?.message} - Encolando")
                 enqueueDriveUpload(context, pdfFile, userName, userRole, folio, result.exceptionOrNull()?.message)
                 return@withContext false
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error inesperado: ${e.message} - Encolando", e)
+            Log.e(TAG, "âŒ Error inesperado: ${e.message} - Encolando", e)
             enqueueDriveUpload(context, pdfFile, userName, userRole, folio, e.message)
             return@withContext false
         }
@@ -102,10 +102,10 @@ object DriveUploadManager {
                 )
             )
 
-            Log.d(TAG, "📋 PDF encolado para Drive: ${pdfFile.name}")
+            Log.d(TAG, "ðŸ“‹ PDF encolado para Drive: ${pdfFile.name}")
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error encolando para Drive: ${e.message}", e)
+            Log.e(TAG, "âŒ Error encolando para Drive: ${e.message}", e)
         }
     }
 
@@ -121,7 +121,7 @@ object DriveUploadManager {
         pending: DrivePendingUpload
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔄 Reintentando subida a Drive: ${pending.pdfFilename}")
+            Log.d(TAG, "ðŸ”„ Reintentando subida a Drive: ${pending.pdfFilename}")
 
             // Verificar autenticación
             if (!DriveAuthManager.isAuthenticated(context)) {
@@ -149,23 +149,23 @@ object DriveUploadManager {
             if (result.isSuccess) {
                 val uploadResult = result.getOrNull()
                 if (uploadResult?.success == true) {
-                    Log.d(TAG, "✅ Reintento exitoso: ${pending.pdfFilename}")
+                    Log.d(TAG, "[OK] Reintento exitoso: ${pending.pdfFilename}")
                     markDriveUploadAsComplete(pending.id)
                     return@withContext true
                 } else {
-                    Log.w(TAG, "⚠️ Reintento falló: ${uploadResult?.error}")
+                    Log.w(TAG, "âš ï¸ Reintento falló: ${uploadResult?.error}")
                     updateDriveUploadError(pending.id, uploadResult?.error ?: "Error desconocido")
                     return@withContext false
                 }
             } else {
                 val error = result.exceptionOrNull()?.message ?: "Error desconocido"
-                Log.w(TAG, "⚠️ Reintento falló: $error")
+                Log.w(TAG, "âš ï¸ Reintento falló: $error")
                 updateDriveUploadError(pending.id, error)
                 return@withContext false
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error en reintento: ${e.message}", e)
+            Log.e(TAG, "âŒ Error en reintento: ${e.message}", e)
             updateDriveUploadError(pending.id, e.message ?: "Error desconocido")
             return@withContext false
         }
@@ -240,7 +240,7 @@ object DriveUploadManager {
                     }
                 }
                 .decodeList<DrivePendingUpload>()
-                .filter { it.uploadedAt == null }  // ✅ Filtrar los no subidos
+                .filter { it.uploadedAt == null }  // [OK] Filtrar los no subidos
 
             // Ordenar en cliente
             result.sortedByDescending { it.createdAt }

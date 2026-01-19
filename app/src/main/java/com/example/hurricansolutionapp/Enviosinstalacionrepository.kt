@@ -36,7 +36,7 @@ object EnviosInstalacionRepository {
                 cot.productos.size == 1 && !foliosEnviados.contains(cot.folio)
             }
 
-            android.util.Log.d(TAG, "✅ ${pendientes.size} cotizaciones pendientes de envío")
+            android.util.Log.d(TAG, "[OK] ${pendientes.size} cotizaciones pendientes de envío")
             Result.success(pendientes)
 
         } catch (e: Exception) {
@@ -54,7 +54,7 @@ object EnviosInstalacionRepository {
             foliosEnviados.add(folio)
             saveFoliosEnviados(context, foliosEnviados)
 
-            android.util.Log.d(TAG, "✅ Cotización $folio marcada como enviada")
+            android.util.Log.d(TAG, "[OK] Cotización $folio marcada como enviada")
             Result.success(Unit)
 
         } catch (e: Exception) {

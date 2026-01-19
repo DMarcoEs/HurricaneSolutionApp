@@ -54,7 +54,7 @@ object UploadRepository {
                 .take(50)  // limitar longitud
         }
 
-        // Formatear nombre del cliente: "erick hernandez rios" → "Erick_Hernandez_Rios"
+        // Formatear nombre del cliente: "erick hernandez rios" â†’ "Erick_Hernandez_Rios"
         val clienteFormateado = formatName(item.clienteNombre ?: "Cliente")
 
         // Folio ya viene en formato correcto: "MC-0004"

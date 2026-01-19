@@ -25,13 +25,13 @@ object DriveAuthManager {
 
     /**
      * Obtiene el cliente de Google Sign-In configurado
-     * ✅ CORREGIDO: Removido requestServerAuthCode que causaba error 10
+     * [OK] CORREGIDO: Removido requestServerAuthCode que causaba error 10
      */
     fun getGoogleSignInClient(context: Context): GoogleSignInClient {
         val signInOptions = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestScopes(Scope(DriveScopes.DRIVE_FILE))
-            // ✅ REMOVIDO: .requestServerAuthCode() - no es necesario para Android
+            // [OK] REMOVIDO: .requestServerAuthCode() - no es necesario para Android
             .build()
 
         return GoogleSignIn.getClient(context, signInOptions)
@@ -77,11 +77,11 @@ object DriveAuthManager {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.await()
 
-            android.util.Log.d(TAG, "✅ Autenticación exitosa: ${account.email}")
+            android.util.Log.d(TAG, "[OK] Autenticación exitosa: ${account.email}")
             Result.success(account)
 
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error en autenticación: ${e.message}", e)
+            android.util.Log.e(TAG, "âŒ Error en autenticación: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -123,11 +123,11 @@ object DriveAuthManager {
             client.signOut().await()
             driveService = null
 
-            android.util.Log.d(TAG, "✅ Sesión cerrada")
+            android.util.Log.d(TAG, "[OK] Sesión cerrada")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error cerrando sesión: ${e.message}", e)
+            android.util.Log.e(TAG, "âŒ Error cerrando sesión: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -141,11 +141,11 @@ object DriveAuthManager {
             client.revokeAccess().await()
             driveService = null
 
-            android.util.Log.d(TAG, "✅ Acceso revocado")
+            android.util.Log.d(TAG, "[OK] Acceso revocado")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error revocando acceso: ${e.message}", e)
+            android.util.Log.e(TAG, "âŒ Error revocando acceso: ${e.message}", e)
             Result.failure(e)
         }
     }

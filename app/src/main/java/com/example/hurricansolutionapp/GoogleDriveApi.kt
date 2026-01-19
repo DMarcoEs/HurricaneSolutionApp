@@ -33,7 +33,7 @@ object GoogleDriveApi {
             // Primero verificar si ya existe
             val existingFolder = findFolderByName(drive, folderName, parentFolderId)
             if (existingFolder != null) {
-                Log.d(TAG, "📁 Carpeta ya existe: $folderName (${existingFolder.id})")
+                Log.d(TAG, "ðŸ“ Carpeta ya existe: $folderName (${existingFolder.id})")
                 return@withContext Result.success(existingFolder.id)
             }
 
@@ -48,11 +48,11 @@ object GoogleDriveApi {
                 .setFields("id, name")
                 .execute()
 
-            Log.d(TAG, "✅ Carpeta creada: $folderName (${folder.id})")
+            Log.d(TAG, "[OK] Carpeta creada: $folderName (${folder.id})")
             Result.success(folder.id)
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error creando carpeta '$folderName': ${e.message}", e)
+            Log.e(TAG, "âŒ Error creando carpeta '$folderName': ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -109,7 +109,7 @@ object GoogleDriveApi {
      */
     /**
      * Sube un archivo PDF local a Google Drive
-     * ✅ CORREGIDO: Usa archivo local directamente, NO descarga de Supabase
+     * [OK] CORREGIDO: Usa archivo local directamente, NO descarga de Supabase
      *
      * @param drive Servicio de Drive autenticado
      * @param localFile Archivo PDF local (ya existe en el dispositivo)
@@ -122,7 +122,7 @@ object GoogleDriveApi {
         folderId: String
     ): Result<DriveUploadResult> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "📤 Iniciando subida: ${localFile.name}")
+            Log.d(TAG, "ðŸ“¤ Iniciando subida: ${localFile.name}")
 
             // Verificar que el archivo existe
             if (!localFile.exists()) {
@@ -136,7 +136,7 @@ object GoogleDriveApi {
                 )
             }
 
-            Log.d(TAG, "📄 Archivo local: ${localFile.length()} bytes")
+            Log.d(TAG, "ðŸ“„ Archivo local: ${localFile.length()} bytes")
 
             // Crear metadata del archivo en Drive
             val fileMetadata = File().apply {
@@ -152,7 +152,7 @@ object GoogleDriveApi {
                 .setFields("id, name, webViewLink")
                 .execute()
 
-            Log.d(TAG, "✅ PDF subido a Drive: ${file.name} (${file.id})")
+            Log.d(TAG, "[OK] PDF subido a Drive: ${file.name} (${file.id})")
 
             Result.success(
                 DriveUploadResult(
@@ -165,7 +165,7 @@ object GoogleDriveApi {
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error subiendo PDF: ${e.message}", e)
+            Log.e(TAG, "âŒ Error subiendo PDF: ${e.message}", e)
             Result.success(
                 DriveUploadResult(
                     success = false,
@@ -195,11 +195,11 @@ object GoogleDriveApi {
                 .setFields("files(id, name, mimeType, webViewLink, createdTime)")
                 .execute()
 
-            Log.d(TAG, "✅ Archivos listados: ${result.files.size}")
+            Log.d(TAG, "[OK] Archivos listados: ${result.files.size}")
             Result.success(result.files)
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error listando archivos: ${e.message}", e)
+            Log.e(TAG, "âŒ Error listando archivos: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -216,11 +216,11 @@ object GoogleDriveApi {
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             drive.files().delete(fileId).execute()
-            Log.d(TAG, "✅ Archivo eliminado: $fileId")
+            Log.d(TAG, "[OK] Archivo eliminado: $fileId")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error eliminando archivo: ${e.message}", e)
+            Log.e(TAG, "âŒ Error eliminando archivo: ${e.message}", e)
             Result.failure(e)
         }
     }

@@ -242,7 +242,7 @@ fun LoginScreen(
                         )
                     ) {
                         Text(
-                            text = if (loading) "ENTRANDO..." else "INICIAR SESIN",
+                            text = if (loading) "ENTRANDO..." else "INICIAR SESIÓN",
                             style = MaterialTheme.typography.titleMedium
                         )
                     }

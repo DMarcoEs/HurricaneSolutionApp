@@ -468,7 +468,7 @@ fun ResumenScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         when {
-                                            driveUploadSuccess == true -> "âœ” Subido a Google Drive"
+                                            driveUploadSuccess == true -> "✓ Subido a Google Drive"
                                             driveUploadSuccess == false -> "Error - Reintentar"
                                             else -> "Subir a Google Drive"
                                         },

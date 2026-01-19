@@ -58,13 +58,13 @@ fun InstaladorFormScreen(
     var fechaSolicitada by remember { mutableStateOf("") }
     var observaciones by remember { mutableStateOf("") }
     var medidasEditables by remember { mutableStateOf<List<MedidaEditable>>(emptyList()) }
-    var medidasOriginales by remember { mutableStateOf<List<MedidaInstalador>>(emptyList()) }  // âœ… NUEVO: Para comparar
+    var medidasOriginales by remember { mutableStateOf<List<MedidaInstalador>>(emptyList()) }  // OK NUEVO: Para comparar
     var indexActual by remember { mutableIntStateOf(0) }
 
-    // âœ… NUEVO: Control para ediciÃ³n de fecha solicitada
+    // OK NUEVO: Control para edición de fecha solicitada
     var showFechaEditDialog by remember { mutableStateOf(false) }
     var fechaEditable by remember { mutableStateOf(false) }
-    var isSaving by remember { mutableStateOf(false) }  // âœ… NUEVO: Para guardar antes de navegar
+    var isSaving by remember { mutableStateOf(false) }  // OK NUEVO: Para guardar antes de navegar
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
@@ -84,7 +84,7 @@ fun InstaladorFormScreen(
                         val (datos, medidasList) = data
                         instaladorDatos = datos
                         medidas = medidasList
-                        // âœ… COPIA PROFUNDA: Guardar valores originales (no referencia)
+                        // OK COPIA PROFUNDA: Guardar valores originales (no referencia)
                         medidasOriginales = medidasList.map { m ->
                             MedidaInstalador(
                                 id = m.id,
@@ -147,7 +147,7 @@ fun InstaladorFormScreen(
         }
     }
 
-    // âœ… NUEVO: DiÃ¡logo de confirmaciÃ³n para editar fecha solicitada
+    // OK NUEVO: Diálogo de confirmación para editar fecha solicitada
     if (showFechaEditDialog) {
         AlertDialog(
             onDismissRequest = { showFechaEditDialog = false },
@@ -262,7 +262,7 @@ fun InstaladorFormScreen(
                     }
                     Spacer(Modifier.height(1.dp))
 
-                    // Datos instalaciÃ³n
+                    // Datos instalación
                     Surface(color = cardBg) {
                         Column(
                             Modifier.padding(20.dp),
@@ -362,7 +362,7 @@ fun InstaladorFormScreen(
                                 )
                             }
 
-                            // âœ… MODIFICADO: Fecha Solicitada con confirmaciÃ³n para editar
+                            // OK MODIFICADO: Fecha Solicitada con confirmación para editar
                             OutlinedTextField(
                                 value = fechaSolicitada,
                                 onValueChange = {
@@ -380,7 +380,7 @@ fun InstaladorFormScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable(enabled = !fechaEditable) {
-                                        // Mostrar diÃ¡logo de confirmaciÃ³n al tocar
+                                        // Mostrar diálogo de confirmación al tocar
                                         showFechaEditDialog = true
                                     },
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -481,10 +481,10 @@ fun InstaladorFormScreen(
                             if (medidasEditables.isNotEmpty() && indexActual in medidasEditables.indices) {
                                 val m = medidasEditables[indexActual]
 
-                                // âœ… Campo ZONA - Solo lectura (lo llena el especialista)
+                                // OK Campo ZONA - Solo lectura (lo llena el especialista)
                                 OutlinedTextField(
                                     value = m.zona.ifBlank { "No especificada" },
-                                    onValueChange = { },  // No permite ediciÃ³n
+                                    onValueChange = { },  // No permite edición
                                     label = {
                                         Text(
                                             "Zona (definida por especialista)",
@@ -719,7 +719,7 @@ fun InstaladorFormScreen(
                                 ).show(); return@Button
                             }
 
-                            // âœ… NUEVO: Guardar cambios antes de navegar
+                            // OK NUEVO: Guardar cambios antes de navegar
                             isSaving = true
                             scope.launch {
                                 try {
@@ -748,7 +748,7 @@ fun InstaladorFormScreen(
                                             val cambio = diffAlto > 0.001 || diffAncho > 0.001
                                             android.util.Log.d(
                                                 "InstaladorForm",
-                                                "  ðŸ“Š ${editable.descripcion}:"
+                                                "  📝 ${editable.descripcion}:"
                                             )
                                             android.util.Log.d(
                                                 "InstaladorForm",
@@ -803,7 +803,7 @@ fun InstaladorFormScreen(
                                                 requiereAndamios = requiereAndamios,
                                                 fechaSolicitada = fechaSolicitada.ifBlank { null },
                                                 observaciones = observaciones.ifBlank { null },
-                                                rectificadas = hayRectificaciones  // âœ… AutomÃ¡tico
+                                                rectificadas = hayRectificaciones  // OK Automático
                                             )
                                         )
                                         android.util.Log.d(
@@ -840,7 +840,7 @@ fun InstaladorFormScreen(
                                         )
                                         android.util.Log.d(
                                             "InstaladorForm",
-                                            "ðŸ“ Update medidas: ${medidasResult.isSuccess}"
+                                            "📝 Update medidas: ${medidasResult.isSuccess}"
                                         )
                                         if (medidasResult.isFailure) {
                                             android.util.Log.e(
@@ -850,7 +850,7 @@ fun InstaladorFormScreen(
                                         }
                                     }
 
-                                    // PequeÃ±a pausa para asegurar que BD se sincronize
+                                    // Pequeña pausa para asegurar que BD se sincronize
                                     kotlinx.coroutines.delay(300)
 
                                     onNavigateToResumen(folio)

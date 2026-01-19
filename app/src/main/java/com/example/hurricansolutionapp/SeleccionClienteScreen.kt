@@ -75,7 +75,7 @@ fun SeleccionClienteScreen(
         }
     }
 
-    // Filtrar por bÃºsqueda
+    // Filtrar por búsqueda
     LaunchedEffect(searchQuery, allLeads) {
         filteredLeads = if (searchQuery.isBlank()) {
             if (userRole == "ADMIN") allLeads else allLeads.filter { it.assignedToUserId == userId }
@@ -153,7 +153,7 @@ fun SeleccionClienteScreen(
                 }
             }
 
-            // BotÃ³n "CLIENTE NUEVO"
+            // Botón "CLIENTE NUEVO"
             Button(
                 onClick = onClienteNuevo,
                 modifier = Modifier
@@ -185,7 +185,7 @@ fun SeleccionClienteScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // TÃ­tulo "LEADS DEL CRM" centrado
+            // Título "LEADS DEL CRM" centrado
             Text(
                 text = "LEADS DEL CRM",
                 fontSize = 16.sp,
@@ -198,13 +198,13 @@ fun SeleccionClienteScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Barra de bÃºsqueda + BotÃ³n Actualizar
+            // Barra de búsqueda + Botón Actualizar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Campo de bÃºsqueda
+                // Campo de búsqueda
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -245,7 +245,7 @@ fun SeleccionClienteScreen(
                     )
                 )
 
-                // BotÃ³n Actualizar
+                // Botón Actualizar
                 Button(
                     onClick = {
                         scope.launch {
@@ -440,7 +440,7 @@ private fun StitchLeadCard(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // InformaciÃ³n del lead
+                // Información del lead
                 Column(modifier = Modifier.weight(1f)) {
                     // Nombre
                     Text(
@@ -454,7 +454,7 @@ private fun StitchLeadCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // TelÃ©fono
+                    // Teléfono
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_phone_lucide),

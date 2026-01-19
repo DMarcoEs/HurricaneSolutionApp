@@ -16,7 +16,7 @@ object FolioManager {
 
     /**
      * Genera el siguiente folio para un especialista
-     * Formato: [INICIALES][NÚMERO] → MC001, MC002, etc.
+     * Formato: [INICIALES][NÚMERO] â†’ MC001, MC002, etc.
      */
     fun nextFolioForEspecialista(context: Context, especialista: String): String {
         val prefix = getPrefix(especialista)
@@ -34,8 +34,8 @@ object FolioManager {
 
     /**
      * Obtiene el prefijo de iniciales de un nombre
-     * "Marco Canche" → "MC"
-     * "Juan Pérez García" → "JP"
+     * "Marco Canche" â†’ "MC"
+     * "Juan Pérez García" â†’ "JP"
      */
     private fun getPrefix(nombre: String): String {
         val palabras = nombre.trim().split("\\s+".toRegex())
@@ -110,7 +110,7 @@ object FolioManager {
                     val localCounter = getCounterForPrefix(context, prefix)
                     if (maxNumber > localCounter) {
                         setCounterForPrefix(context, prefix, maxNumber)
-                        android.util.Log.d("FolioManager", "Actualizado $prefix: $localCounter → $maxNumber")
+                        android.util.Log.d("FolioManager", "Actualizado $prefix: $localCounter â†’ $maxNumber")
                     }
                 }
 
@@ -118,7 +118,7 @@ object FolioManager {
                 val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
                 prefs.edit().putBoolean(KEY_SYNCED, true).apply()
 
-                android.util.Log.d("FolioManager", "✅ Sincronización completada")
+                android.util.Log.d("FolioManager", "[OK] Sincronización completada")
 
             } catch (e: Exception) {
                 android.util.Log.e("FolioManager", "Error sincronizando folios: ${e.message}", e)

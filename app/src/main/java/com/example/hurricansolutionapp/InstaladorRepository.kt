@@ -170,16 +170,37 @@ object InstaladorRepository {
                 android.util.Log.d(TAG, "📝 Cliente: ${cotizacion.clienteNombre}")
                 android.util.Log.d(TAG, "📝 Ventanas: ${cotizacion.ventanas.size}")
 
+                // Extraer datos de ubicación
+                // ubicacion viene como: "Ciudad, Colonia, Calle y Número"
+                val ubicacionPartes = cotizacion.ubicacion.split(",").map { it.trim() }
+                val ciudadExtraida = ubicacionPartes.getOrNull(0) ?: cotizacion.ciudad
+                val coloniaExtraida = ubicacionPartes.getOrNull(1) ?: ""
+                val direccionExtraida = ubicacionPartes.getOrNull(2) ?: ubicacionPartes.drop(2).joinToString(", ")
+
+                // Extraer nivel de las zonas de las ventanas
+                val zonasUnicas = cotizacion.ventanas.mapNotNull { it.zona.ifBlank { null } }.distinct()
+                val nivelCalculado = if (zonasUnicas.isNotEmpty()) {
+                    zonasUnicas.joinToString(", ")
+                } else {
+                    "Nivel 1"  // Default si no hay zonas
+                }
+
+                android.util.Log.d(TAG, "📍 Ciudad: $ciudadExtraida")
+                android.util.Log.d(TAG, "📍 Colonia: $coloniaExtraida")
+                android.util.Log.d(TAG, "📍 Dirección: $direccionExtraida")
+                android.util.Log.d(TAG, "📍 Nivel calculado: $nivelCalculado")
+
                 // 1. Crear el registro principal en instalador_datos
                 val datosInsert = InstaladorDatosInsert(
                     cotizacionId = cotizacion.id,
                     folio = cotizacion.folio,
                     nombreCliente = cotizacion.clienteNombre,
                     telefonoCliente = cotizacion.clienteTelefono,
-                    direccion = cotizacion.ubicacion,
-                    ciudad = cotizacion.ciudad,
-                    colonia = null,
+                    direccion = direccionExtraida.ifBlank { cotizacion.ubicacion },
+                    ciudad = cotizacion.ciudad.ifBlank { ciudadExtraida },
+                    colonia = coloniaExtraida.ifBlank { null },
                     sistemaSeleccionado = sistemaSeleccionado,
+                    nivel = nivelCalculado,
                     especialistaId = especialistaId,
                     especialistaNombre = especialistaNombre,
                     fechaSolicitada = fechaSolicitada  // ✅ NUEVO

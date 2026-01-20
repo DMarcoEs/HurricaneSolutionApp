@@ -447,7 +447,7 @@ fun InstaladorResumenScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("ÃREA TOTAL A VALIDAR", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                        Text("ÁREA TOTAL A VALIDAR", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                                         Spacer(Modifier.height(4.dp))
                                         Text("${String.format("%.2f", areaTotal)} mÂ²", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
                                     }

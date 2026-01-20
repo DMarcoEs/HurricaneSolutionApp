@@ -7,9 +7,9 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * Generador de PDF "Orden de Instalación" para instaladores
+ * Generador de PDF "Orden de InstalaciÃ³n" para instaladores
  *
- * NOTA: Cambios aplicados SOLO a DISEÑO/MAQUETACIÓN:
+ * NOTA: Cambios aplicados SOLO a DISEÃ‘O/MAQUETACIÃ“N:
  * - Header de tabla gris claro (formato tipo formulario)
  * - Grid completo en tabla
  * - Observaciones como footer (altura fija, siempre al fondo)
@@ -53,7 +53,7 @@ object PdfInstaladorGenerator {
             // 1) Header
             yPosition = drawHeader(context, canvas)
 
-            // 2) Título
+            // 2) TÃ­tulo
             yPosition = drawTitle(canvas, yPosition)
 
             // 3) Datos cliente
@@ -61,7 +61,7 @@ object PdfInstaladorGenerator {
 
             // 4) Reservar footer fijo para Observaciones (SIEMPRE)
             val footerTopY = PAGE_HEIGHT - MARGIN - OBS_FOOTER_TOTAL_HEIGHT
-            val tableBottomLimit = footerTopY - 10f // separación visual antes del footer
+            val tableBottomLimit = footerTopY - 10f // separaciÃ³n visual antes del footer
 
             // 5) Tabla (no debe invadir footer)
             yPosition = drawMedidasTable(
@@ -111,7 +111,7 @@ object PdfInstaladorGenerator {
         val headerTop = 0f
         val headerBottom = HEADER_HEIGHT
 
-        // Proporción 20 : 60 : 20
+        // ProporciÃ³n 20 : 60 : 20
         val leftZoneWidth = PAGE_WIDTH * 0.20f
         val centerZoneWidth = PAGE_WIDTH * 0.60f
         val rightZoneWidth = PAGE_WIDTH * 0.20f
@@ -203,7 +203,7 @@ object PdfInstaladorGenerator {
             textAlign = Paint.Align.CENTER
             letterSpacing = 0.02f
         }
-        val sloganText = "INSTALACIÓN DE PROTECCIÓN CONTRA HURACANES"
+        val sloganText = "INSTALACIÃ“N DE PROTECCIÃ“N CONTRA HURACANES"
         val sloganY = headerBottom / 2f - (sloganPaint.descent() + sloganPaint.ascent()) / 2f
         val centerTextX = (centerZoneLeft + centerZoneRight) / 2f
         canvas.drawText(sloganText, centerTextX, sloganY, sloganPaint)
@@ -223,7 +223,7 @@ object PdfInstaladorGenerator {
             textAlign = Paint.Align.CENTER
         }
         val titleY = startY + 40f
-        canvas.drawText("ORDEN DE INSTALACIÓN", PAGE_WIDTH / 2f, titleY, titlePaint)
+        canvas.drawText("ORDEN DE INSTALACIÃ“N", PAGE_WIDTH / 2f, titleY, titlePaint)
         return titleY + 25f
     }
 
@@ -277,22 +277,23 @@ object PdfInstaladorGenerator {
 
         val leftData = listOf(
             "Nombre del Cliente:" to cotizacion.clienteNombre,
-            "Dirección:" to cotizacion.ubicacion.take(35),
+            "Dirección:" to (instaladorDatos?.getDireccionSegura()?.take(35) ?: cotizacion.ubicacion.take(35)),
             "Fraccionamiento:" to (instaladorDatos?.getColoniaSegura()?.ifBlank {
                 cotizacion.ubicacion.split(",").getOrNull(1)?.trim() ?: ""
             } ?: ""),
-            "Municipio:" to cotizacion.ciudad,
+            "Municipio:" to (instaladorDatos?.getCiudadSegura()?.ifBlank { cotizacion.ciudad } ?: cotizacion.ciudad),
             "Especialista:" to cotizacion.especialista
         )
 
         val rightData = listOf(
             "Rectificadas:" to if (instaladorDatos?.rectificadas == true) "Sí" else "No",
-            "Tipo de Propiedad:" to (instaladorDatos?.getTipoPropiedadSegura()?.ifBlank { "" }
-                ?: ""),
-            "Nivel:" to (instaladorDatos?.getNivelSeguro()?.ifBlank { "" } ?: ""),
+            "Tipo de Propiedad:" to (instaladorDatos?.getTipoPropiedadSegura()?.ifBlank { "Casa" }
+                ?: "Casa"),
+            "Nivel:" to (instaladorDatos?.getNivelSeguro()?.ifBlank { "Nivel 1" } ?: "Nivel 1"),
             "Requiere Andamios:" to if (instaladorDatos?.requiereAndamios == true) "Sí" else "No",
             "Fecha Solicitada:" to (instaladorDatos?.getFechaSolicitadaSegura() ?: "")
         )
+
 
         for (i in leftData.indices) {
             val rowTop = y
@@ -562,7 +563,7 @@ object PdfInstaladorGenerator {
                             cellCenterPaint
                         )
                         canvas.drawText(
-                            if (item.requiereAdecuacion) "Sí" else "No",
+                            if (item.requiereAdecuacion) "SÃ­" else "No",
                             (cols[6] + cols[7]) / 2f,
                             textY,
                             cellCenterPaint
@@ -607,7 +608,7 @@ object PdfInstaladorGenerator {
                             cellCenterPaint
                         )
                         canvas.drawText(
-                            if (item.adecuacion != "No" && item.adecuacion.isNotBlank()) "Sí" else "No",
+                            if (item.adecuacion != "No" && item.adecuacion.isNotBlank()) "SÃ­" else "No",
                             (cols[6] + cols[7]) / 2f,
                             textY,
                             cellCenterPaint
@@ -627,7 +628,7 @@ object PdfInstaladorGenerator {
                 y = rowBottom
             }
 
-            // Separación entre grupos (zona+filas)
+            // SeparaciÃ³n entre grupos (zona+filas)
             y += 6f
         }
 

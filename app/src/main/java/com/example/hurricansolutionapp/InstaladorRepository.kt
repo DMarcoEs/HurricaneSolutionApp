@@ -198,6 +198,13 @@ object InstaladorRepository {
                 android.util.Log.d(TAG, "✅ InstaladorDatos creado con ID: ${datos.id}")
 
                 // 2. Insertar las medidas desde las ventanas de la cotización
+                android.util.Log.d(TAG, "════════════════════════════════════════")
+                android.util.Log.d(TAG, "📋 Ventanas en cotización: ${cotizacion.ventanas.size}")
+                cotizacion.ventanas.forEachIndexed { idx, v ->
+                    android.util.Log.d(TAG, "  [$idx] ${v.descripcion}: ${v.alto}x${v.ancho} m")
+                }
+                android.util.Log.d(TAG, "════════════════════════════════════════")
+
                 if (cotizacion.ventanas.isNotEmpty()) {
                     val medidasInsert = cotizacion.ventanas.mapIndexed { index, ventana ->
                         MedidaInstaladorInsert(
@@ -214,7 +221,7 @@ object InstaladorRepository {
                         )
                     }
 
-                    android.util.Log.d(TAG, "📝 Insertando ${medidasInsert.size} medidas...")
+                    android.util.Log.d(TAG, "📝 Insertando ${medidasInsert.size} medidas para datos_id: ${datos.id}")
 
                     val medidasResult = insertMedidas(medidasInsert)
                     if (medidasResult.isFailure) {
@@ -224,7 +231,7 @@ object InstaladorRepository {
                         )
                         // No fallamos, solo logueamos - el registro principal ya existe
                     } else {
-                        android.util.Log.d(TAG, "✅ ${medidasInsert.size} medidas insertadas")
+                        android.util.Log.d(TAG, "✅ ${medidasInsert.size} medidas insertadas correctamente")
                     }
                 } else {
                     android.util.Log.w(TAG, "⚠️ Cotización sin ventanas - no se insertaron medidas")

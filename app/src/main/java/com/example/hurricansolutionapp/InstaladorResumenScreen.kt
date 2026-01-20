@@ -26,9 +26,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 /**
- * Resumen de Instalación - Diseño Stitch
+ * Resumen de InstalaciÃ³n - DiseÃ±o Stitch
  * Similar al ResumenScreen del Especialista pero para el Instalador
- * Con funciones de rectificación y aprobación de medidas
+ * Con funciones de rectificaciÃ³n y aprobaciÃ³n de medidas
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,10 +49,10 @@ fun InstaladorResumenScreen(
     var instaladorDatos by remember { mutableStateOf<InstaladorDatos?>(null) }
     var medidas by remember { mutableStateOf<List<MedidaInstalador>>(emptyList()) }
 
-    // Estado de aprobación/rectificación por medida
+    // Estado de aprobaciÃ³n/rectificaciÃ³n por medida
     var medidasEstado by remember { mutableStateOf<Map<String, MedidaEstado>>(emptyMap()) }
 
-    // Diálogo de edición de medida
+    // DiÃ¡logo de ediciÃ³n de medida
     var showEditDialog by remember { mutableStateOf<MedidaInstalador?>(null) }
     var editAlto by remember { mutableStateOf("") }
     var editAncho by remember { mutableStateOf("") }
@@ -70,27 +70,46 @@ fun InstaladorResumenScreen(
     val userName = remember { SessionManager.getNombre(context) }
     val userRole = remember { SessionManager.getRole(context) }
 
-    // Cargar datos
+    // Cargar datos con logs detallados
     LaunchedEffect(folio) {
         scope.launch {
             try {
                 isLoading = true
+                android.util.Log.d("InstaladorResumen", "========================================")
+                android.util.Log.d("InstaladorResumen", "🔍 Cargando datos para folio: $folio")
+                android.util.Log.d("InstaladorResumen", "📋 User ID: $userId")
+                android.util.Log.d("InstaladorResumen", "📋 User Role: $userRole")
+
                 val result = InstaladorRepository.getDatosCompletosByFolio(folio)
                 if (result.isSuccess) {
                     val data = result.getOrNull()
                     if (data != null) {
                         instaladorDatos = data.first
                         medidas = data.second
+
+                        android.util.Log.d("InstaladorResumen", "✅ Datos encontrados:")
+                        android.util.Log.d("InstaladorResumen", "  → ID: ${data.first.id}")
+                        android.util.Log.d("InstaladorResumen", "  → Cliente: ${data.first.nombreCliente}")
+                        android.util.Log.d("InstaladorResumen", "  → Instalador ID: ${data.first.instaladorId}")
+                        android.util.Log.d("InstaladorResumen", "  → Medidas encontradas: ${medidas.size}")
+                        medidas.forEach { m ->
+                            android.util.Log.d("InstaladorResumen", "     • ${m.descripcion}: ${m.alto}x${m.ancho}")
+                        }
+
                         // Inicializar estado de medidas
                         medidasEstado = medidas.associate { it.id to MedidaEstado.PENDIENTE }
                     } else {
-                        error = "No se encontraron datos"
+                        error = "No se encontraron datos para el folio: $folio"
+                        android.util.Log.e("InstaladorResumen", "❌ No se encontraron datos")
                     }
                 } else {
                     error = result.exceptionOrNull()?.message
+                    android.util.Log.e("InstaladorResumen", "❌ Error: ${result.exceptionOrNull()?.message}")
                 }
+                android.util.Log.d("InstaladorResumen", "========================================")
             } catch (e: Exception) {
                 error = e.message
+                android.util.Log.e("InstaladorResumen", "❌ Excepción: ${e.message}", e)
             } finally {
                 isLoading = false
             }
@@ -105,7 +124,7 @@ fun InstaladorResumenScreen(
     val pendientes = medidasEstado.values.count { it == MedidaEstado.PENDIENTE }
     val todasValidadas = pendientes == 0 && medidas.isNotEmpty()
 
-    // Función para guardar y generar PDF
+    // FunciÃ³n para guardar y generar PDF
     suspend fun enqueueForLater(pdfFile: java.io.File, datos: InstaladorDatos) {
         try {
             val pending = InstaladorPendingInsert(
@@ -155,7 +174,7 @@ fun InstaladorResumenScreen(
                     }
                 }
 
-                // 3. Generar PDF de instalación
+                // 3. Generar PDF de instalaciÃ³n
                 val cotizacionDummy = Cotizacion(
                     id = instaladorDatos!!.cotizacionId ?: 0,
                     folio = instaladorDatos!!.folio,
@@ -197,17 +216,17 @@ fun InstaladorResumenScreen(
                         )
 
                         if (uploadResult.isSuccess && uploadResult.getOrNull()?.success == true) {
-                            Toast.makeText(context, "✓ Validación enviada y PDF subido", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "âœ“ ValidaciÃ³n enviada y PDF subido", Toast.LENGTH_LONG).show()
                         } else {
                             enqueueForLater(pdfFile, instaladorDatos!!)
-                            Toast.makeText(context, "✓ Validación enviada. PDF pendiente", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "âœ“ ValidaciÃ³n enviada. PDF pendiente", Toast.LENGTH_LONG).show()
                         }
                     } else {
                         enqueueForLater(pdfFile, instaladorDatos!!)
-                        Toast.makeText(context, "✓ Validación enviada. PDF se subirá después", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "âœ“ ValidaciÃ³n enviada. PDF se subirÃ¡ despuÃ©s", Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Toast.makeText(context, "✓ Validación enviada", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "âœ“ ValidaciÃ³n enviada", Toast.LENGTH_SHORT).show()
                 }
 
                 onNavigateToHome()
@@ -220,7 +239,7 @@ fun InstaladorResumenScreen(
         }
     }
 
-    // Diálogo de edición de medida
+    // DiÃ¡logo de ediciÃ³n de medida
     if (showEditDialog != null) {
         val medida = showEditDialog!!
         AlertDialog(
@@ -307,7 +326,7 @@ fun InstaladorResumenScreen(
         containerColor = bg,
         topBar = {
             StitchTopBar(
-                title = "Resumen de Instalación",
+                title = "Resumen de InstalaciÃ³n",
                 onBack = onBack,
                 isDarkMode = isDarkMode
             )
@@ -340,7 +359,7 @@ fun InstaladorResumenScreen(
                         }
                     }
 
-                    // Botón enviar
+                    // BotÃ³n enviar
                     Button(
                         onClick = { enviarValidacion() },
                         enabled = todasValidadas && !isSaving,
@@ -362,7 +381,7 @@ fun InstaladorResumenScreen(
                         } else {
                             Icon(Icons.Default.Send, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("ENVIAR VALIDACIÓN", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Text("ENVIAR VALIDACIÃ“N", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         }
                     }
                 }
@@ -422,15 +441,15 @@ fun InstaladorResumenScreen(
                             textMuted = textMuted
                         ) {
                             Column {
-                                // Área total
+                                // Ãrea total
                                 Box(
                                     modifier = Modifier.fillMaxWidth().background(if (isDarkMode) Color(0xFF1F1F1F) else Color.Black).padding(vertical = 24.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("ÁREA TOTAL A VALIDAR", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                        Text("ÃREA TOTAL A VALIDAR", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                                         Spacer(Modifier.height(4.dp))
-                                        Text("${String.format("%.2f", areaTotal)} m²", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
+                                        Text("${String.format("%.2f", areaTotal)} mÂ²", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
                                     }
                                 }
 
@@ -484,7 +503,7 @@ fun InstaladorResumenScreen(
                             Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(Icons.Outlined.Info, null, tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
                                 Text(
-                                    "Verifique todas las medidas en sitio antes de enviar. Una vez validada, la orden pasará a producción.",
+                                    "Verifique todas las medidas en sitio antes de enviar. Una vez validada, la orden pasarÃ¡ a producciÃ³n.",
                                     color = Color(0xFF92400E),
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp
@@ -500,7 +519,7 @@ fun InstaladorResumenScreen(
     }
 }
 
-// Estado de validación de medida
+// Estado de validaciÃ³n de medida
 enum class MedidaEstado { PENDIENTE, APROBADO, RECTIFICADO }
 
 @Composable
@@ -585,7 +604,7 @@ private fun MedidaItemInstalador(
             )
 
             Text(
-                "${medida.getTipoMontajeSeguro()} | ${String.format("%.2f", area)} m²",
+                "${medida.getTipoMontajeSeguro()} | ${String.format("%.2f", area)} mÂ²",
                 color = textMuted,
                 fontSize = 11.sp
             )
@@ -621,10 +640,10 @@ private fun MedidaItemInstalador(
             }
         }
 
-        // Botones de acción
+        // Botones de acciÃ³n
         if (estado == MedidaEstado.PENDIENTE) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Botón Rectificar
+                // BotÃ³n Rectificar
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Surface(
                         modifier = Modifier.size(44.dp),
@@ -640,7 +659,7 @@ private fun MedidaItemInstalador(
                     Text("Rectificar", color = textMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
 
-                // Botón Aprobar
+                // BotÃ³n Aprobar
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Surface(
                         modifier = Modifier.size(44.dp),

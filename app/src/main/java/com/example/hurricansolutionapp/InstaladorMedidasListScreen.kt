@@ -39,6 +39,7 @@ fun InstaladorMedidasListScreen(
     val scope = rememberCoroutineScope()
 
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var datosList by remember { mutableStateOf<List<InstaladorDatos>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
@@ -52,6 +53,42 @@ fun InstaladorMedidasListScreen(
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
 
     val userId = remember { SessionManager.getUserId(context) }
+    val userRole = remember { SessionManager.getRole(context) }
+
+    // Función para cargar datos con logs detallados
+    fun cargarDatos() {
+        scope.launch {
+            try {
+                if (!isLoading) isRefreshing = true
+                error = null
+
+                android.util.Log.d("InstaladorMedidas", "========================================")
+                android.util.Log.d("InstaladorMedidas", "🔍 Cargando datos para instalador")
+                android.util.Log.d("InstaladorMedidas", "📋 User ID: $userId")
+                android.util.Log.d("InstaladorMedidas", "📋 User Role: $userRole")
+
+                val result = InstaladorRepository.getDatosForInstalador(userId)
+
+                if (result.isSuccess) {
+                    datosList = result.getOrNull() ?: emptyList()
+                    android.util.Log.d("InstaladorMedidas", "✅ Registros encontrados: ${datosList.size}")
+                    datosList.forEach { datos ->
+                        android.util.Log.d("InstaladorMedidas", "  → Folio: ${datos.folio}, Cliente: ${datos.nombreCliente}, InstaladorID: ${datos.instaladorId}")
+                    }
+                } else {
+                    error = "Error al cargar: ${result.exceptionOrNull()?.message}"
+                    android.util.Log.e("InstaladorMedidas", "❌ Error: ${result.exceptionOrNull()?.message}")
+                }
+                android.util.Log.d("InstaladorMedidas", "========================================")
+            } catch (e: Exception) {
+                error = "Error: ${e.message}"
+                android.util.Log.e("InstaladorMedidas", "❌ Excepción: ${e.message}", e)
+            } finally {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
+    }
 
     // Función para generar y mostrar PDF usando verPdf() de PdfUtils
     fun generarYMostrarPdf(datos: InstaladorDatos) {
@@ -122,23 +159,9 @@ fun InstaladorMedidasListScreen(
         }
     }
 
+    // Cargar al inicio
     LaunchedEffect(Unit) {
-        scope.launch {
-            try {
-                isLoading = true
-                error = null
-                val result = InstaladorRepository.getDatosForInstalador(userId)
-                if (result.isSuccess) {
-                    datosList = result.getOrNull() ?: emptyList()
-                } else {
-                    error = "Error al cargar: ${result.exceptionOrNull()?.message}"
-                }
-            } catch (e: Exception) {
-                error = "Error: ${e.message}"
-            } finally {
-                isLoading = false
-            }
-        }
+        cargarDatos()
     }
 
     val filteredList = remember(datosList, searchQuery) {
@@ -155,7 +178,28 @@ fun InstaladorMedidasListScreen(
             StitchTopBarWithDivider(
                 title = "Medidas Asignadas",
                 onBack = onBack,
-                isDarkMode = isDarkMode
+                isDarkMode = isDarkMode,
+                actions = {
+                    // Botón de refresh
+                    IconButton(
+                        onClick = { cargarDatos() },
+                        enabled = !isRefreshing
+                    ) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = textPrimary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Recargar",
+                                tint = textPrimary
+                            )
+                        }
+                    }
+                }
             )
         }
     ) { innerPadding ->

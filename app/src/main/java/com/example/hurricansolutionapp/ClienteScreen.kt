@@ -159,7 +159,7 @@ fun ClienteScreen(
 
             // Sección: Ubicación del Proyecto
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("UBICACIN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("UBICACIÓN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
                 // Campo de Ciudad con Autocompletado LIMPIO (sin badges)
                 CiudadAutocompleteField(

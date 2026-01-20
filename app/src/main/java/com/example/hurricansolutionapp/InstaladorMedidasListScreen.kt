@@ -1,6 +1,5 @@
 package com.example.hurricansolutionapp
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
@@ -25,9 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +53,7 @@ fun InstaladorMedidasListScreen(
 
     val userId = remember { SessionManager.getUserId(context) }
 
-    // Función para generar y mostrar PDF
+    // Función para generar y mostrar PDF usando verPdf() de PdfUtils
     fun generarYMostrarPdf(datos: InstaladorDatos) {
         scope.launch {
             generatingPdfForFolio = datos.folio
@@ -110,38 +107,9 @@ fun InstaladorMedidasListScreen(
                 android.util.Log.d("InstaladorMedidas", "PDF generado: ${pdfFile?.absolutePath}, existe: ${pdfFile?.exists()}")
 
                 if (pdfFile != null && pdfFile.exists()) {
-                    // Abrir PDF
-                    try {
-                        val uri = FileProvider.getUriForFile(
-                            context,
-                            "${context.packageName}.provider",
-                            pdfFile
-                        )
-
-                        // Intentar abrir con ACTION_VIEW
-                        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(uri, "application/pdf")
-                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-
-                        // Verificar si hay app que pueda abrir PDFs
-                        if (viewIntent.resolveActivity(context.packageManager) != null) {
-                            context.startActivity(viewIntent)
-                        } else {
-                            // Fallback: compartir el archivo
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "application/pdf"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Abrir PDF con..."))
-                        }
-
-                        Toast.makeText(context, "✓ PDF generado", Toast.LENGTH_SHORT).show()
-                    } catch (e: Exception) {
-                        android.util.Log.e("InstaladorMedidas", "Error abriendo PDF: ${e.message}", e)
-                        Toast.makeText(context, "Error abriendo PDF: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
+                    // Usar verPdf() de PdfUtils que ya tiene el FileProvider correcto
+                    verPdf(context, pdfFile)
+                    Toast.makeText(context, "✓ PDF generado", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, "Error generando PDF", Toast.LENGTH_SHORT).show()
                 }
@@ -185,7 +153,7 @@ fun InstaladorMedidasListScreen(
         containerColor = bg,
         topBar = {
             StitchTopBarWithDivider(
-                title = "MEDIDAS ASIGNADAS",
+                title = "Medidas Asignadas",
                 onBack = onBack,
                 isDarkMode = isDarkMode
             )

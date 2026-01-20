@@ -1,5 +1,8 @@
 package com.example.hurricansolutionapp
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -15,13 +18,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -31,7 +37,7 @@ import java.util.*
 
 /**
  * Home Screen del Instalador - Diseño Stitch
- * Calcado EXACTAMENTE del HomeScreen del Especialista
+ * Logo GRANDE igual que Admin con función de recorte
  */
 @Composable
 fun InstaladorHomeScreen(
@@ -73,7 +79,7 @@ fun InstaladorHomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
 
-        // TopBar corregido: Logo + Badge INSTALADOR juntos + Botón tema
+        // TopBar con logo GRANDE igual que Admin
         InstaladorTopBar(isDarkMode, onToggleDarkMode, surface, border, textPrimary)
 
         Spacer(Modifier.height(24.dp))
@@ -136,8 +142,7 @@ fun InstaladorHomeScreen(
 }
 
 /**
- * TopBar CORREGIDO: Logo + Badge INSTALADOR pegados + Botón tema a la derecha
- * (Igual que AdminHomeScreen)
+ * TopBar con logo GRANDE usando función de recorte (igual que Admin)
  */
 @Composable
 private fun InstaladorTopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, surface: Color, border: Color, textPrimary: Color) {
@@ -157,13 +162,9 @@ private fun InstaladorTopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Logo
+            // Logo GRANDE con función de recorte (igual que Admin)
             val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
-            Image(
-                painter = painterResource(id = logoRes),
-                contentDescription = "Hurricane Solution",
-                modifier = Modifier.height(48.dp)
-            )
+            InstaladorCroppedLogo(resId = logoRes, height = 48.dp)
 
             // Badge INSTALADOR pegado al logo
             Surface(
@@ -181,7 +182,7 @@ private fun InstaladorTopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, 
             }
         }
 
-        // Botón tema a la derecha
+        // Botón tema circular
         Box(
             modifier = Modifier
                 .size(46.dp)
@@ -200,6 +201,56 @@ private fun InstaladorTopBar(isDarkMode: Boolean, onToggleDarkMode: () -> Unit, 
             )
         }
     }
+}
+
+/**
+ * Logo recortado - IGUAL que AdminCroppedLogo
+ * Recorta los espacios transparentes para que el logo se vea más grande
+ */
+@Composable
+private fun InstaladorCroppedLogo(@DrawableRes resId: Int, height: Dp, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val croppedBitmap = remember(resId) {
+        val bmp = BitmapFactory.decodeResource(context.resources, resId)
+            .copy(Bitmap.Config.ARGB_8888, false)
+        trimTransparentInstalador(bmp)
+    }
+
+    Image(
+        bitmap = croppedBitmap.asImageBitmap(),
+        contentDescription = "Logo",
+        modifier = modifier.height(height),
+        contentScale = ContentScale.Fit
+    )
+}
+
+/**
+ * Función para recortar espacios transparentes del logo
+ * IGUAL que trimTransparentAdmin
+ */
+private fun trimTransparentInstalador(src: Bitmap): Bitmap {
+    val w = src.width
+    val h = src.height
+    val pixels = IntArray(w * h)
+    src.getPixels(pixels, 0, w, 0, 0, w, h)
+
+    var left = w; var top = h; var right = 0; var bottom = 0
+    var found = false
+
+    for (y in 0 until h) {
+        for (x in 0 until w) {
+            if (((pixels[y * w + x] ushr 24) and 0xFF) > 10) {
+                found = true
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+    }
+
+    if (!found) return src
+    return Bitmap.createBitmap(src, left, top, (right - left + 1).coerceAtLeast(1), (bottom - top + 1).coerceAtLeast(1))
 }
 
 @Composable

@@ -170,12 +170,29 @@ object InstaladorRepository {
                 android.util.Log.d(TAG, "📝 Cliente: ${cotizacion.clienteNombre}")
                 android.util.Log.d(TAG, "📝 Ventanas: ${cotizacion.ventanas.size}")
 
-                // Extraer datos de ubicación
-                // ubicacion viene como: "Ciudad, Colonia, Calle y Número"
-                val ubicacionPartes = cotizacion.ubicacion.split(",").map { it.trim() }
-                val ciudadExtraida = ubicacionPartes.getOrNull(0) ?: cotizacion.ciudad
-                val coloniaExtraida = ubicacionPartes.getOrNull(1) ?: ""
-                val direccionExtraida = ubicacionPartes.getOrNull(2) ?: ubicacionPartes.drop(2).joinToString(", ")
+                // NOTA: ubicacion viene como: "Ciudad, Colonia, Calle" concatenados
+                // Ejemplo: "Playa del Carmen, Quintana Roo, Playacar, AV 10"
+                // cotizacion.ciudad ya tiene la ciudad completa: "Playa del Carmen, Quintana Roo"
+
+                val ubicacionOriginal = cotizacion.ubicacion
+                val ciudadCompleta = cotizacion.ciudad  // "Playa del Carmen, Quintana Roo"
+
+                // Remover la ciudad de ubicacion para obtener el resto (colonia + direccion)
+                var restoDireccion = ubicacionOriginal
+                if (ciudadCompleta.isNotBlank() && ubicacionOriginal.startsWith(ciudadCompleta)) {
+                    restoDireccion = ubicacionOriginal.removePrefix(ciudadCompleta).trimStart(',').trim()
+                }
+
+                // Ahora restoDireccion = "Playacar, AV 10"
+                val partes = restoDireccion.split(",").map { it.trim() }.filter { it.isNotBlank() }
+
+                // Primera parte es colonia, el resto es direccion
+                val coloniaExtraida = partes.getOrNull(0) ?: ""
+                val direccionExtraida = if (partes.size > 1) {
+                    partes.drop(1).joinToString(", ")
+                } else {
+                    ""
+                }
 
                 // Extraer nivel de las zonas de las ventanas
                 val zonasUnicas = cotizacion.ventanas.mapNotNull { it.zona.ifBlank { null } }.distinct()
@@ -185,9 +202,11 @@ object InstaladorRepository {
                     "Nivel 1"  // Default si no hay zonas
                 }
 
-                android.util.Log.d(TAG, "📍 Ciudad: $ciudadExtraida")
-                android.util.Log.d(TAG, "📍 Colonia: $coloniaExtraida")
-                android.util.Log.d(TAG, "📍 Dirección: $direccionExtraida")
+                android.util.Log.d(TAG, "📍 Ubicacion original: $ubicacionOriginal")
+                android.util.Log.d(TAG, "📍 Ciudad completa: $ciudadCompleta")
+                android.util.Log.d(TAG, "📍 Resto direccion: $restoDireccion")
+                android.util.Log.d(TAG, "📍 Colonia extraida: $coloniaExtraida")
+                android.util.Log.d(TAG, "📍 Direccion extraida: $direccionExtraida")
                 android.util.Log.d(TAG, "📍 Nivel calculado: $nivelCalculado")
 
                 // 1. Crear el registro principal en instalador_datos
@@ -196,14 +215,14 @@ object InstaladorRepository {
                     folio = cotizacion.folio,
                     nombreCliente = cotizacion.clienteNombre,
                     telefonoCliente = cotizacion.clienteTelefono,
-                    direccion = direccionExtraida.ifBlank { cotizacion.ubicacion },
-                    ciudad = cotizacion.ciudad.ifBlank { ciudadExtraida },
+                    direccion = direccionExtraida.ifBlank { ubicacionOriginal },
+                    ciudad = ciudadCompleta,
                     colonia = coloniaExtraida.ifBlank { null },
                     sistemaSeleccionado = sistemaSeleccionado,
                     nivel = nivelCalculado,
                     especialistaId = especialistaId,
                     especialistaNombre = especialistaNombre,
-                    fechaSolicitada = fechaSolicitada  // ✅ NUEVO
+                    fechaSolicitada = fechaSolicitada
                 )
 
                 val insertResult = insertDatos(datosInsert)

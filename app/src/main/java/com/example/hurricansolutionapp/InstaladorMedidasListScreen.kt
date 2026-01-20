@@ -95,18 +95,23 @@ fun InstaladorMedidasListScreen(
         scope.launch {
             generatingPdfForFolio = datos.folio
             try {
-                android.util.Log.d("InstaladorMedidas", "Generando PDF para: ${datos.folio}")
+                android.util.Log.d("InstaladorMedidas", "========================================")
+                android.util.Log.d("InstaladorMedidas", "📄 Generando PDF para: ${datos.folio}")
+                android.util.Log.d("InstaladorMedidas", "📄 Datos ID: ${datos.id}")
 
                 // Obtener medidas
                 val medidasResult = InstaladorRepository.getMedidasByDatosId(datos.id)
                 val medidas = if (medidasResult.isSuccess) {
                     medidasResult.getOrNull() ?: emptyList()
                 } else {
-                    android.util.Log.e("InstaladorMedidas", "Error obteniendo medidas: ${medidasResult.exceptionOrNull()?.message}")
+                    android.util.Log.e("InstaladorMedidas", "❌ Error obteniendo medidas: ${medidasResult.exceptionOrNull()?.message}")
                     emptyList()
                 }
 
-                android.util.Log.d("InstaladorMedidas", "Medidas encontradas: ${medidas.size}")
+                android.util.Log.d("InstaladorMedidas", "📋 Medidas encontradas: ${medidas.size}")
+                medidas.forEach { m ->
+                    android.util.Log.d("InstaladorMedidas", "  → ${m.descripcion}: ${m.alto}x${m.ancho}")
+                }
 
                 // Crear Cotizacion dummy para el generador de PDF
                 val cotizacionDummy = Cotizacion(

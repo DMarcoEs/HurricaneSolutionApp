@@ -14,33 +14,9 @@ object GoogleDriveRepository {
 
     private const val TAG = ApiConfig.LOG_TAG_DRIVE
 
-    /**
-     * Estructura de carpetas en Drive:
-     *
-     * Hurricane Solution/
-     * â”œâ”€â”€ Admins/
-     * â”‚   â””â”€â”€ Fernando Loria/
-     * â”‚       â””â”€â”€ 2026/
-     * â”‚           â””â”€â”€ Enero/
-     * â””â”€â”€ Especialistas/
-     *     â””â”€â”€ Marco Canche/
-     *         â””â”€â”€ 2026/
-     *             â””â”€â”€ Enero/
-     */
-
-    /**
-     * Sube un PDF a Google Drive con la estructura de carpetas adecuada
-     *
-     * @param context Contexto de Android
-     * @param pdfUrl URL del PDF en Supabase
-     * @param fileName Nombre del archivo
-     * @param userName Nombre del usuario
-     * @param userRole Rol del usuario (ADMIN o SPECIALIST)
-     * @return Resultado de la subida
-     */
     suspend fun uploadPdfToStructuredFolder(
         context: Context,
-        localPdfFile: java.io.File,  // â† CAMBIO: era pdfUrl: String y fileName: String
+        localPdfFile: java.io.File,
         userName: String,
         userRole: String
     ): Result<DriveUploadResult> {
@@ -104,12 +80,12 @@ object GoogleDriveRepository {
 
             val result = uploadResult.getOrNull()!!
 
-            Log.d(TAG, "[OK] PDF subido exitosamente: $localPdfFile.name â†’ ${folderInfo.folderPath}")
+            Log.d(TAG, "[OK] PDF subido exitosamente: $localPdfFile.name ’ ${folderInfo.folderPath}")
 
             Result.success(result.copy(folderPath = folderInfo.folderPath))
 
         } catch (e: Exception) {
-            Log.e(TAG, "âŒ Error en uploadPdfToStructuredFolder: ${e.message}", e)
+            Log.e(TAG, "Error en uploadPdfToStructuredFolder: ${e.message}", e)
             Result.success(
                 DriveUploadResult(
                     success = false,
@@ -140,7 +116,7 @@ object GoogleDriveRepository {
             // 1. Usar carpeta compartida como raíz (ya existe, no crear)
             val rootId = ApiConfig.DRIVE_SHARED_FOLDER_ID
 
-            Log.d(TAG, "ðŸ“ Usando carpeta compartida: ${ApiConfig.DRIVE_ROOT_FOLDER}")
+            Log.d(TAG, "sando carpeta compartida: ${ApiConfig.DRIVE_ROOT_FOLDER}")
 
             // 2. Carpeta de rol (Admins / Especialistas)
             val roleFolderName = when (userRole) {
@@ -220,7 +196,7 @@ object GoogleDriveRepository {
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "âŒ Error creando estructura de carpetas: ${e.message}", e)
+            Log.e(TAG, "Error creando estructura de carpetas: ${e.message}", e)
             Result.failure(e)
         }
     }

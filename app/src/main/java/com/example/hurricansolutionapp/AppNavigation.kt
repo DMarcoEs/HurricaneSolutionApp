@@ -17,9 +17,6 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 
-// ANIMACIONES DE TRANSICIÃƒÆ’Ã¢â‚¬Å“N
-
-
 private const val ANIMATION_DURATION = 350
 
 private fun enterTransition(): EnterTransition {
@@ -128,7 +125,6 @@ fun AppNavigation(
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
-                // ✓ NUEVO: EnvÃƒÆ’Ã‚Â­os a InstalaciÃƒÆ’Ã‚Â³n
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
@@ -149,8 +145,6 @@ fun AppNavigation(
             )
         }
 
-
-        // NUEVO: ENVÃƒÆ’Ã‚ÂOS A INSTALACIÃƒÆ’Ã¢â‚¬Å“N
 
         composable(
             route = Routes.ENVIOS_INSTALACION,
@@ -241,8 +235,6 @@ fun AppNavigation(
         }
 
 
-        // ADMIN - DETALLE DE COTIZACIÃƒÆ’Ã¢â‚¬Å“N
-
         composable(
             route = Routes.ADMIN_COTIZACION_DETALLE,
             enterTransition = { enterTransition() },
@@ -290,9 +282,6 @@ fun AppNavigation(
             )
         }
 
-
-        // CLIENTE (Paso 1 del flujo de cotizaciÃƒÆ’Ã‚Â³n)
-
         composable(
             route = Routes.CLIENTE,
             enterTransition = { enterTransition() },
@@ -310,7 +299,6 @@ fun AppNavigation(
             )
         }
 
-        // âœ… NUEVO: TIPO DE PROPIEDAD (Paso 2 del flujo)
         composable(
             route = Routes.TIPO_PROPIEDAD,
             enterTransition = { enterTransition() },
@@ -351,8 +339,6 @@ fun AppNavigation(
             )
         }
 
-
-        // RESUMEN (Paso 3 del flujo de cotizaciÃƒÆ’Ã‚Â³n)
 
         composable(
             route = Routes.RESUMEN,

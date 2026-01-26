@@ -23,9 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-// ===========================================================================
 // COLORES PARA LOS ESTADOS
-// ===========================================================================
 
 // PENDING - Gris neutro
 private val PendingBgLight = Color(0xFFF3F4F6)

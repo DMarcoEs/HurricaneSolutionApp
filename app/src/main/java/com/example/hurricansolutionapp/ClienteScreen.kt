@@ -82,7 +82,12 @@ fun ClienteScreen(
         if (hayCambios) showExitDialog = true else onBack()
     }
 
-    val isFormValid = nombre.isNotBlank() && telefono.isNotBlank() && ciudad.isNotBlank()
+    // Validación: TODOS los campos son obligatorios
+    val isFormValid = nombre.isNotBlank()
+            && telefono.isNotBlank()
+            && ciudad.isNotBlank()
+            && colonia.isNotBlank()
+            && direccionDetalle.isNotBlank()
 
     val surface = if (isDarkMode) Color(0xFF0A0A0A) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
@@ -132,7 +137,7 @@ fun ClienteScreen(
             modifier = Modifier.padding(inner).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Sección: Información Personal
+
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("INFORMACIÓN PERSONAL", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
@@ -152,12 +157,12 @@ fun ClienteScreen(
                     Spacer(Modifier.height(8.dp))
                 }
 
-                StitchField(label = "Nombre Completo", value = nombre, hint = "Ej. Juan Pérez", onValueChange = { nombre = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_user_lucide, readOnly = draft.esClienteActual)
-                StitchField(label = "Número de Celular", value = telefono, hint = "55 1234 5678", onValueChange = { txt -> if (txt.all { it.isDigit() }) telefono = txt }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_phone_lucide, isPhone = true, keyboardType = KeyboardType.Number, readOnly = draft.esClienteActual)
+                StitchField(label = "Nombre Completo", value = nombre, hint = "Ej. Juan Perez", onValueChange = { nombre = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_user_lucide, readOnly = draft.esClienteActual)
+                StitchField(label = "Número de Celular", value = telefono, hint = "9841234567", onValueChange = { txt -> if (txt.all { it.isDigit() }) telefono = txt }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_phone_lucide, isPhone = true, keyboardType = KeyboardType.Number, readOnly = draft.esClienteActual)
                 StitchField(label = "Fecha de Cotización", value = fechaActual, hint = "", onValueChange = { }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_calendar_lucide, readOnly = true)
             }
 
-            // Sección: Ubicación del Proyecto
+
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("UBICACIÓN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
 
@@ -180,8 +185,8 @@ fun ClienteScreen(
                     border = border
                 )
 
-                StitchField(label = "Colonia / Fraccionamiento", value = colonia, hint = "Ej. Centro", onValueChange = { colonia = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pin_lucide)
-                StitchField(label = "Calle y Número", value = direccionDetalle, hint = "Ej. Av. Constitución #2000", onValueChange = { direccionDetalle = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pinned_lucide, isTextArea = true, isLocate = true)
+                StitchField(label = "Colonia / Fraccionamiento *", value = colonia, hint = "Ej. Centro", onValueChange = { colonia = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pin_lucide)
+                StitchField(label = "Calle y Número *", value = direccionDetalle, hint = "Ej. Av. Constitución #2000", onValueChange = { direccionDetalle = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pinned_lucide, isTextArea = true, isLocate = true)
             }
 
             Spacer(Modifier.height(40.dp))
@@ -193,7 +198,7 @@ fun ClienteScreen(
             onDismissRequest = { showExitDialog = false },
             containerColor = if (isDarkMode) Color(0xFF0A0A0A) else Color.White,
             title = { Text("Salir de la cotización", color = if (isDarkMode) Color.White else Color(0xFF111418)) },
-            text = { Text("¿Qué quieres hacer con el borrador actual?", color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563)) },
+            text = { Text("¿Que quieres hacer con el borrador actual?", color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563)) },
             confirmButton = {
                 TextButton(onClick = { draft.clear(); showExitDialog = false; onBack() }) {
                     Text("Borrar y salir", color = Color(0xFFE7180B))
@@ -212,9 +217,7 @@ fun ClienteScreen(
     }
 }
 
-// ===============================================================================
 // CAMPO DE CIUDAD CON AUTOCOMPLETADO - LIMPIO SIN BADGES
-// ===============================================================================
 
 @Composable
 fun CiudadAutocompleteField(
@@ -283,9 +286,7 @@ fun CiudadAutocompleteField(
     }
 }
 
-// ===============================================================================
 // CAMPO GENRICO STITCH
-// ===============================================================================
 
 @Composable
 fun StitchField(

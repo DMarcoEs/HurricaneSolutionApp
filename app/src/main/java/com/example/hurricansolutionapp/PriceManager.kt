@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * ═══════════════════════════════════════════════════════════════════════════════
  * PRICE MANAGER - GESTOR DE PRECIOS POR ZONA
  * ═══════════════════════════════════════════════════════════════════════════════
- * 
+ *
  * Manager singleton para precios dinámicos por zona geográfica.
  * Carga los precios desde Supabase y los mantiene en memoria.
  * Soporta 3 zonas: Continental, Islas, Foránea
@@ -42,8 +42,8 @@ object PriceManager {
     // Última vez que se cargaron los precios
     private var lastLoadTime: Long = 0
 
-    // Caché reducido a 30 segundos para que los cambios se vean rápido
-    private const val CACHE_DURATION = 30 * 1000 // 30 segundos
+    // Caché reducido a 10 segundos para actualizaciones casi instantáneas
+    private const val CACHE_DURATION = 10 * 1000 // 10 segundos
 
     // ═══════════════════════════════════════════════════════════════════════════
     // FUNCIONES DE CARGA
@@ -65,7 +65,7 @@ object PriceManager {
         try {
             // Cargar precios de todas las zonas
             val precios = AdminRepository.getPreciosTodasZonas()
-            
+
             // Verificar si los precios cambiaron
             val preciosAnteriores = _preciosZonas.value
             val cambio = lastLoadTime > 0 && preciosCambiaron(preciosAnteriores, precios)
@@ -85,11 +85,11 @@ object PriceManager {
             logPreciosZona(precios.continental, "Continental")
             logPreciosZona(precios.islas, "Islas")
             logPreciosZona(precios.foranea, "Foránea")
-            
+
         } catch (e: Exception) {
             e.printStackTrace()
             android.util.Log.e("PriceManager", "Error cargando precios por zona: ${e.message}")
-            
+
             // Fallback: intentar cargar precios legacy
             try {
                 val legacyConfig = AdminRepository.getAppConfig()
@@ -109,17 +109,17 @@ object PriceManager {
 
     private fun preciosCambiaron(anterior: PreciosTodasZonas, nuevo: PreciosTodasZonas): Boolean {
         return !preciosIguales(anterior.continental, nuevo.continental) ||
-               !preciosIguales(anterior.islas, nuevo.islas) ||
-               !preciosIguales(anterior.foranea, nuevo.foranea)
+                !preciosIguales(anterior.islas, nuevo.islas) ||
+                !preciosIguales(anterior.foranea, nuevo.foranea)
     }
 
     private fun preciosIguales(a: PrecioZona, b: PrecioZona): Boolean {
         return a.hs875PrecioVenta == b.hs875PrecioVenta &&
-               a.hs1250PrecioVenta == b.hs1250PrecioVenta &&
-               a.hs1500PrecioVenta == b.hs1500PrecioVenta &&
-               a.hs875PrecioBase == b.hs875PrecioBase &&
-               a.hs1250PrecioBase == b.hs1250PrecioBase &&
-               a.hs1500PrecioBase == b.hs1500PrecioBase
+                a.hs1250PrecioVenta == b.hs1250PrecioVenta &&
+                a.hs1500PrecioVenta == b.hs1500PrecioVenta &&
+                a.hs875PrecioBase == b.hs875PrecioBase &&
+                a.hs1250PrecioBase == b.hs1250PrecioBase &&
+                a.hs1500PrecioBase == b.hs1500PrecioBase
     }
 
     /**

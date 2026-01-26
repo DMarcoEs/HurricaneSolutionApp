@@ -8,16 +8,10 @@ import kotlinx.coroutines.withContext
 private const val PREFS_FOLIO = "folio_prefs"
 private const val KEY_SYNCED = "folios_synced"
 
-/**
- * Manager para generación y sincronización de folios
- * FORMATO: MC001 (sin guion, 3 dígitos)
- */
+
 object FolioManager {
 
-    /**
-     * Genera el siguiente folio para un especialista
-     * Formato: [INICIALES][NÚMERO] â†’ MC001, MC002, etc.
-     */
+
     fun nextFolioForEspecialista(context: Context, especialista: String): String {
         val prefix = getPrefix(especialista)
         val prefs = context.getSharedPreferences(PREFS_FOLIO, Context.MODE_PRIVATE)
@@ -32,11 +26,7 @@ object FolioManager {
         return "$prefix${nextCounter.toString().padStart(3, '0')}"
     }
 
-    /**
-     * Obtiene el prefijo de iniciales de un nombre
-     * "Marco Canche" â†’ "MC"
-     * "Juan Pérez García" â†’ "JP"
-     */
+
     private fun getPrefix(nombre: String): String {
         val palabras = nombre.trim().split("\\s+".toRegex())
         return when {
@@ -110,7 +100,7 @@ object FolioManager {
                     val localCounter = getCounterForPrefix(context, prefix)
                     if (maxNumber > localCounter) {
                         setCounterForPrefix(context, prefix, maxNumber)
-                        android.util.Log.d("FolioManager", "Actualizado $prefix: $localCounter â†’ $maxNumber")
+                        android.util.Log.d("FolioManager", "Actualizado $prefix: $localCounter $maxNumber")
                     }
                 }
 

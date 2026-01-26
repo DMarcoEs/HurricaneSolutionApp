@@ -487,14 +487,14 @@ object AutoUploadManager {
                     android.util.Log.w("AutoUploadManager", "No se pudo parsear respuesta JSON: ${e.message}")
                 }
             } else {
-                android.util.Log.e("AutoUploadManager", "âŒ Error en webhook: HTTP $statusCode")
+                android.util.Log.e("AutoUploadManager", "Error en webhook: HTTP $statusCode")
                 android.util.Log.e("AutoUploadManager", "   Body: $responseBody")
             }
 
             client.close()
 
         } catch (e: Exception) {
-            android.util.Log.e("AutoUploadManager", "âŒ Error llamando webhook: ${e.message}", e)
+            android.util.Log.e("AutoUploadManager", "Error llamando webhook: ${e.message}", e)
             e.printStackTrace()
         }
     }

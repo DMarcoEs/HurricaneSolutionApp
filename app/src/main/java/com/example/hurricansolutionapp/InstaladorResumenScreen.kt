@@ -216,17 +216,17 @@ fun InstaladorResumenScreen(
                         )
 
                         if (uploadResult.isSuccess && uploadResult.getOrNull()?.success == true) {
-                            Toast.makeText(context, "âœ“ Validación enviada y PDF subido", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Validación enviada y PDF subido", Toast.LENGTH_LONG).show()
                         } else {
                             enqueueForLater(pdfFile, instaladorDatos!!)
-                            Toast.makeText(context, "âœ“ Validación enviada. PDF pendiente", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Validación enviada. PDF pendiente", Toast.LENGTH_LONG).show()
                         }
                     } else {
                         enqueueForLater(pdfFile, instaladorDatos!!)
-                        Toast.makeText(context, "âœ“ Validación enviada. PDF se subirá después", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Validación enviada. PDF se subirá después", Toast.LENGTH_LONG).show()
                     }
                 } else {
-                    Toast.makeText(context, "âœ“ Validación enviada", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Validación enviada", Toast.LENGTH_SHORT).show()
                 }
 
                 onNavigateToHome()
@@ -447,9 +447,9 @@ fun InstaladorResumenScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("ÁREA TOTAL A VALIDAR", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                                        Text("ÁREA TOTAL A VALIDAR", color = Color(0xFF9CA3AF), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                                         Spacer(Modifier.height(4.dp))
-                                        Text("${String.format("%.2f", areaTotal)} mÂ²", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
+                                        Text("${String.format("%.2f", areaTotal)} m²", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Black)
                                     }
                                 }
 
@@ -604,7 +604,7 @@ private fun MedidaItemInstalador(
             )
 
             Text(
-                "${medida.getTipoMontajeSeguro()} | ${String.format("%.2f", area)} mÂ²",
+                "${medida.getTipoMontajeSeguro()} | ${String.format("%.2f", area)} m²",
                 color = textMuted,
                 fontSize = 11.sp
             )

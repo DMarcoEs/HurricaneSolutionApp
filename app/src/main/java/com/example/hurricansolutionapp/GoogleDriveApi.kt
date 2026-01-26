@@ -33,7 +33,7 @@ object GoogleDriveApi {
             // Primero verificar si ya existe
             val existingFolder = findFolderByName(drive, folderName, parentFolderId)
             if (existingFolder != null) {
-                Log.d(TAG, "ðŸ“ Carpeta ya existe: $folderName (${existingFolder.id})")
+                Log.d(TAG, "Carpeta ya existe: $folderName (${existingFolder.id})")
                 return@withContext Result.success(existingFolder.id)
             }
 
@@ -52,7 +52,7 @@ object GoogleDriveApi {
             Result.success(folder.id)
 
         } catch (e: Exception) {
-            Log.e(TAG, "âŒ Error creando carpeta '$folderName': ${e.message}", e)
+            Log.e(TAG, "Error creando carpeta '$folderName': ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -122,7 +122,7 @@ object GoogleDriveApi {
         folderId: String
     ): Result<DriveUploadResult> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "ðŸ“¤ Iniciando subida: ${localFile.name}")
+            Log.d(TAG, "Iniciando subida: ${localFile.name}")
 
             // Verificar que el archivo existe
             if (!localFile.exists()) {
@@ -136,7 +136,7 @@ object GoogleDriveApi {
                 )
             }
 
-            Log.d(TAG, "ðŸ“„ Archivo local: ${localFile.length()} bytes")
+            Log.d(TAG, "Archivo local: ${localFile.length()} bytes")
 
             // Crear metadata del archivo en Drive
             val fileMetadata = File().apply {
@@ -165,7 +165,7 @@ object GoogleDriveApi {
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "âŒ Error subiendo PDF: ${e.message}", e)
+            Log.e(TAG, "Error subiendo PDF: ${e.message}", e)
             Result.success(
                 DriveUploadResult(
                     success = false,
@@ -199,7 +199,7 @@ object GoogleDriveApi {
             Result.success(result.files)
 
         } catch (e: Exception) {
-            Log.e(TAG, "âŒ Error listando archivos: ${e.message}", e)
+            Log.e(TAG, "Error listando archivos: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -220,7 +220,7 @@ object GoogleDriveApi {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            Log.e(TAG, "âŒ Error eliminando archivo: ${e.message}", e)
+            Log.e(TAG, "Error eliminando archivo: ${e.message}", e)
             Result.failure(e)
         }
     }

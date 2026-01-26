@@ -6,15 +6,7 @@ import android.graphics.pdf.PdfDocument
 import java.io.File
 import java.io.FileOutputStream
 
-/**
- * Generador de PDF "Orden de Instalación" para instaladores
- *
- * NOTA: Cambios aplicados SOLO a DISEÁâ€˜O/MAQUETACIÁâ€œN:
- * - Header de tabla gris claro (formato tipo formulario)
- * - Grid completo en tabla
- * - Observaciones como footer (altura fija, siempre al fondo)
- * - Zona + primera fila "pegadas": Zona sin borde inferior, primera fila sin borde superior
- */
+
 object PdfInstaladorGenerator {
     private const val TAG = "PdfInstaladorGenerator"
 
@@ -227,7 +219,7 @@ object PdfInstaladorGenerator {
             textAlign = Paint.Align.CENTER
             letterSpacing = 0.02f
         }
-        val sloganText = "INSTALACIÁâ€œN DE PROTECCIÁâ€œN CONTRA HURACANES"
+        val sloganText = "INSTALACIÓN DE PROTECCIONES CONTRA HURACANES"
         val sloganY = headerBottom / 2f - (sloganPaint.descent() + sloganPaint.ascent()) / 2f
         val centerTextX = (centerZoneLeft + centerZoneRight) / 2f
         canvas.drawText(sloganText, centerTextX, sloganY, sloganPaint)

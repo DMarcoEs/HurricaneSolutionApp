@@ -250,7 +250,7 @@ fun InstaladorDriveScreen(isDarkMode: Boolean, isOnline: Boolean = true, onBack:
                                 )
                                 val err = p.getErrorMessageSeguro()
                                 if (p.status == InstaladorUploadStatus.ERROR && err.isNotBlank()) Text(
-                                    "âš ï¸ $err",
+                                    " $err",
                                     color = Color(0xFFEF4444),
                                     fontSize = 11.sp
                                 )

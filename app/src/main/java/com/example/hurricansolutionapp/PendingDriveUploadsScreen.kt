@@ -210,7 +210,7 @@ private fun DrivePendingCard(
 
             // Ruta destino
             Text(
-                text = "ðŸ“ ${item.targetFolderPath}",
+                text = " ${item.targetFolderPath}",
                 color = textMuted.copy(alpha = 0.7f),
                 fontSize = 11.sp
             )
@@ -222,7 +222,7 @@ private fun DrivePendingCard(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "âš ï¸ $error",
+                        text = " $error",
                         color = if (isDarkMode) Color(0xFFF87171) else Color(0xFFDC2626),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(8.dp)

@@ -81,7 +81,7 @@ object DriveAuthManager {
             Result.success(account)
 
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "âŒ Error en autenticación: ${e.message}", e)
+            android.util.Log.e(TAG, "Error en autenticación: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -127,7 +127,7 @@ object DriveAuthManager {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "âŒ Error cerrando sesión: ${e.message}", e)
+            android.util.Log.e(TAG, "Error cerrando sesión: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -145,7 +145,7 @@ object DriveAuthManager {
             Result.success(Unit)
 
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "âŒ Error revocando acceso: ${e.message}", e)
+            android.util.Log.e(TAG, "Error revocando acceso: ${e.message}", e)
             Result.failure(e)
         }
     }

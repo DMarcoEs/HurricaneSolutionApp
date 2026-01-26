@@ -270,7 +270,7 @@ fun AdminCotizacionDetalleScreen(
                     if (cotizacion.pdfPath.isNullOrBlank()) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "âš ï¸ Esta cotización aún no tiene PDF",
+                            "Esta cotización aún no tiene PDF",
                             color = Color(0xFFD97706),
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -289,9 +289,7 @@ fun AdminCotizacionDetalleScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            // ===================================================================
             // HEADER: Folio + Empleado + Fecha
-            // ===================================================================
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -356,9 +354,7 @@ fun AdminCotizacionDetalleScreen(
                 }
             }
 
-            // ===================================================================
             // DATOS DEL CLIENTE (Estilo StitchCard)
-            // ===================================================================
             item {
                 AdminStitchCard(
                     title = "DATOS DEL CLIENTE",
@@ -386,9 +382,7 @@ fun AdminCotizacionDetalleScreen(
                 }
             }
 
-            // ===================================================================
             // APERTURAS (Ventanas)
-            // ===================================================================
             item {
                 AdminStitchCard(
                     title = "APERTURAS",
@@ -486,9 +480,7 @@ fun AdminCotizacionDetalleScreen(
                 }
             }
 
-            // ===================================================================
             // SISTEMAS COTIZADOS
-            // ===================================================================
             item {
                 AdminStitchCard(
                     title = "SISTEMAS COTIZADOS",
@@ -538,9 +530,7 @@ fun AdminCotizacionDetalleScreen(
     }
 }
 
-// ===============================================================================
 // COMPONENTES AUXILIARES
-// ===============================================================================
 
 private data class VentanaDetalle(
     val descripcion: String,

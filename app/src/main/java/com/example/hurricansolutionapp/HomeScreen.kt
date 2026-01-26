@@ -36,17 +36,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-// ===========================================================================
 // CONSTANTES DE COLOR - Usadas por MainActivity y otros archivos
-// ===========================================================================
 val Zinc950 = Color(0xFF09090B)
 val Zinc900 = Color(0xFF18181B)
 val Zinc800 = Color(0xFF27272A)
 val Zinc400 = Color(0xFF71717A)
 
-// ===========================================================================
-// HOME SCREEN - Diseño Stitch (igual que AdminHomeScreen)
-// ===========================================================================
 
 @Composable
 fun HomeScreen(
@@ -66,17 +61,36 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Verificar actualizacion de precios
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VERIFICACIÓN AUTOMÁTICA DE PRECIOS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // 1. Verificar al entrar/volver a la pantalla
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 scope.launch {
-                    try { PriceManager.checkForUpdates() } catch (_: Exception) { }
+                    try {
+                        PriceManager.refreshPrices() // Forzar refresh al volver
+                    } catch (_: Exception) { }
                 }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // 2. Polling cada 15 segundos mientras la pantalla está activa
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(15_000) // 15 segundos
+            try {
+                val huboActualizacion = PriceManager.checkForUpdates()
+                if (huboActualizacion) {
+                    android.util.Log.d("HomeScreen", "✅ Precios actualizados automáticamente")
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     // Colores Stitch (igual que AdminHomeScreen)
@@ -97,9 +111,6 @@ fun HomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
 
-        // ===================================================================
-        // TOP BAR - Logo + Boton tema (sin badge ADMIN)
-        // ===================================================================
         HomeTopBar(
             isDarkMode = isDarkMode,
             onToggleDarkMode = onToggleDarkMode,
@@ -108,12 +119,10 @@ fun HomeScreen(
             textPrimary = textPrimary
         )
 
-        // Banner de precios actualizados
         PreciosActualizadosBanner(isDarkMode = isDarkMode)
 
         Spacer(Modifier.height(24.dp))
 
-        // Fecha dinamica
         Text(
             text = getHomeSpanishDate(),
             color = textMuted,
@@ -121,7 +130,6 @@ fun HomeScreen(
             fontWeight = FontWeight.Medium
         )
 
-        // Bienvenida (mismo estilo que Admin)
         HomeWelcomeText(
             userName = userFirstName,
             textPrimary = textPrimary,
@@ -130,19 +138,14 @@ fun HomeScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        // ===================================================================
-        // MENU - con barra lateral (SIN SECCION ESTADISTICAS)
-        // ===================================================================
         HomeSectionTitle(title = "MENU", isDarkMode = isDarkMode, textPrimary = textPrimary)
 
         Spacer(Modifier.height(16.dp))
 
-        // Nueva Cotizacion (tarjeta grande negra)
         HomeBigActionCard(isDarkMode = isDarkMode, onClick = onNuevaCotizacion)
 
         Spacer(Modifier.height(12.dp))
 
-        // Historial de Cotizaciones
         HomeMenuCard(
             title = "Historial De Cotizaciones Generadas",
             subtitle = "Ver mi historial de cotizaciones",
@@ -158,7 +161,6 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Sincronizaciones Pendientes
         HomeMenuCard(
             title = "Sincronizaciones Pendientes",
             subtitle = "Subir Cotizaciones A La Nube",
@@ -225,7 +227,7 @@ fun HomeScreen(
             tonalElevation = 6.dp,
             title = {
                 Text(
-                    text = "Cerrar sesión",
+                    text = "Cerrar Sesión",
                     color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
@@ -233,7 +235,7 @@ fun HomeScreen(
             },
             text = {
                 Text(
-                    text = "¿Deseas cerrar sesión?\nTendrás que volver a iniciar sesión.",
+                    text = "¿Deseas cerrar sesión?\nTendras que volver a iniciar sesión.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
@@ -245,7 +247,7 @@ fun HomeScreen(
                         onCerrarSesion()
                     }
                 ) {
-                    Text("Sí, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
+                    Text("Si, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -257,9 +259,7 @@ fun HomeScreen(
     }
 }
 
-// ===========================================================================
 // COMPONENTES PRIVADOS
-// ===========================================================================
 
 @Composable
 private fun HomeTopBar(
@@ -546,7 +546,7 @@ private fun trimTransparentHome(src: Bitmap): Bitmap {
 }
 
 private fun getHomeSpanishDate(): String {
-    val dias = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
+    val dias = listOf("Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sábado")
     val meses = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
     val cal = java.util.Calendar.getInstance()
     return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"

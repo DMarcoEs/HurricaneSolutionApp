@@ -21,9 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// ===============================================================================
 // COLORES GLOBALES STITCH - Usados en toda la app para consistencia
-// ===============================================================================
 object StitchColors {
     // Fondos
     fun background(isDark: Boolean) = if (isDark) Color(0xFF000000) else Color(0xFFF3F4F6)
@@ -39,9 +37,7 @@ object StitchColors {
     fun border(isDark: Boolean) = if (isDark) Color(0xFF27272A) else Color(0xFFE5E7EB)
     fun borderLight(isDark: Boolean) = if (isDark) Color(0xFF27272A) else Color(0xFFF3F4F6)
 
-    // ===========================================================================
     // COLORES ESTANDARIZADOS - Verde #2AA63E y Rojo #C11007
-    // ===========================================================================
 
     // Verde estandarizado: #2AA63E
     val greenStandard = Color(0xFF2AA63E)

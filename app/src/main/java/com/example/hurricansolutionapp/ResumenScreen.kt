@@ -403,7 +403,7 @@ fun ResumenScreen(
                             }
                         }
                     } else {
-                        // Botones cuando ya estÃ¡ guardado
+
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
                             // Primera fila: Enviar, PDF, Editar
@@ -482,7 +482,7 @@ fun ResumenScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         when {
-                                            driveUploadSuccess == true -> "âœ“ Subido a Google Drive"
+                                            driveUploadSuccess == true -> "Subido a Google Drive"
                                             driveUploadSuccess == false -> "Error - Reintentar"
                                             else -> "Subir a Google Drive"
                                         },
@@ -646,9 +646,7 @@ fun ResumenScreen(
                                         }
                                     }
                                     1 -> {
-                                        // TAB: DESCUENTOS
                                         Column(modifier = Modifier.padding(16.dp)) {
-                                            // Toggle SÃ­/No
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,

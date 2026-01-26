@@ -35,9 +35,7 @@ object GoHighLevelApi {
         }
     }
 
-    // ===============================================================================
     // CONTACTS (Contactos) - ESTRATEGIA PRINCIPAL
-    // ===============================================================================
 
     /**
      * Obtiene todos los contactos de la ubicación
@@ -80,9 +78,7 @@ object GoHighLevelApi {
         }
     }
 
-    // ===============================================================================
     // OPPORTUNITIES (Oportunidades) - NO DISPONIBLE EN v1
-    // ===============================================================================
 
     /**
      * NOTA: El endpoint /opportunities/ NO existe en GoHighLevel API v1
@@ -173,9 +169,9 @@ object GoHighLevelApi {
                 val opportunity = data.opportunities.firstOrNull()
 
                 if (opportunity != null) {
-                    log("[OK] Oportunidad encontrada: ${opportunity.id} â†’ Asignado a: ${opportunity.assignedTo ?: "Sin asignar"}")
+                    log("[OK] Oportunidad encontrada: ${opportunity.id} Asignado a: ${opportunity.assignedTo ?: "Sin asignar"}")
                 } else {
-                    log("âš ï¸ No hay oportunidad para contacto $contactId")
+                    log("No hay oportunidad para contacto $contactId")
                 }
 
                 Result.success(opportunity)
@@ -230,9 +226,7 @@ object GoHighLevelApi {
         }
     }
 
-    // ===============================================================================
     // CONTACTS (Contactos)
-    // ===============================================================================
 
     /**
      * Obtiene un contacto por ID
@@ -328,7 +322,7 @@ object GoHighLevelApi {
 
             // Si ya tiene el tag, no hacemos nada
             if (currentTags.contains(tag)) {
-                log("â„¹ï¸ El contacto ya tiene el tag '$tag'")
+                log("El contacto ya tiene el tag '$tag'")
                 return Result.success(Unit)
             }
 
@@ -346,9 +340,7 @@ object GoHighLevelApi {
         }
     }
 
-    // ===============================================================================
     // NOTES (Notas)
-    // ===============================================================================
 
     /**
      * Agrega una nota a una oportunidad
@@ -389,9 +381,7 @@ object GoHighLevelApi {
         }
     }
 
-    // ===============================================================================
     // UTILITIES
-    // ===============================================================================
 
     /**
      * Cierra el cliente HTTP (llamar al cerrar la app)

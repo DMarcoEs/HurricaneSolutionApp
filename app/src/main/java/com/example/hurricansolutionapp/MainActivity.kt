@@ -30,12 +30,18 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = if (initialDarkMode) {
                 SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
             } else {
-                SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                SystemBarStyle.light(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT
+                )
             },
             navigationBarStyle = if (initialDarkMode) {
                 SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
             } else {
-                SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                SystemBarStyle.light(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT
+                )
             }
         )
 
@@ -51,18 +57,29 @@ class MainActivity : ComponentActivity() {
 
             var online by remember { mutableStateOf(isOnline(context)) }
 
+            // ✅ NUEVO: Validar cuenta de Drive al iniciar
+            LaunchedEffect(Unit) {
+                validarCuentaDriveAlInicio(context)
+            }
+
             // Actualizar colores de barra cuando cambia el tema
             LaunchedEffect(isDarkMode) {
                 enableEdgeToEdge(
                     statusBarStyle = if (isDarkMode) {
                         SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
                     } else {
-                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
                     },
                     navigationBarStyle = if (isDarkMode) {
                         SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
                     } else {
-                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
                     }
                 )
             }
@@ -102,6 +119,70 @@ class MainActivity : ComponentActivity() {
                     online = online
                 )
             }
+        }
+    }
+
+    /**
+     * Valida que la cuenta de Drive actual sea la cuenta autorizada
+     *
+     * Esto previene el problema de múltiples cuentas que causa:
+     * - Error 10 de autorización
+     * - Archivos que quedan en limbo
+     * - Subidas que no aparecen en "Pendientes Drive"
+     */
+    private suspend fun validarCuentaDriveAlInicio(context: Context) {
+        try {
+            // Si hay una sesión de Drive activa
+            val account = DriveAuthManager.getSignedInAccount(context)
+            if (account != null) {
+                // Verificar si es la cuenta autorizada
+                val isAuthorized = DriveAuthManager.isCurrentAccountAuthorized(context)
+
+                if (!isAuthorized) {
+                    android.util.Log.w(
+                        "MainActivity",
+                        "⚠️ ADVERTENCIA: Cuenta de Drive incorrecta detectada"
+                    )
+                    android.util.Log.w("MainActivity", "   Cuenta actual: ${account.email}")
+                    android.util.Log.w(
+                        "MainActivity",
+                        "   Cuenta esperada: ${
+                            DriveAuthManager.getLastAuthorizedAccountEmail(context)
+                        }"
+                    )
+                    android.util.Log.w(
+                        "MainActivity",
+                        "   Se cerrará la sesión para evitar problemas"
+                    )
+
+                    // Cerrar sesión de la cuenta incorrecta
+                    DriveAuthManager.signOut(context)
+
+                    android.util.Log.d(
+                        "MainActivity",
+                        "✅ Sesión cerrada. Usuario deberá iniciar sesión con la cuenta correcta"
+                    )
+                } else {
+                    android.util.Log.d(
+                        "MainActivity",
+                        "✅ Cuenta de Drive correcta: ${account.email}"
+                    )
+                }
+            } else {
+                val authorizedEmail = DriveAuthManager.getLastAuthorizedAccountEmail(context)
+                if (authorizedEmail != null) {
+                    android.util.Log.d(
+                        "MainActivity",
+                        "📧 Cuenta autorizada registrada: $authorizedEmail"
+                    )
+                    android.util.Log.d(
+                        "MainActivity",
+                        "   Usuario deberá iniciar sesión con esta cuenta"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error validando cuenta Drive: ${e.message}", e)
         }
     }
 }

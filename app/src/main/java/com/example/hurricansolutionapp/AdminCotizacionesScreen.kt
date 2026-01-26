@@ -193,37 +193,23 @@ fun AdminCotizacionesScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Chips de ordenamiento
+            // Chips de filtro por ESPECIALISTA (en lugar de ordenamiento)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                // Chip "Todos"
                 item {
                     StitchSortChip(
-                        label = "Recientes",
-                        selected = sortOrder == CotizacionSortOrder.RECIENTES_PRIMERO,
-                        onClick = { sortOrder = CotizacionSortOrder.RECIENTES_PRIMERO },
+                        label = "Todos",
+                        selected = selectedEmpleado == null,
+                        onClick = { selectedEmpleado = null },
                         isDarkMode = isDarkMode
                     )
                 }
-                item {
+                // Chips por cada especialista
+                items(empleados) { emp ->
                     StitchSortChip(
-                        label = "Antiguos",
-                        selected = sortOrder == CotizacionSortOrder.ANTIGUOS_PRIMERO,
-                        onClick = { sortOrder = CotizacionSortOrder.ANTIGUOS_PRIMERO },
-                        isDarkMode = isDarkMode
-                    )
-                }
-                item {
-                    StitchSortChip(
-                        label = "Nombre A-Z",
-                        selected = sortOrder == CotizacionSortOrder.NOMBRE_AZ,
-                        onClick = { sortOrder = CotizacionSortOrder.NOMBRE_AZ },
-                        isDarkMode = isDarkMode
-                    )
-                }
-                item {
-                    StitchSortChip(
-                        label = "Nombre Z-A",
-                        selected = sortOrder == CotizacionSortOrder.NOMBRE_ZA,
-                        onClick = { sortOrder = CotizacionSortOrder.NOMBRE_ZA },
+                        label = formatearNombreCorto(emp.name),
+                        selected = selectedEmpleado == emp.id,
+                        onClick = { selectedEmpleado = emp.id },
                         isDarkMode = isDarkMode
                     )
                 }
@@ -405,7 +391,7 @@ private fun StitchCotizacionCard(
                     Text("#${cotizacion.folio}", color = textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }
                 Surface(color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF9FAFB), shape = CircleShape, border = BorderStroke(1.dp, border)) {
-                    Text(cotizacion.especialistaNombre.split(" ").take(2).joinToString(" ").uppercase(), color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                    Text(formatearNombreCorto(cotizacion.especialistaNombre).uppercase(), color = textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                 }
             }
 
@@ -423,7 +409,40 @@ private fun StitchCotizacionCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.LocationOn, null, tint = textSecondary, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(cotizacion.ciudad, color = textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(cotizacion.ciudad.substringBefore(","), color = textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // SISTEMAS COTIZADOS
+            // ═══════════════════════════════════════════════════════════════════
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Shield, null, tint = textSecondary, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(2.dp))
+                cotizacion.productos.forEach { sistema ->
+                    Surface(
+                        color = when (sistema) {
+                            "HS875" -> Color(0xFF10B981).copy(alpha = 0.15f)
+                            "HS1250" -> Color(0xFF3B82F6).copy(alpha = 0.15f)
+                            "HS1500" -> Color(0xFFF59E0B).copy(alpha = 0.15f)
+                            else -> Color(0xFF6B7280).copy(alpha = 0.15f)
+                        },
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = sistema,
+                            color = when (sistema) {
+                                "HS875" -> Color(0xFF10B981)
+                                "HS1250" -> Color(0xFF3B82F6)
+                                "HS1500" -> Color(0xFFF59E0B)
+                                else -> textSecondary
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
                     }
                 }
             }

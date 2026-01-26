@@ -36,12 +36,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
+// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 // CONSTANTES DE COLOR - Usadas por MainActivity y otros archivos
+// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 val Zinc950 = Color(0xFF09090B)
 val Zinc900 = Color(0xFF18181B)
 val Zinc800 = Color(0xFF27272A)
 val Zinc400 = Color(0xFF71717A)
 
+// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
+// HOME SCREEN - DiseÃ±o Stitch (igual que AdminHomeScreen)
+// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 
 @Composable
 fun HomeScreen(
@@ -65,13 +70,16 @@ fun HomeScreen(
     // VERIFICACIÓN AUTOMÁTICA DE PRECIOS
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // Flag para evitar notificaciones duplicadas
+    var lastNotificationTime by remember { mutableStateOf(0L) }
+
     // 1. Verificar al entrar/volver a la pantalla
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 scope.launch {
                     try {
-                        PriceManager.refreshPrices() // Forzar refresh al volver
+                        PriceManager.refreshPrices()
                     } catch (_: Exception) { }
                 }
             }
@@ -80,14 +88,19 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 2. Polling cada 15 segundos mientras la pantalla está activa
+    // 2. Polling cada 30 segundos (aumentado para evitar spam)
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(15_000) // 15 segundos
+            kotlinx.coroutines.delay(30_000) // 30 segundos
             try {
-                val huboActualizacion = PriceManager.checkForUpdates()
-                if (huboActualizacion) {
-                    android.util.Log.d("HomeScreen", "✅ Precios actualizados automáticamente")
+                val currentTime = System.currentTimeMillis()
+                // Solo verificar si han pasado al menos 25 segundos desde última notificación
+                if (currentTime - lastNotificationTime > 25_000) {
+                    val huboActualizacion = PriceManager.checkForUpdates()
+                    if (huboActualizacion) {
+                        lastNotificationTime = currentTime
+                        android.util.Log.d("HomeScreen", "✅ Precios actualizados automáticamente")
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -111,6 +124,9 @@ fun HomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
 
+        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
+        // TOP BAR - Logo + Boton tema (sin badge ADMIN)
+        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
         HomeTopBar(
             isDarkMode = isDarkMode,
             onToggleDarkMode = onToggleDarkMode,
@@ -119,10 +135,12 @@ fun HomeScreen(
             textPrimary = textPrimary
         )
 
+        // Banner de precios actualizados
         PreciosActualizadosBanner(isDarkMode = isDarkMode)
 
         Spacer(Modifier.height(24.dp))
 
+        // Fecha dinamica
         Text(
             text = getHomeSpanishDate(),
             color = textMuted,
@@ -130,6 +148,7 @@ fun HomeScreen(
             fontWeight = FontWeight.Medium
         )
 
+        // Bienvenida (mismo estilo que Admin)
         HomeWelcomeText(
             userName = userFirstName,
             textPrimary = textPrimary,
@@ -138,14 +157,19 @@ fun HomeScreen(
 
         Spacer(Modifier.height(24.dp))
 
+        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
+        // MENU - con barra lateral (SIN SECCION ESTADISTICAS)
+        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
         HomeSectionTitle(title = "MENU", isDarkMode = isDarkMode, textPrimary = textPrimary)
 
         Spacer(Modifier.height(16.dp))
 
+        // Nueva Cotizacion (tarjeta grande negra)
         HomeBigActionCard(isDarkMode = isDarkMode, onClick = onNuevaCotizacion)
 
         Spacer(Modifier.height(12.dp))
 
+        // Historial de Cotizaciones
         HomeMenuCard(
             title = "Historial De Cotizaciones Generadas",
             subtitle = "Ver mi historial de cotizaciones",
@@ -161,6 +185,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
+        // Sincronizaciones Pendientes
         HomeMenuCard(
             title = "Sincronizaciones Pendientes",
             subtitle = "Subir Cotizaciones A La Nube",
@@ -195,7 +220,7 @@ fun HomeScreen(
 
         // Envios a Instalacion
         HomeMenuCard(
-            title = "Envíos a Instalación",
+            title = "EnvÃ­os a InstalaciÃ³n",
             subtitle = "Enviar cotizaciones al instalador",
             iconRes = R.drawable.ic_upload_lucide,
             animationType = 0,
@@ -227,7 +252,7 @@ fun HomeScreen(
             tonalElevation = 6.dp,
             title = {
                 Text(
-                    text = "Cerrar Sesión",
+                    text = "Cerrar sesiÃ³n",
                     color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
@@ -235,7 +260,7 @@ fun HomeScreen(
             },
             text = {
                 Text(
-                    text = "¿Deseas cerrar sesión?\nTendras que volver a iniciar sesión.",
+                    text = "Â¿Deseas cerrar sesiÃ³n?\nTendrÃ¡s que volver a iniciar sesiÃ³n.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
@@ -247,7 +272,7 @@ fun HomeScreen(
                         onCerrarSesion()
                     }
                 ) {
-                    Text("Si, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
+                    Text("SÃ­, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -259,7 +284,9 @@ fun HomeScreen(
     }
 }
 
+// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 // COMPONENTES PRIVADOS
+// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 
 @Composable
 private fun HomeTopBar(
@@ -305,17 +332,20 @@ private fun HomeTopBar(
 
 @Composable
 private fun HomeWelcomeText(userName: String, textPrimary: Color, textMuted: Color) {
+    // Formatear nombre: Primer Nombre + Primer Apellido
+    val nombreCorto = formatearNombreCorto(userName)
+
     Text(
         text = buildAnnotatedString {
             withStyle(SpanStyle(color = textPrimary, fontWeight = FontWeight.Black)) {
                 append("Bienvenido, ")
             }
             withStyle(SpanStyle(color = textMuted, fontWeight = FontWeight.Black)) {
-                append(userName)
+                append(nombreCorto)
             }
         },
-        fontSize = 32.sp,
-        lineHeight = 38.sp,
+        fontSize = 24.sp,  // Reducido de 32sp a 24sp
+        lineHeight = 30.sp, // Reducido de 38sp a 30sp
         maxLines = 2
     )
 }
@@ -376,7 +406,7 @@ private fun HomeBigActionCard(isDarkMode: Boolean, onClick: () -> Unit) {
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
                 }
-                Text("NUEVA COTIZACIÓN", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("NUEVA COTIZACIÃ“N", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = contentColor.copy(alpha = 0.6f), modifier = Modifier.size(24.dp))
         }
@@ -504,8 +534,8 @@ private fun HomeLogoutButton(onClick: () -> Unit, isDarkMode: Boolean, enabled: 
         }
         Spacer(Modifier.width(16.dp))
         Column {
-            Text("Cerrar Sesión", color = contentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(if (enabled) "Salir de la cuenta" else "Acción no disponible", color = contentColor.copy(alpha = 0.7f), fontSize = 12.sp)
+            Text("Cerrar SesiÃ³n", color = contentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(if (enabled) "Salir de la cuenta" else "AcciÃ³n no disponible", color = contentColor.copy(alpha = 0.7f), fontSize = 12.sp)
         }
     }
 }
@@ -546,7 +576,7 @@ private fun trimTransparentHome(src: Bitmap): Bitmap {
 }
 
 private fun getHomeSpanishDate(): String {
-    val dias = listOf("Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sábado")
+    val dias = listOf("Domingo", "Lunes", "Martes", "MiÃ©rcoles", "Jueves", "Viernes", "SÃ¡bado")
     val meses = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
     val cal = java.util.Calendar.getInstance()
     return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"

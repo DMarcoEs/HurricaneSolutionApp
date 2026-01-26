@@ -32,10 +32,6 @@ import androidx.compose.ui.unit.sp
 import androidx.annotation.DrawableRes
 import kotlinx.coroutines.launch
 
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
-// ADMIN HOME SCREEN - DiseÃ±o Stitch
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
-
 @Composable
 fun AdminHomeScreen(
     adminName: String,
@@ -65,7 +61,6 @@ fun AdminHomeScreen(
     var stats by remember { mutableStateOf(AdminRepository.DashboardStats()) }
     var isLoadingStats by remember { mutableStateOf(true) }
 
-    // Cargar estadÃ­sticas
     LaunchedEffect(Unit) {
         isLoadingStats = true
         stats = AdminRepository.getDashboardStats()
@@ -90,9 +85,6 @@ fun AdminHomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
 
-        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
-        // TOP BAR - Logo + Badge ADMIN (NEGRO en light / BLANCO en dark) + BotÃ³n tema
-        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
         AdminTopBarStitch(
             isDarkMode = isDarkMode,
             onToggleDarkMode = onToggleDarkMode,
@@ -111,7 +103,6 @@ fun AdminHomeScreen(
             fontWeight = FontWeight.Medium
         )
 
-        // Bienvenida (mÃ¡ximo 2 lÃ­neas)
         AdminWelcomeText(
             userName = adminName,
             textPrimary = textPrimary,
@@ -120,11 +111,8 @@ fun AdminHomeScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
-        // HERRAMIENTAS DE ADMINISTRACIÃ“N - DiseÃ±o Stitch con borde izquierdo
-        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
         StitchSectionTitle(
-            title = "HERRAMIENTAS DE ADMINISTRACIÃ“N",
+            title = "HERRAMIENTAS DE ADMINISTRACIÓN",
             isDarkMode = isDarkMode,
             textPrimary = textPrimary
         )
@@ -190,15 +178,12 @@ fun AdminHomeScreen(
                 isDarkMode = isDarkMode,
                 onClick = onGestionarLeads
             )
-            // Espacio vacÃ­o para mantener grid 3 columnas
             Spacer(modifier = Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(24.dp))
 
-        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
         // MENU - Estilo Stitch con barra lateral
-        // =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
         StitchSectionTitle(
             title = "MENU",
             isDarkMode = isDarkMode,
@@ -207,7 +192,6 @@ fun AdminHomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // Nueva CotizaciÃ³n (tarjeta grande negra)
         StitchBigActionCard(
             isDarkMode = isDarkMode,
             onClick = onNuevaCotizacion
@@ -248,7 +232,6 @@ fun AdminHomeScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // Cerrar SesiÃ³n
         StitchLogoutButton(
             onClick = { if (logoutEnabled) showLogoutDialog = true },
             isDarkMode = isDarkMode,
@@ -266,7 +249,7 @@ fun AdminHomeScreen(
             tonalElevation = 6.dp,
             title = {
                 Text(
-                    text = "Cerrar sesiÃ³n",
+                    text = "Cerrar sesión",
                     color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
@@ -274,7 +257,7 @@ fun AdminHomeScreen(
             },
             text = {
                 Text(
-                    text = "Â¿Deseas cerrar sesiÃ³n de administrador?\nTendrÃ¡s que volver a iniciar sesiÃ³n.",
+                    text = "Deseas cerrar sesión de administrador?\nTendrás que volver a iniciar sesión.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
@@ -286,7 +269,7 @@ fun AdminHomeScreen(
                         onCerrarSesion()
                     }
                 ) {
-                    Text("SÃ­, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
+                    Text("Si, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -298,17 +281,13 @@ fun AdminHomeScreen(
     }
 }
 
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 // COMPONENTES STITCH
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 
 private enum class StitchAnimationType {
     NONE, ROTATION, BOUNCE
 }
 
-/**
- * Texto de bienvenida (mÃ¡ximo 2 lÃ­neas)
- */
+
 @Composable
 private fun AdminWelcomeText(
     userName: String,
@@ -333,9 +312,7 @@ private fun AdminWelcomeText(
     )
 }
 
-/**
- * TÃ­tulo de secciÃ³n con barra lateral negra/blanca (estilo Stitch)
- */
+
 @Composable
 private fun StitchSectionTitle(
     title: String,
@@ -392,7 +369,6 @@ private fun AdminTopBarStitch(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Logo - Cambia segÃºn el modo
             val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
             AdminCroppedLogo(resId = logoRes, height = 48.dp)
 
@@ -415,7 +391,6 @@ private fun AdminTopBarStitch(
             }
         }
 
-        // BotÃ³n tema
         Box(
             modifier = Modifier
                 .size(46.dp)
@@ -440,14 +415,7 @@ private fun AdminTopBarStitch(
     }
 }
 
-/**
- * =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
- * TARJETA DE HERRAMIENTAS DE ADMINISTRACIÃ“N ESTILO STITCH
- * - Borde izquierdo grueso (negro en light, blanco en dark)
- * - Fondo blanco/gris oscuro
- * - Icono gris, nÃºmero grande, tÃ­tulo pequeÃ±o
- * =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
- */
+
 @Composable
 private fun StitchAdminCard(
     title: String,
@@ -466,7 +434,6 @@ private fun StitchAdminCard(
         label = "scale"
     )
 
-    // Colores segÃºn el diseÃ±o Stitch de referencia
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
     val leftBorderColor = if (isDarkMode) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.15f)
     val borderColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
@@ -525,7 +492,6 @@ private fun StitchAdminCard(
 
                 if (value != null) {
                     Spacer(Modifier.height(8.dp))
-                    // NÃºmero grande
                     Text(
                         value,
                         color = valueColor,
@@ -536,7 +502,6 @@ private fun StitchAdminCard(
                     Spacer(Modifier.height(12.dp))
                 }
 
-                // TÃ­tulo pequeÃ±o
                 Text(
                     title,
                     color = titleColor,
@@ -549,9 +514,7 @@ private fun StitchAdminCard(
     }
 }
 
-/**
- * Tarjeta grande de Nueva CotizaciÃ³n (estilo Stitch)
- */
+
 @Composable
 private fun StitchBigActionCard(
     isDarkMode: Boolean,
@@ -615,7 +578,7 @@ private fun StitchBigActionCard(
                     )
                 }
                 Text(
-                    "NUEVA COTIZACIÃ“N",
+                    "NUEVA COTIZACIÓN",
                     color = contentColor,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -632,9 +595,7 @@ private fun StitchBigActionCard(
     }
 }
 
-/**
- * Tarjeta de menÃº estilo Stitch
- */
+
 @Composable
 private fun StitchMenuCard(
     title: String,
@@ -737,9 +698,7 @@ private fun StitchMenuCard(
     }
 }
 
-/**
- * BotÃ³n cerrar sesiÃ³n (estilo Stitch)
- */
+
 @Composable
 private fun StitchLogoutButton(
     onClick: () -> Unit,
@@ -815,13 +774,13 @@ private fun StitchLogoutButton(
         Spacer(Modifier.width(16.dp))
         Column {
             Text(
-                "Cerrar SesiÃ³n",
+                "Cerrar Sesión",
                 color = contentColor,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
             Text(
-                if (enabled) "Salir de la cuenta" else "AcciÃ³n no disponible",
+                if (enabled) "Salir de la cuenta" else "Acción no disponible",
                 color = contentColor.copy(alpha = 0.7f),
                 fontSize = 12.sp
             )
@@ -874,11 +833,9 @@ private fun trimTransparentAdmin(src: Bitmap): Bitmap {
     return Bitmap.createBitmap(src, left, top, (right - left + 1).coerceAtLeast(1), (bottom - top + 1).coerceAtLeast(1))
 }
 
-/**
- * Fecha en espaÃ±ol
- */
+
 private fun getSpanishDateAdmin(): String {
-    val dias = listOf("Domingo", "Lunes", "Martes", "MiÃ©rcoles", "Jueves", "Viernes", "SÃ¡bado")
+    val dias = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
     val meses = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
     val cal = java.util.Calendar.getInstance()
     return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"

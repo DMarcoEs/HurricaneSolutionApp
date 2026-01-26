@@ -36,17 +36,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 // CONSTANTES DE COLOR - Usadas por MainActivity y otros archivos
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 val Zinc950 = Color(0xFF09090B)
 val Zinc900 = Color(0xFF18181B)
 val Zinc800 = Color(0xFF27272A)
 val Zinc400 = Color(0xFF71717A)
 
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
-// HOME SCREEN - DiseÃ±o Stitch (igual que AdminHomeScreen)
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
+
 
 @Composable
 fun HomeScreen(
@@ -220,7 +216,7 @@ fun HomeScreen(
 
         // Envios a Instalacion
         HomeMenuCard(
-            title = "EnvÃ­os a InstalaciÃ³n",
+            title = "Envíos a Instalación",
             subtitle = "Enviar cotizaciones al instalador",
             iconRes = R.drawable.ic_upload_lucide,
             animationType = 0,
@@ -252,7 +248,7 @@ fun HomeScreen(
             tonalElevation = 6.dp,
             title = {
                 Text(
-                    text = "Cerrar sesiÃ³n",
+                    text = "Cerrar sesión",
                     color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
@@ -260,7 +256,7 @@ fun HomeScreen(
             },
             text = {
                 Text(
-                    text = "Â¿Deseas cerrar sesiÃ³n?\nTendrÃ¡s que volver a iniciar sesiÃ³n.",
+                    text = "¿Deseas cerrar sesión?\nTendras que volver a iniciar sesión.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
@@ -272,7 +268,7 @@ fun HomeScreen(
                         onCerrarSesion()
                     }
                 ) {
-                    Text("SÃ­, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
+                    Text("Si, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -284,9 +280,7 @@ fun HomeScreen(
     }
 }
 
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 // COMPONENTES PRIVADOS
-// =Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â=Â
 
 @Composable
 private fun HomeTopBar(
@@ -406,7 +400,7 @@ private fun HomeBigActionCard(isDarkMode: Boolean, onClick: () -> Unit) {
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
                 }
-                Text("NUEVA COTIZACIÃ“N", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("NUEVA COTIZACIÓN", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = contentColor.copy(alpha = 0.6f), modifier = Modifier.size(24.dp))
         }
@@ -534,8 +528,8 @@ private fun HomeLogoutButton(onClick: () -> Unit, isDarkMode: Boolean, enabled: 
         }
         Spacer(Modifier.width(16.dp))
         Column {
-            Text("Cerrar SesiÃ³n", color = contentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(if (enabled) "Salir de la cuenta" else "AcciÃ³n no disponible", color = contentColor.copy(alpha = 0.7f), fontSize = 12.sp)
+            Text("Cerrar Sesión", color = contentColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(if (enabled) "Salir de la cuenta" else "Acción no disponible", color = contentColor.copy(alpha = 0.7f), fontSize = 12.sp)
         }
     }
 }
@@ -576,7 +570,7 @@ private fun trimTransparentHome(src: Bitmap): Bitmap {
 }
 
 private fun getHomeSpanishDate(): String {
-    val dias = listOf("Domingo", "Lunes", "Martes", "MiÃ©rcoles", "Jueves", "Viernes", "SÃ¡bado")
+    val dias = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sabado")
     val meses = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
     val cal = java.util.Calendar.getInstance()
     return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"

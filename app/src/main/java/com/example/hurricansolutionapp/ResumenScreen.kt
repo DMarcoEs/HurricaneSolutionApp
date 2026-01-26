@@ -67,7 +67,7 @@ fun ResumenScreen(
         val userRole = SessionManager.getRole(context)
 
         if (userName.isBlank() || userRole.isBlank()) {
-            Toast.makeText(context, "Sesión no válida", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Sesión no valida", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -349,27 +349,41 @@ fun ResumenScreen(
                                         mensajeSubida = if (success) {
                                             "PDF subido correctamente"
                                         } else if (error?.contains("Sin conexión") == true) {
-                                            "Guardado localmente - Se subirá cuando haya internet"
+                                            "Guardado localmente - Se subira cuando haya internet"
                                         } else {
-                                            "Guardado - Error al subir: quedará pendiente"
+                                            "Guardado - Error al subir: quedara pendiente"
                                         }
                                     }
                                 )
 
+                                // ✅ CREAR REGISTRO DE INSTALADOR (SIEMPRE)
                                 scope.launch {
                                     try {
-                                        if (cotizacion.productos.size == 1) {
-                                            val sistemaSeleccionado = cotizacion.productos.first().name
-                                            val userId = SessionManager.getUserId(context)
-                                            val userName = SessionManager.getNombre(context)
+                                        val sistemaSeleccionado = cotizacionFinal.productos.firstOrNull()?.name ?: "HS875"
+                                        val userId = SessionManager.getUserId(context)
+                                        val userName = SessionManager.getNombre(context)
 
-                                            android.util.Log.d(
-                                                "ResumenScreen",
-                                                "Creando registro de instalador para sistema: $sistemaSeleccionado"
-                                            )
+                                        android.util.Log.d("ResumenScreen", "════════════════════════════════════════")
+                                        android.util.Log.d("ResumenScreen", "📝 Creando registro de instalador...")
+                                        android.util.Log.d("ResumenScreen", "📝 Folio: ${cotizacionFinal.folio}")
+                                        android.util.Log.d("ResumenScreen", "📝 Sistema: $sistemaSeleccionado")
+                                        android.util.Log.d("ResumenScreen", "📝 Ventanas: ${cotizacionFinal.ventanas.size}")
+                                        android.util.Log.d("ResumenScreen", "════════════════════════════════════════")
+
+                                        val result = InstaladorRepository.crearRegistroDesdeCotizacionCompleto(
+                                            cotizacion = cotizacionFinal,
+                                            sistemaSeleccionado = sistemaSeleccionado,
+                                            especialistaId = userId,
+                                            especialistaNombre = userName
+                                        )
+
+                                        if (result.isSuccess) {
+                                            android.util.Log.d("ResumenScreen", "✅ Registro de instalador creado exitosamente")
+                                        } else {
+                                            android.util.Log.e("ResumenScreen", "❌ Error: ${result.exceptionOrNull()?.message}")
                                         }
                                     } catch (e: Exception) {
-                                        android.util.Log.e("ResumenScreen", "Error creando registro instalador", e)
+                                        android.util.Log.e("ResumenScreen", "❌ Error creando registro instalador: ${e.message}", e)
                                     }
                                 }
                             },
@@ -389,7 +403,7 @@ fun ResumenScreen(
                             }
                         }
                     } else {
-                        // Botones cuando ya está guardado
+                        // Botones cuando ya estÃ¡ guardado
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
                             // Primera fila: Enviar, PDF, Editar
@@ -468,7 +482,7 @@ fun ResumenScreen(
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         when {
-                                            driveUploadSuccess == true -> "✓ Subido a Google Drive"
+                                            driveUploadSuccess == true -> "âœ“ Subido a Google Drive"
                                             driveUploadSuccess == false -> "Error - Reintentar"
                                             else -> "Subir a Google Drive"
                                         },
@@ -493,7 +507,7 @@ fun ResumenScreen(
                 StitchCard(title = "DATOS DEL CLIENTE", icon = Icons.Default.Person, isDarkMode = isDarkMode, surface = surface, headerBg = headerBg, border = border, accentBorder = accentBorder, textPrimary = textPrimary, textMuted = textMuted) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         ClienteDataRow("Nombre", cotizacion.clienteNombre, textMuted, textPrimary, border)
-                        ClienteDataRow("Teléfono", cotizacion.clienteTelefono, textMuted, textPrimary, border)
+                        ClienteDataRow("Telefono", cotizacion.clienteTelefono, textMuted, textPrimary, border)
                         ClienteDataRow("Ciudad", cotizacion.ciudad.ifBlank { cotizacion.ubicacion.split(",").firstOrNull() ?: "" }, textMuted, textPrimary, border, showDivider = false)
                     }
                 }
@@ -634,7 +648,7 @@ fun ResumenScreen(
                                     1 -> {
                                         // TAB: DESCUENTOS
                                         Column(modifier = Modifier.padding(16.dp)) {
-                                            // Toggle Sí/No
+                                            // Toggle SÃ­/No
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -707,7 +721,7 @@ private fun DescuentoToggleButton(aplicaDescuento: Boolean, onToggle: () -> Unit
                     .background(if (aplicaDescuento) (if (isDarkMode) Color.White else Color.Black) else Color.Transparent)
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Text("Sí", color = if (aplicaDescuento) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Si", color = if (aplicaDescuento) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -738,7 +752,7 @@ private fun AperturaItemSimple(index: Int, ventana: Ventana, isDarkMode: Boolean
                 Text("ADECUACIONES:", color = textMuted.copy(0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                 val tieneAdecuacion = ventana.adecuacion != "No" && ventana.adecuacion.isNotBlank()
                 Box(modifier = Modifier.background(if (tieneAdecuacion) (if (isDarkMode) Color.White else Color.Black) else Color.Transparent, RoundedCornerShape(4.dp)).border(1.dp, if (tieneAdecuacion) Color.Transparent else border.copy(0.3f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                    Text(if (tieneAdecuacion) "Sí, ${ventana.adecuacion}" else "No", color = if (tieneAdecuacion) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (tieneAdecuacion) "Si, ${ventana.adecuacion}" else "No", color = if (tieneAdecuacion) (if (isDarkMode) Color.Black else Color.White) else textMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.example.hurricansolutionapp
 
+import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
@@ -22,14 +23,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Pantalla "Envíos a Instalación" para Especialistas y Admin
- * - Muestra TODAS las cotizaciones (no solo las de 1 sistema)
- * - Si hay múltiples sistemas, permite seleccionar cuál enviar
- * - Si ya existe en instalador_datos, actualiza en lugar de duplicar
+ * Pantalla "Órdenes de Instalación" para Especialistas
+ *
+ * Flujo simplificado:
+ * 1. Especialista ve lista de cotizaciones
+ * 2. Toca una cotización → Ve resumen con datos
+ * 3. Selecciona sistema y fecha de instalación
+ * 4. Genera PDF de Orden de Instalación
+ * 5. Comparte por WhatsApp/Email
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,17 +48,23 @@ fun EnviosInstalacionScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    // Estados de la lista
     var isLoading by remember { mutableStateOf(true) }
     var cotizaciones by remember { mutableStateOf<List<Cotizacion>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
-    var refreshKey by remember { mutableIntStateOf(0) }
-    var sendingFolio by remember { mutableStateOf<String?>(null) }
 
-    var showConfirmDialog by remember { mutableStateOf<Cotizacion?>(null) }
-    var fechaSolicitada by remember { mutableStateOf("") }
+    // Estados del diálogo de generación
+    var cotizacionSeleccionada by remember { mutableStateOf<Cotizacion?>(null) }
     var sistemaSeleccionado by remember { mutableStateOf<String?>(null) }
-    var yaExisteEnInstalacion by remember { mutableStateOf(false) }
+    var fechaInstalacion by remember { mutableStateOf("") }
+    var observaciones by remember { mutableStateOf("") }
+    var isGeneratingPdf by remember { mutableStateOf(false) }
+    var pdfGenerado by remember { mutableStateOf<File?>(null) }
 
+    // Estado para rastrear PDFs generados por folio (para mostrar botones en la card)
+    var pdfsGenerados by remember { mutableStateOf<Map<String, File>>(emptyMap()) }
+
+    // Colores
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
     val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
@@ -66,7 +78,8 @@ fun EnviosInstalacionScreen(
     val userRole = remember { SessionManager.getRole(context) }
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
-    LaunchedEffect(refreshKey) {
+    // Cargar cotizaciones al iniciar
+    LaunchedEffect(Unit) {
         scope.launch {
             isLoading = true
             try {
@@ -78,13 +91,14 @@ fun EnviosInstalacionScreen(
                     cotizaciones = result.getOrNull() ?: emptyList()
                 }
             } catch (e: Exception) {
-                android.util.Log.e("EnviosInstalacion", "Error cargando: ${e.message}")
+                android.util.Log.e("OrdenesInstalacion", "Error cargando: ${e.message}")
             } finally {
                 isLoading = false
             }
         }
     }
 
+    // Filtrar lista
     val filteredList = remember(cotizaciones, searchQuery) {
         if (searchQuery.isBlank()) cotizaciones
         else cotizaciones.filter { cot ->
@@ -93,150 +107,419 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    fun enviarAInstalacion(cotizacion: Cotizacion, sistema: String, fecha: String, esActualizacion: Boolean) {
+    // Función para generar el PDF
+    fun generarPdfInstalacion(cotizacion: Cotizacion, sistema: String, fecha: String, obs: String) {
         scope.launch {
-            sendingFolio = cotizacion.folio
+            isGeneratingPdf = true
             try {
-                val userName = SessionManager.getNombre(context)
+                val pdfFile = PdfInstaladorGenerator.generarPdfOrdenInstalacion(
+                    context = context,
+                    cotizacion = cotizacion,
+                    sistemaSeleccionado = sistema,
+                    instaladorDatos = null,
+                    medidasRectificadas = null,
+                    fechaSolicitadaManual = fecha,
+                    observacionesManuales = obs
+                )
 
-                val result = if (esActualizacion) {
-                    EnviosInstalacionRepository.actualizarRegistroInstalacion(
-                        cotizacion = cotizacion,
-                        sistemaSeleccionado = sistema,
-                        especialistaId = userId,
-                        especialistaNombre = userName,
-                        fechaSolicitada = fecha.ifBlank { null }
-                    )
+                if (pdfFile != null && pdfFile.exists()) {
+                    pdfGenerado = pdfFile
+                    // Guardar en el mapa para mostrar botones en la card
+                    pdfsGenerados = pdfsGenerados + (cotizacion.folio to pdfFile)
+                    Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT).show()
                 } else {
-                    InstaladorRepository.crearRegistroDesdeCotizacionCompleto(
-                        cotizacion = cotizacion,
-                        sistemaSeleccionado = sistema,
-                        especialistaId = userId,
-                        especialistaNombre = userName,
-                        fechaSolicitada = fecha.ifBlank { null }
-                    )
-                }
-
-                if (result.isSuccess) {
-                    EnviosInstalacionRepository.marcarComoEnviada(context, cotizacion.folio)
-                    val mensaje = if (esActualizacion) "Instalación actualizada" else "Enviado a instalación"
-                    Toast.makeText(context, mensaje, Toast.LENGTH_SHORT).show()
-                    refreshKey++
-                } else {
-                    Toast.makeText(context, "Error: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Error al generar el PDF", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
+                android.util.Log.e("OrdenesInstalacion", "Error generando PDF: ${e.message}", e)
                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
-                sendingFolio = null
+                isGeneratingPdf = false
             }
         }
     }
 
-    fun prepararEnvio(cotizacion: Cotizacion) {
-        scope.launch {
-            val existeResult = InstaladorRepository.getDatosByFolio(cotizacion.folio)
-            yaExisteEnInstalacion = existeResult.isSuccess && existeResult.getOrNull() != null
-
-            if (cotizacion.productos.size > 1) {
-                sistemaSeleccionado = null
-            } else {
-                sistemaSeleccionado = cotizacion.productos.firstOrNull()?.name ?: "HS875"
-            }
-            showConfirmDialog = cotizacion
-        }
+    // Función para seleccionar fecha con DatePicker
+    fun mostrarDatePicker() {
+        val calendar = Calendar.getInstance()
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                fechaInstalacion = String.format("%02d/%02d/%04d", dayOfMonth, month + 1, year)
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).apply {
+            datePicker.minDate = System.currentTimeMillis()
+        }.show()
     }
 
-    if (showConfirmDialog != null) {
-        val cot = showConfirmDialog!!
+    // ══════════════════════════════════════════════════════════════════════════════
+    // DIÁLOGO DE RESUMEN Y GENERACIÓN DE PDF
+    // ══════════════════════════════════════════════════════════════════════════════
+    if (cotizacionSeleccionada != null) {
+        val cot = cotizacionSeleccionada!!
         val tieneMultiplesSistemas = cot.productos.size > 1
+        val areaTotal = cot.ventanas.sumOf { it.alto * it.ancho }
 
         AlertDialog(
             onDismissRequest = {
-                showConfirmDialog = null
-                fechaSolicitada = ""
-                sistemaSeleccionado = null
+                if (!isGeneratingPdf) {
+                    cotizacionSeleccionada = null
+                    sistemaSeleccionado = null
+                    fechaInstalacion = ""
+                    observaciones = ""
+                    pdfGenerado = null
+                }
             },
             containerColor = cardBg,
             title = {
-                Text(
-                    if (yaExisteEnInstalacion) "Actualizar Instalación" else "Enviar a Instalación",
-                    color = textPrimary,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Orden de Instalación",
+                        color = textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Surface(
+                        color = primary,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            cot.folio,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = onPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (yaExisteEnInstalacion) {
-                        Surface(
-                            color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // ═══════════════════════════════════════════════════════════════
+                    // SECCIÓN: DATOS DEL CLIENTE
+                    // ═══════════════════════════════════════════════════════════════
+                    Text(
+                        "DATOS DEL CLIENTE",
+                        color = textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Surface(
+                        color = inputBg,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Warning, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                            // Nombre
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Person, null, tint = textMuted, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Text(
-                                    "Esta cotización ya fue enviada. Se actualizará.",
-                                    color = Color(0xFFF59E0B),
-                                    fontSize = 12.sp
+                                    cot.clienteNombre,
+                                    color = textPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            // Teléfono
+                            if (cot.clienteTelefono.isNotBlank()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Phone, null, tint = textMuted, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        cot.clienteTelefono,
+                                        color = textPrimary,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                            // Ubicación
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.LocationOn, null, tint = textMuted, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    cot.ubicacion.ifBlank { cot.ciudad },
+                                    color = textPrimary,
+                                    fontSize = 13.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
 
+                    // ═══════════════════════════════════════════════════════════════
+                    // SECCIÓN: MEDIDAS - Compacta y con scroll si hay muchas
+                    // ═══════════════════════════════════════════════════════════════
                     Text(
-                        if (yaExisteEnInstalacion) "¿Actualizar los datos?" else "¿Enviar al instalador?",
-                        color = textPrimary
+                        "MEDIDAS A INSTALAR",
+                        color = textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
                     )
 
-                    Surface(color = inputBg, shape = RoundedCornerShape(8.dp)) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(cot.folio, color = textPrimary, fontWeight = FontWeight.Bold)
-                            Text(cot.clienteNombre, color = textMuted, fontSize = 13.sp)
+                    Surface(
+                        color = inputBg,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            // Resumen: cantidad y área total
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Window, null, tint = textMuted, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "${cot.ventanas.size} apertura${if (cot.ventanas.size != 1) "s" else ""}",
+                                        color = textPrimary,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.SquareFoot, null, tint = textMuted, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "${String.format("%.2f", areaTotal)} m²",
+                                        color = textPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+
+                            // Lista de medidas con scroll si hay más de 3
+                            if (cot.ventanas.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                HorizontalDivider(color = border.copy(alpha = 0.5f))
+
+                                // Contenedor con altura máxima y scroll
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 100.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .verticalScroll(rememberScrollState())
+                                            .padding(top = 8.dp)
+                                    ) {
+                                        cot.ventanas.forEachIndexed { index, ventana ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    "${index + 1}. ${ventana.descripcion.ifBlank { "Apertura" }}",
+                                                    color = textPrimary,
+                                                    fontSize = 12.sp,
+                                                    modifier = Modifier.weight(1f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    "${String.format("%.2f", ventana.alto)} x ${String.format("%.2f", ventana.ancho)}",
+                                                    color = textMuted,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                            if (index < cot.ventanas.lastIndex) {
+                                                Spacer(Modifier.height(4.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    if (tieneMultiplesSistemas) {
-                        Spacer(Modifier.height(4.dp))
-                        Text("SELECCIONA EL SISTEMA", color = textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    // ═══════════════════════════════════════════════════════════════
+                    // SECCIÓN: SELECCIÓN DE SISTEMA
+                    // ═══════════════════════════════════════════════════════════════
+                    Text(
+                        "SISTEMA DE PROTECCIÓN",
+                        color = textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
 
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (tieneMultiplesSistemas) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             cot.productos.forEach { producto ->
                                 val isSelected = sistemaSeleccionado == producto.name
                                 Surface(
                                     onClick = { sistemaSeleccionado = producto.name },
                                     color = if (isSelected) primary.copy(alpha = 0.1f) else inputBg,
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, if (isSelected) primary else border)
+                                    border = BorderStroke(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) primary else border
+                                    )
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(producto.etiquetaCorta, color = textPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                                        Text(
+                                            producto.etiquetaCorta,
+                                            color = textPrimary,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 14.sp
+                                        )
                                         if (isSelected) {
-                                            Icon(Icons.Default.CheckCircle, null, tint = primary, modifier = Modifier.size(20.dp))
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                null,
+                                                tint = primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
                     } else {
-                        val sistema = cot.productos.firstOrNull()?.etiquetaCorta ?: "-"
-                        Text("Sistema: $sistema", color = textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        // Solo un sistema
+                        val sistema = cot.productos.firstOrNull()
+                        LaunchedEffect(Unit) {
+                            sistemaSeleccionado = sistema?.name
+                        }
+
+                        Surface(
+                            color = primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(2.dp, primary)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        sistema?.etiquetaCorta ?: "Sistema",
+                                        color = textPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        sistema?.etiqueta ?: "",
+                                        color = textMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    null,
+                                    tint = primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
 
-                    Spacer(Modifier.height(4.dp))
-                    Text("FECHA SOLICITADA", color = textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    // ═══════════════════════════════════════════════════════════════
+                    // SECCIÓN: FECHA DE INSTALACIÓN
+                    // ═══════════════════════════════════════════════════════════════
+                    Text(
+                        "FECHA DE INSTALACIÓN",
+                        color = textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Surface(
+                        onClick = { mostrarDatePicker() },
+                        color = inputBg,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, border)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Outlined.CalendarToday,
+                                    null,
+                                    tint = if (fechaInstalacion.isNotBlank()) primary else textMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    if (fechaInstalacion.isNotBlank()) fechaInstalacion else "Seleccionar fecha...",
+                                    color = if (fechaInstalacion.isNotBlank()) textPrimary else textMuted,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                null,
+                                tint = textMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    // ═══════════════════════════════════════════════════════════════
+                    // SECCIÓN: OBSERVACIONES (OPCIONAL)
+                    // ═══════════════════════════════════════════════════════════════
+                    Text(
+                        "OBSERVACIONES (OPCIONAL)",
+                        color = textMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
                     OutlinedTextField(
-                        value = fechaSolicitada,
-                        onValueChange = { fechaSolicitada = it },
-                        placeholder = { Text("Ej. 15/01/2026", color = textMuted.copy(alpha = 0.5f)) },
-                        modifier = Modifier.fillMaxWidth(),
+                        value = observaciones,
+                        onValueChange = { observaciones = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp),
+                        placeholder = {
+                            Text(
+                                "Notas para el instalador...",
+                                color = textMuted.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = textPrimary,
                             unfocusedTextColor = textPrimary,
@@ -246,107 +529,345 @@ fun EnviosInstalacionScreen(
                             unfocusedContainerColor = inputBg
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, null, tint = textMuted, modifier = Modifier.size(20.dp)) }
+                        maxLines = 3
                     )
                 }
             },
             confirmButton = {
-                val canSend = !tieneMultiplesSistemas || sistemaSeleccionado != null
-                Button(
-                    onClick = {
-                        val sistema = sistemaSeleccionado ?: cot.productos.firstOrNull()?.name ?: "HS875"
-                        val fecha = fechaSolicitada
-                        val esActualizacion = yaExisteEnInstalacion
-                        showConfirmDialog = null
-                        fechaSolicitada = ""
-                        sistemaSeleccionado = null
-                        enviarAInstalacion(cot, sistema, fecha, esActualizacion)
-                    },
-                    enabled = canSend,
-                    colors = ButtonDefaults.buttonColors(containerColor = primary)
+                // Área de botones - siempre visible
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(if (yaExisteEnInstalacion) Icons.Default.Update else Icons.Default.Send, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (yaExisteEnInstalacion) "Actualizar" else "Enviar")
+                    // Si el PDF ya fue generado, mostrar botones de acción
+                    if (pdfGenerado != null) {
+                        // Mensaje de éxito
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                null,
+                                tint = textPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "PDF listo",
+                                color = textPrimary,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        // Botones Ver PDF y Compartir (mismo estilo)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Botón VER PDF
+                            Button(
+                                onClick = { verPdf(context, pdfGenerado!!) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Visibility,
+                                    null,
+                                    tint = textPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Ver PDF", color = textPrimary, fontSize = 13.sp)
+                            }
+
+                            // Botón COMPARTIR
+                            Button(
+                                onClick = { compartirPdf(context, pdfGenerado!!) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primary),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Share,
+                                    null,
+                                    tint = onPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Compartir", color = onPrimary, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Botón Volver a generar
+                        OutlinedButton(
+                            onClick = {
+                                pdfGenerado = null // Resetear para volver a generar
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, border)
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                null,
+                                tint = textMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Volver a generar", color = textMuted, fontSize = 13.sp)
+                        }
+
+                        // Botón Cerrar
+                        TextButton(
+                            onClick = {
+                                cotizacionSeleccionada = null
+                                sistemaSeleccionado = null
+                                fechaInstalacion = ""
+                                observaciones = ""
+                                pdfGenerado = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cerrar", color = textMuted)
+                        }
+                    } else {
+                        // Botón de Generar PDF
+                        val canGenerate = sistemaSeleccionado != null && fechaInstalacion.isNotBlank()
+
+                        // Mensaje si falta fecha
+                        if (sistemaSeleccionado != null && fechaInstalacion.isBlank()) {
+                            Text(
+                                "⚠ Selecciona una fecha de instalación",
+                                color = Color(0xFFF59E0B),
+                                fontSize = 12.sp,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val sistema = sistemaSeleccionado ?: cot.productos.firstOrNull()?.name ?: "HS875"
+                                generarPdfInstalacion(cot, sistema, fechaInstalacion, observaciones)
+                            },
+                            enabled = canGenerate && !isGeneratingPdf,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = primary,
+                                disabledContainerColor = textMuted.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            if (isGeneratingPdf) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Generando...", color = onPrimary)
+                            } else {
+                                Icon(
+                                    Icons.Default.PictureAsPdf,
+                                    null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Generar PDF", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        // Botón Cancelar
+                        TextButton(
+                            onClick = {
+                                cotizacionSeleccionada = null
+                                sistemaSeleccionado = null
+                                fechaInstalacion = ""
+                                observaciones = ""
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancelar", color = textMuted)
+                        }
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showConfirmDialog = null
-                    fechaSolicitada = ""
-                    sistemaSeleccionado = null
-                }) { Text("Cancelar", color = textMuted) }
-            }
+            dismissButton = null
         )
     }
 
+    // ══════════════════════════════════════════════════════════════════════════════
+    // PANTALLA PRINCIPAL - LISTA DE COTIZACIONES
+    // ══════════════════════════════════════════════════════════════════════════════
     Scaffold(
         containerColor = bg,
-        topBar = { StitchTopBar(title = "Envíos a Instalación", onBack = onBack, isDarkMode = isDarkMode) }
+        topBar = {
+            StitchTopBar(
+                title = "Órdenes de Instalación",
+                onBack = onBack,
+                isDarkMode = isDarkMode
+            )
+        }
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Buscar...", color = textMuted, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = textMuted, modifier = Modifier.size(18.dp)) },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, "Limpiar", tint = textMuted) }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // Barra de búsqueda (sin botón de actualizar)
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                placeholder = { Text("Buscar por nombre o folio...", color = textMuted, fontSize = 14.sp) },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, null, tint = textMuted, modifier = Modifier.size(18.dp))
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, "Limpiar", tint = textMuted)
                         }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = inputBg, unfocusedContainerColor = inputBg,
-                        focusedBorderColor = border, unfocusedBorderColor = border,
-                        focusedTextColor = textPrimary, unfocusedTextColor = textPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    singleLine = true
-                )
-
-                Surface(
-                    onClick = { refreshKey++ },
-                    color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, border)
-                ) {
-                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Refresh, null, tint = textPrimary, modifier = Modifier.size(18.dp))
-                        Text("Actualizar", color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
-                }
-            }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = inputBg,
+                    unfocusedContainerColor = inputBg,
+                    focusedBorderColor = border,
+                    unfocusedBorderColor = border,
+                    focusedTextColor = textPrimary,
+                    unfocusedTextColor = textPrimary
+                ),
+                shape = RoundedCornerShape(10.dp),
+                singleLine = true
+            )
 
-            Surface(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = primary.copy(alpha = 0.08f), shape = RoundedCornerShape(8.dp)) {
-                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Info, null, tint = textPrimary, modifier = Modifier.size(20.dp))
-                    Text("Cotizaciones listas para enviar al instalador", color = textPrimary, fontSize = 12.sp)
+            // Banner informativo
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                color = primary.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Description,
+                        null,
+                        tint = textPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Column {
+                        Text(
+                            "Genera la Orden de Instalación",
+                            color = textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "Selecciona una cotización para crear el PDF",
+                            color = textMuted,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(12.dp))
 
+            // Lista de cotizaciones
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
-                    isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = textPrimary, strokeWidth = 2.dp) }
-                    filteredList.isEmpty() -> Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Icon(Icons.Outlined.Inventory2, null, tint = textMuted.copy(alpha = 0.5f), modifier = Modifier.size(64.dp))
-                        Spacer(Modifier.height(16.dp))
-                        Text(if (searchQuery.isNotBlank()) "No se encontraron resultados" else "No hay envíos pendientes", color = textMuted, fontSize = 16.sp, textAlign = TextAlign.Center)
-                    }
-                    else -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        item { Text("${filteredList.size} cotización${if (filteredList.size != 1) "es" else ""}", color = textMuted, fontSize = 12.sp) }
-                        items(filteredList, key = { it.folio }) { cotizacion ->
-                            EnvioInstalacionCard(cotizacion, isDarkMode, cardBg, textPrimary, textMuted, border, sendingFolio == cotizacion.folio) { prepararEnvio(cotizacion) }
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = textPrimary, strokeWidth = 2.dp)
                         }
-                        item { Spacer(Modifier.height(16.dp)) }
+                    }
+                    filteredList.isEmpty() -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.Inventory2,
+                                null,
+                                tint = textMuted.copy(alpha = 0.5f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                if (searchQuery.isNotBlank()) "No se encontraron resultados"
+                                else "No hay cotizaciones disponibles",
+                                color = textMuted,
+                                fontSize = 16.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    else -> {
+                        LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                Text(
+                                    "${filteredList.size} cotización${if (filteredList.size != 1) "es" else ""}",
+                                    color = textMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+
+                            items(filteredList, key = { it.folio }) { cotizacion ->
+                                val pdfExistente = pdfsGenerados[cotizacion.folio]
+                                OrdenInstalacionCard(
+                                    cotizacion = cotizacion,
+                                    isDarkMode = isDarkMode,
+                                    cardBg = cardBg,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    border = border,
+                                    primary = primary,
+                                    onPrimary = onPrimary,
+                                    pdfGenerado = pdfExistente,
+                                    onGenerarOrden = { cotizacionSeleccionada = cotizacion },
+                                    onVerPdf = { pdfExistente?.let { verPdf(context, it) } },
+                                    onCompartirPdf = { pdfExistente?.let { compartirPdf(context, it) } },
+                                    onVolverAGenerar = {
+                                        // Eliminar del mapa y abrir diálogo
+                                        pdfsGenerados = pdfsGenerados - cotizacion.folio
+                                        cotizacionSeleccionada = cotizacion
+                                    }
+                                )
+                            }
+
+                            item { Spacer(Modifier.height(16.dp)) }
+                        }
                     }
                 }
             }
@@ -354,50 +875,261 @@ fun EnviosInstalacionScreen(
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// CARD DE COTIZACIÓN
+// ══════════════════════════════════════════════════════════════════════════════
 @Composable
-private fun EnvioInstalacionCard(cotizacion: Cotizacion, isDarkMode: Boolean, cardBg: Color, textPrimary: Color, textMuted: Color, border: Color, isSending: Boolean, onEnviar: () -> Unit) {
+private fun OrdenInstalacionCard(
+    cotizacion: Cotizacion,
+    isDarkMode: Boolean,
+    cardBg: Color,
+    textPrimary: Color,
+    textMuted: Color,
+    border: Color,
+    primary: Color,
+    onPrimary: Color,
+    pdfGenerado: File?,
+    onGenerarOrden: () -> Unit,
+    onVerPdf: () -> Unit,
+    onCompartirPdf: () -> Unit,
+    onVolverAGenerar: () -> Unit
+) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val fecha = try { cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "-" } catch (e: Exception) { "-" }
+    val fecha = try {
+        cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "-"
+    } catch (e: Exception) { "-" }
+
     val numSistemas = cotizacion.productos.size
-    val sistemasText = if (numSistemas == 1) cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "-" else "$numSistemas sistemas"
+    val sistemasText = if (numSistemas == 1) {
+        cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "-"
+    } else {
+        "$numSistemas sistemas"
+    }
+
     val areaTotal = cotizacion.ventanas.sumOf { it.alto * it.ancho }
     val numVentanas = cotizacion.ventanas.size
-    val primary = if (isDarkMode) Color.White else Color.Black
-    val onPrimary = if (isDarkMode) Color.Black else Color.White
 
-    Surface(modifier = Modifier.fillMaxWidth(), color = cardBg, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, border.copy(alpha = 0.5f))) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(cotizacion.folio, color = textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Surface(color = primary, shape = RoundedCornerShape(6.dp)) {
-                    Text(sistemasText, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    val tienePdf = pdfGenerado != null
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = cardBg,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (tienePdf) primary.copy(alpha = 0.5f) else border.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header: Folio + Sistema
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        cotizacion.folio,
+                        color = textPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Indicador de PDF generado
+                    if (tienePdf) {
+                        Surface(
+                            color = Color(0xFF10B981).copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    null,
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    "PDF",
+                                    color = Color(0xFF10B981),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                Surface(
+                    color = primary,
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        sistemasText,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = onPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-            Text(cotizacion.clienteNombre, color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+
+            // Nombre del cliente
+            Text(
+                cotizacion.clienteNombre,
+                color = textPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // Ubicación
+            if (cotizacion.ubicacion.isNotBlank() || cotizacion.ciudad.isNotBlank()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.LocationOn,
+                        null,
+                        tint = textMuted,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        cotizacion.ubicacion.ifBlank { cotizacion.ciudad },
+                        color = textMuted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Métricas: Fecha, Aperturas, Área
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Outlined.CalendarToday, null, tint = textMuted, modifier = Modifier.size(14.dp))
                     Text(fecha, color = textMuted, fontSize = 12.sp)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Outlined.Window, null, tint = textMuted, modifier = Modifier.size(14.dp))
                     Text("$numVentanas apertura${if (numVentanas != 1) "s" else ""}", color = textMuted, fontSize = 12.sp)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Outlined.SquareFoot, null, tint = textMuted, modifier = Modifier.size(14.dp))
                     Text("${String.format("%.1f", areaTotal)} m²", color = textMuted, fontSize = 12.sp)
                 }
             }
+
             HorizontalDivider(color = border.copy(alpha = 0.3f))
-            Button(onClick = onEnviar, enabled = !isSending, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = primary, disabledContainerColor = textMuted.copy(alpha = 0.3f)), shape = RoundedCornerShape(8.dp)) {
-                if (isSending) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = onPrimary, strokeWidth = 2.dp)
+
+            // Botones según estado
+            if (tienePdf) {
+                // PDF ya generado - mostrar 3 botones
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Ver PDF
+                    Button(
+                        onClick = onVerPdf,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Visibility,
+                            null,
+                            tint = textPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Ver", color = textPrimary, fontSize = 12.sp)
+                    }
+
+                    // Compartir
+                    Button(
+                        onClick = onCompartirPdf,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primary),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Share,
+                            null,
+                            tint = onPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Compartir", color = onPrimary, fontSize = 12.sp)
+                    }
+
+                    // Regenerar
+                    OutlinedButton(
+                        onClick = onVolverAGenerar,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, border),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            null,
+                            tint = textMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Nueva", color = textMuted, fontSize = 12.sp)
+                    }
+                }
+            } else {
+                // Sin PDF - mostrar botón de generar
+                Button(
+                    onClick = onGenerarOrden,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PictureAsPdf,
+                        null,
+                        tint = onPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(8.dp))
-                    Text("Enviando...", color = onPrimary, fontSize = 13.sp)
-                } else {
-                    Icon(Icons.Default.Send, null, tint = onPrimary, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Enviar a Instalación", color = onPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Generar Orden de Instalación",
+                        color = onPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }

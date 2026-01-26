@@ -9,7 +9,7 @@ import java.io.FileOutputStream
 /**
  * Generador de PDF "Orden de Instalación" para instaladores
  *
- * NOTA: Cambios aplicados SOLO a DISEÁ‘O/MAQUETACIÁ“N:
+ * NOTA: Cambios aplicados SOLO a DISEÁâ€˜O/MAQUETACIÁâ€œN:
  * - Header de tabla gris claro (formato tipo formulario)
  * - Grid completo en tabla
  * - Observaciones como footer (altura fija, siempre al fondo)
@@ -33,15 +33,31 @@ object PdfInstaladorGenerator {
     private const val OBS_BOTTOM_GAP = 12f
     private const val OBS_FOOTER_TOTAL_HEIGHT = 115f // reserva fija para que SIEMPRE quede abajo
 
+    /**
+     * Genera PDF de Orden de Instalación
+     *
+     * @param context Contexto de Android
+     * @param cotizacion Datos de la cotización
+     * @param sistemaSeleccionado Sistema seleccionado (HS875, HS1250, HS1500)
+     * @param instaladorDatos Datos del instalador (opcional, de Supabase)
+     * @param medidasRectificadas Medidas rectificadas (opcional)
+     * @param fechaSolicitadaManual Fecha de instalación manual (cuando no hay instaladorDatos)
+     * @param observacionesManuales Observaciones manuales (cuando no hay instaladorDatos)
+     */
     fun generarPdfOrdenInstalacion(
         context: Context,
         cotizacion: Cotizacion,
         sistemaSeleccionado: String,
         instaladorDatos: InstaladorDatos? = null,
-        medidasRectificadas: List<MedidaInstalador>? = null
+        medidasRectificadas: List<MedidaInstalador>? = null,
+        fechaSolicitadaManual: String? = null,
+        observacionesManuales: String? = null
     ): File? {
         return try {
-            android.util.Log.d(TAG, "Generando PDF de instalacion para: ${cotizacion.folio}")
+            android.util.Log.d(TAG, "Generando PDF de instalación para: ${cotizacion.folio}")
+            android.util.Log.d(TAG, "Sistema: $sistemaSeleccionado")
+            android.util.Log.d(TAG, "Fecha manual: $fechaSolicitadaManual")
+            android.util.Log.d(TAG, "Ventanas: ${cotizacion.ventanas.size}")
 
             val pdfDocument = PdfDocument()
             val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 1).create()
@@ -56,8 +72,14 @@ object PdfInstaladorGenerator {
             // 2) Título
             yPosition = drawTitle(canvas, yPosition)
 
-            // 3) Datos cliente
-            yPosition = drawClienteSection(canvas, yPosition, cotizacion, instaladorDatos)
+            // 3) Datos cliente - ahora con parámetros manuales
+            yPosition = drawClienteSection(
+                canvas = canvas,
+                startY = yPosition,
+                cotizacion = cotizacion,
+                instaladorDatos = instaladorDatos,
+                fechaSolicitadaManual = fechaSolicitadaManual
+            )
 
             // 4) Reservar footer fijo para Observaciones (SIEMPRE)
             val footerTopY = PAGE_HEIGHT - MARGIN - OBS_FOOTER_TOTAL_HEIGHT
@@ -73,8 +95,10 @@ object PdfInstaladorGenerator {
                 medidasRectificadas = medidasRectificadas
             )
 
-            // 6) Observaciones como footer (siempre abajo; puede ir en blanco)
-            val obs = instaladorDatos?.getObservacionesSeguras() ?: ""
+            // 6) Observaciones - usar manuales si no hay instaladorDatos
+            val obs = observacionesManuales?.ifBlank { null }
+                ?: instaladorDatos?.getObservacionesSeguras()
+                ?: ""
             drawObservaciones(canvas, footerTopY, obs)
 
             pdfDocument.finishPage(page)
@@ -203,7 +227,7 @@ object PdfInstaladorGenerator {
             textAlign = Paint.Align.CENTER
             letterSpacing = 0.02f
         }
-        val sloganText = "INSTALACIÁ“N DE PROTECCIÁ“N CONTRA HURACANES"
+        val sloganText = "INSTALACIÁâ€œN DE PROTECCIÁâ€œN CONTRA HURACANES"
         val sloganY = headerBottom / 2f - (sloganPaint.descent() + sloganPaint.ascent()) / 2f
         val centerTextX = (centerZoneLeft + centerZoneRight) / 2f
         canvas.drawText(sloganText, centerTextX, sloganY, sloganPaint)
@@ -223,7 +247,7 @@ object PdfInstaladorGenerator {
             textAlign = Paint.Align.CENTER
         }
         val titleY = startY + 40f
-        canvas.drawText("ORDEN DE INSTALACIÁ“N", PAGE_WIDTH / 2f, titleY, titlePaint)
+        canvas.drawText("ORDEN DE INSTALACION", PAGE_WIDTH / 2f, titleY, titlePaint)
         return titleY + 25f
     }
 
@@ -235,12 +259,13 @@ object PdfInstaladorGenerator {
         canvas: Canvas,
         startY: Float,
         cotizacion: Cotizacion,
-        instaladorDatos: InstaladorDatos?
+        instaladorDatos: InstaladorDatos?,
+        fechaSolicitadaManual: String? = null
     ): Float {
         var y = startY
 
         val labelBgPaint = Paint().apply {
-            color = Color.parseColor("#353535") // gris claro como ejemplo
+            color = Color.parseColor("#353535")
             style = Paint.Style.FILL
         }
         val valueBgPaint = Paint().apply {
@@ -275,13 +300,32 @@ object PdfInstaladorGenerator {
         val col2Start = col1ValueStart + col1ValueWidth + gapBetweenColumns
         val col2ValueStart = col2Start + col2LabelWidth
 
+        // Extraer datos de ubicación de la cotización
+        val ubicacionPartes = cotizacion.ubicacion.split(",").map { it.trim() }
+        val direccionExtraida = ubicacionPartes.lastOrNull() ?: cotizacion.ubicacion
+        val coloniaExtraida = if (ubicacionPartes.size >= 2) ubicacionPartes.dropLast(1).lastOrNull() ?: "" else ""
+
+        // Calcular nivel desde las zonas de las ventanas
+        val zonasUnicas = cotizacion.ventanas.mapNotNull { it.zona.ifBlank { null } }.distinct()
+        val nivelCalculado = if (zonasUnicas.isNotEmpty()) {
+            zonasUnicas.joinToString(", ")
+        } else {
+            "Nivel 1"
+        }
+
+        // Determinar fecha a mostrar (manual > instaladorDatos)
+        val fechaMostrar = fechaSolicitadaManual?.ifBlank { null }
+            ?: instaladorDatos?.getFechaSolicitadaSegura()
+            ?: ""
+
         val leftData = listOf(
             "Nombre del Cliente:" to cotizacion.clienteNombre,
-            "Dirección:" to (instaladorDatos?.getDireccionSegura()?.take(35) ?: cotizacion.ubicacion.take(35)),
-            "Fraccionamiento:" to (instaladorDatos?.getColoniaSegura()?.ifBlank {
-                cotizacion.ubicacion.split(",").getOrNull(1)?.trim() ?: ""
-            } ?: ""),
-            "Municipio:" to (instaladorDatos?.getCiudadSegura()?.ifBlank { cotizacion.ciudad } ?: cotizacion.ciudad),
+            "Dirección:" to (instaladorDatos?.getDireccionSegura()?.take(35)
+                ?: direccionExtraida.take(35)),
+            "Fraccionamiento:" to (instaladorDatos?.getColoniaSegura()?.ifBlank { coloniaExtraida }
+                ?: coloniaExtraida),
+            "Municipio:" to (instaladorDatos?.getCiudadSegura()?.ifBlank { cotizacion.ciudad }
+                ?: cotizacion.ciudad),
             "Especialista:" to cotizacion.especialista
         )
 
@@ -289,9 +333,10 @@ object PdfInstaladorGenerator {
             "Rectificadas:" to if (instaladorDatos?.rectificadas == true) "Sí" else "No",
             "Tipo de Propiedad:" to (instaladorDatos?.getTipoPropiedadSegura()?.ifBlank { "Casa" }
                 ?: "Casa"),
-            "Nivel:" to (instaladorDatos?.getNivelSeguro()?.ifBlank { "Nivel 1" } ?: "Nivel 1"),
+            "Nivel:" to (instaladorDatos?.getNivelSeguro()?.ifBlank { nivelCalculado }
+                ?: nivelCalculado),
             "Requiere Andamios:" to if (instaladorDatos?.requiereAndamios == true) "Sí" else "No",
-            "Fecha Solicitada:" to (instaladorDatos?.getFechaSolicitadaSegura() ?: "")
+            "Fecha Solicitada:" to fechaMostrar
         )
 
         for (i in leftData.indices) {

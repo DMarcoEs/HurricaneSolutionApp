@@ -441,7 +441,7 @@ fun InstaladorResumenScreen(
                             textMuted = textMuted
                         ) {
                             Column {
-                                // Área total
+
                                 Box(
                                     modifier = Modifier.fillMaxWidth().background(if (isDarkMode) Color(0xFF1F1F1F) else Color.Black).padding(vertical = 24.dp),
                                     contentAlignment = Alignment.Center

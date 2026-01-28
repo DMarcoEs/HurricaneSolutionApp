@@ -25,7 +25,7 @@ fun generarPdfCotizacion(
     val pdfDocument = PdfDocument()
     val margin = 32f
     val headerBarHeight = 90f
-    val bottomBarHeight = 50f
+    val bottomBarHeight = 65f
 
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -42,311 +42,200 @@ fun generarPdfCotizacion(
         val height = bitmap.height
         val pixels = IntArray(width * height)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-
-        var minX = width
-        var minY = height
-        var maxX = -1
-        var maxY = -1
-
+        var minX = width; var minY = height; var maxX = -1; var maxY = -1
         for (y in 0 until height) {
             val offset = y * width
             for (x in 0 until width) {
                 val alpha = (pixels[offset + x] ushr 24) and 0xFF
                 if (alpha > 0) {
-                    if (x < minX) minX = x
-                    if (x > maxX) maxX = x
-                    if (y < minY) minY = y
-                    if (y > maxY) maxY = y
+                    if (x < minX) minX = x; if (x > maxX) maxX = x
+                    if (y < minY) minY = y; if (y > maxY) maxY = y
                 }
             }
         }
-
         if (maxX < 0 || maxY < 0) return bitmap
-        val cropWidth = maxX - minX + 1
-        val cropHeight = maxY - minY + 1
-        return Bitmap.createBitmap(bitmap, minX, minY, cropWidth, cropHeight)
+        return Bitmap.createBitmap(bitmap, minX, minY, maxX - minX + 1, maxY - minY + 1)
     }
 
-    fun wrapText(text: String, maxWidth: Float, paint: Paint): List<String> {
+    fun wrapText(text: String, maxWidth: Float, paint: Paint, maxLines: Int = 2): List<String> {
         if (text.isBlank()) return listOf("")
         val words = text.split(" ")
         val lines = mutableListOf<String>()
         var currentLine = StringBuilder()
-
         for (word in words) {
-            val candidate = if (currentLine.isEmpty()) word else currentLine.toString() + " " + word
+            val candidate = if (currentLine.isEmpty()) word else "$currentLine $word"
             if (paint.measureText(candidate) <= maxWidth) {
-                currentLine.clear()
-                currentLine.append(candidate)
+                currentLine.clear().append(candidate)
             } else {
-                if (currentLine.isNotEmpty()) lines.add(currentLine.toString())
+                if (currentLine.isNotEmpty()) {
+                    lines.add(currentLine.toString())
+                    if (lines.size >= maxLines) return lines
+                }
                 currentLine = StringBuilder(word)
             }
         }
-        if (currentLine.isNotEmpty()) lines.add(currentLine.toString())
+        if (currentLine.isNotEmpty() && lines.size < maxLines) lines.add(currentLine.toString())
         return lines
     }
 
     fun drawHeader(canvas: Canvas) {
         try {
             val options = BitmapFactory.Options().apply { inScaled = false }
-
             val rawLogo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_header_new, options)
             val croppedLogo = cropTransparent(rawLogo)
-
             val targetHeight = 45f
             val aspectRatio = croppedLogo.width.toFloat() / croppedLogo.height.toFloat()
-            val destHeight = targetHeight
-            val destWidth = destHeight * aspectRatio
-
             val bandCenterY = headerBarHeight / 2f
-            val logoTop = bandCenterY - destHeight / 2f
-            val logoLeft = margin
-
-            val destRect = RectF(logoLeft, logoTop, logoLeft + destWidth, logoTop + destHeight)
+            val logoTop = bandCenterY - targetHeight / 2f
+            val destRect = RectF(margin, logoTop, margin + targetHeight * aspectRatio, logoTop + targetHeight)
             canvas.drawBitmap(croppedLogo, null, destRect, null)
 
             val rawUsa = BitmapFactory.decodeResource(context.resources, R.drawable.made_in_usa, options)
             val usaCropped = cropTransparent(rawUsa)
-
             val usaTargetHeight = 38f
             val usaAspect = usaCropped.width.toFloat() / usaCropped.height.toFloat()
-            val usaDestHeight = usaTargetHeight
-            val usaDestWidth = usaDestHeight * usaAspect
-
-            val usaTop = bandCenterY - usaDestHeight / 2f - 3f
+            val usaTop = bandCenterY - usaTargetHeight / 2f - 3f
             val usaRight = pageWidth.toFloat() - margin
-            val usaLeft = usaRight - usaDestWidth
-
-            val usaRect = RectF(usaLeft, usaTop, usaRight, usaTop + usaDestHeight)
+            val usaRect = RectF(usaRight - usaTargetHeight * usaAspect, usaTop, usaRight, usaTop + usaTargetHeight)
             val colorMatrix = ColorMatrix().apply { setSaturation(0f) }
-            val usaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                colorFilter = ColorMatrixColorFilter(colorMatrix)
-            }
+            val usaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(colorMatrix) }
             canvas.drawBitmap(usaCropped, null, usaRect, usaPaint)
 
-            paint.color = Color.BLACK
-            paint.textSize = 14f
+            paint.color = Color.BLACK; paint.textSize = 14f
             paint.typeface = Typeface.create("times new roman", Typeface.NORMAL)
             paint.textAlign = Paint.Align.CENTER
-
-            val lema = "Instalación de Protección Contra huracanes"
-            val lemaX = pageWidth / 2f
-            val lemaY = headerBarHeight / 2f - (paint.descent() + paint.ascent()) / 2f
-            canvas.drawText(lema, lemaX, lemaY, paint)
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+            canvas.drawText("Instalación de Protección Contra huracanes", pageWidth / 2f, bandCenterY - (paint.descent() + paint.ascent()) / 2f, paint)
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     fun drawFolioBox(canvas: Canvas, titleY: Float) {
         val folioTexto = "Folio: ${cotizacion.folio}"
-
-        paint.color = Color.BLACK
-        paint.textSize = 10f
+        paint.color = Color.BLACK; paint.textSize = 10f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         paint.textAlign = Paint.Align.LEFT
-
         val textWidth = paint.measureText(folioTexto)
-        val boxPaddingH = 6f
-        val boxHeight = 18f
-
-        val boxCenterY = titleY
-        val boxTop = boxCenterY - boxHeight / 2f
-        val boxBottom = boxTop + boxHeight
+        val boxPaddingH = 6f; val boxHeight = 18f
+        val boxTop = titleY - boxHeight / 2f
         val boxRight = pageWidth.toFloat() - margin
         val boxLeft = boxRight - textWidth - boxPaddingH * 2
-
-        val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            color = Color.WHITE
-        }
-        canvas.drawRect(boxLeft, boxTop, boxRight, boxBottom, boxPaint)
-
-        boxPaint.style = Paint.Style.STROKE
-        boxPaint.color = Color.DKGRAY
-        boxPaint.strokeWidth = 0.8f
-        canvas.drawRect(boxLeft, boxTop, boxRight, boxBottom, boxPaint)
-
+        val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.WHITE }
+        canvas.drawRect(boxLeft, boxTop, boxRight, boxTop + boxHeight, boxPaint)
+        boxPaint.style = Paint.Style.STROKE; boxPaint.color = Color.DKGRAY; boxPaint.strokeWidth = 0.8f
+        canvas.drawRect(boxLeft, boxTop, boxRight, boxTop + boxHeight, boxPaint)
         paint.color = Color.BLACK
-        paint.textAlign = Paint.Align.LEFT
-        val textX = boxLeft + boxPaddingH
-        val textY = boxTop + boxHeight / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText(folioTexto, textX, textY, paint)
+        canvas.drawText(folioTexto, boxLeft + boxPaddingH, boxTop + boxHeight / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
     }
 
     fun drawFooter(canvas: Canvas) {
         val footerTop = pageHeight.toFloat() - bottomBarHeight
+        val lightGray = Color.parseColor("#E5E7EB")
+        val mediumGray = Color.parseColor("#D1D5DB")
+        val darkGray = Color.parseColor("#9CA3AF")
+
+        val path = Path()
+        val diagonalOffset = 15f
+        path.moveTo(0f, footerTop + diagonalOffset)
+        path.lineTo(pageWidth.toFloat(), footerTop)
+        path.lineTo(pageWidth.toFloat(), pageHeight.toFloat())
+        path.lineTo(0f, pageHeight.toFloat())
+        path.close()
+
+        val gradient = LinearGradient(0f, footerTop, pageWidth.toFloat(), pageHeight.toFloat(),
+            intArrayOf(lightGray, mediumGray, darkGray), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+        val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; shader = gradient }
+        canvas.drawPath(path, footerPaint)
+
+        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = darkGray; strokeWidth = 1f; style = Paint.Style.STROKE }
+        canvas.drawLine(0f, footerTop + diagonalOffset, pageWidth.toFloat(), footerTop, linePaint)
 
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.DKGRAY
-            textSize = 7.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            textAlign = Paint.Align.LEFT
+            color = Color.parseColor("#374151"); textSize = 7f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL); textAlign = Paint.Align.LEFT
         }
 
         val iconOptions = BitmapFactory.Options().apply { inScaled = false }
         val iconSize = 9f
-
-        fun loadIcon(resId: Int): Bitmap? =
-            BitmapFactory.decodeResource(context.resources, resId, iconOptions)
-
+        fun loadIcon(resId: Int): Bitmap? = BitmapFactory.decodeResource(context.resources, resId, iconOptions)
         val iconMail = loadIcon(R.drawable.ic_footer_mail)
         val iconWeb = loadIcon(R.drawable.ic_footer_web)
-        val iconWhatsRaw = loadIcon(R.drawable.ic_footer_whatsapp)
+        val iconWhatsapp = loadIcon(R.drawable.ic_footer_whatsapp)
         val iconLocation = loadIcon(R.drawable.ic_footer_location)
-
-        val iconPaintGray = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            colorFilter = PorterDuffColorFilter(Color.DKGRAY, PorterDuff.Mode.SRC_IN)
-        }
+        val iconPaintGray = Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = PorterDuffColorFilter(Color.parseColor("#374151"), PorterDuff.Mode.SRC_IN) }
 
         fun drawIcon(bitmap: Bitmap?, centerX: Float, centerY: Float, size: Float = iconSize, iconPaint: Paint? = null) {
             if (bitmap == null) return
             val half = size / 2f
-            val rect = RectF(centerX - half, centerY - half, centerX + half, centerY + half)
-            canvas.drawBitmap(bitmap, null, rect, iconPaint)
+            canvas.drawBitmap(bitmap, null, RectF(centerX - half, centerY - half, centerX + half, centerY + half), iconPaint)
         }
 
-        val email1 = "administraciondeventas@hurricanesolution.com"
-        val email2 = "protegiendo@hurricanesolution.com"
-        val web = "www.hurricanesolution.com"
-        val phone = "9848035014 / 9987052145"
-        val address = "Dirección: Av. XXX, Playa del Carmen, Q. Roo"
-
-        val line1Y = footerTop + 12f
-        val line2Y = line1Y + 12f
-        val line3Y = line2Y + 12f
-
-        fun iconCenterYForText(baselineY: Float): Float = baselineY - textPaint.textSize / 2f + 1f
+        val line1Y = footerTop + 18f; val line2Y = line1Y + 12f; val line3Y = line2Y + 12f
+        fun iconCenterY(baselineY: Float): Float = baselineY - textPaint.textSize / 2f + 1f
 
         val leftStartX = margin
-        val leftIconCenterX = leftStartX + iconSize / 2f
-        val leftTextStartX = leftStartX + iconSize + 4f
-
-        drawIcon(iconMail, leftIconCenterX, iconCenterYForText(line1Y), iconSize, iconPaintGray)
-        canvas.drawText(email1, leftTextStartX, line1Y, textPaint)
-
-        drawIcon(iconMail, leftIconCenterX, iconCenterYForText(line2Y), iconSize, iconPaintGray)
-        canvas.drawText(email2, leftTextStartX, line2Y, textPaint)
-
-        drawIcon(iconLocation, leftIconCenterX, iconCenterYForText(line3Y), iconSize, iconPaintGray)
-        canvas.drawText(address, leftTextStartX, line3Y, textPaint)
+        drawIcon(iconMail, leftStartX + iconSize / 2f, iconCenterY(line1Y), iconSize, iconPaintGray)
+        canvas.drawText("administraciondeventas@hurricanesolution.com", leftStartX + iconSize + 4f, line1Y, textPaint)
+        drawIcon(iconMail, leftStartX + iconSize / 2f, iconCenterY(line2Y), iconSize, iconPaintGray)
+        canvas.drawText("protegiendo@hurricanesolution.com", leftStartX + iconSize + 4f, line2Y, textPaint)
+        drawIcon(iconLocation, leftStartX + iconSize / 2f, iconCenterY(line3Y), iconSize, iconPaintGray)
+        canvas.drawText("Dirección: Av. 10Nte, Plaza Tukan 258, Playa del Carmen, Q. Roo", leftStartX + iconSize + 4f, line3Y, textPaint)
 
         val rightTextEndX = pageWidth.toFloat() - margin
-        textPaint.textAlign = Paint.Align.LEFT
-
-        val webTextWidth = textPaint.measureText(web)
-        val webIconX = rightTextEndX - webTextWidth - iconSize - 4f
-        drawIcon(iconWeb, webIconX + iconSize / 2f, iconCenterYForText(line1Y), iconSize, iconPaintGray)
+        val web = "www.hurricanesolution.com"; val phone = "9848035014 / 9987052145"
+        val webTextWidth = textPaint.measureText(web); val webIconX = rightTextEndX - webTextWidth - iconSize - 4f
+        drawIcon(iconWeb, webIconX + iconSize / 2f, iconCenterY(line1Y), iconSize, iconPaintGray)
         canvas.drawText(web, webIconX + iconSize + 4f, line1Y, textPaint)
-
-        val phoneTextWidth = textPaint.measureText(phone)
-        val phoneIconX = rightTextEndX - phoneTextWidth - iconSize - 4f
-        drawIcon(iconWhatsRaw, phoneIconX + iconSize / 2f, iconCenterYForText(line2Y), iconSize, iconPaintGray)
+        val phoneTextWidth = textPaint.measureText(phone); val phoneIconX = rightTextEndX - phoneTextWidth - iconSize - 4f
+        drawIcon(iconWhatsapp, phoneIconX + iconSize / 2f, iconCenterY(line2Y), iconSize, iconPaintGray)
         canvas.drawText(phone, phoneIconX + iconSize + 4f, line2Y, textPaint)
 
         val iconFacebook = loadIcon(R.drawable.ic_footer_facebook)
         val iconLinkedIn = loadIcon(R.drawable.ic_footer_linkedin)
         val iconYoutube = loadIcon(R.drawable.ic_footer_youtube)
         val iconTikTok = loadIcon(R.drawable.ic_footer_tiktok)
-
-        var socialX = rightTextEndX - 5f
-        val socialY = line3Y
-        fun drawSocialIcon(bitmap: Bitmap?, centerX: Float) {
-            drawIcon(bitmap, centerX, iconCenterYForText(socialY), size = 9f, iconPaint = iconPaintGray)
-        }
-        val socialGap = 14f
-        drawSocialIcon(iconTikTok, socialX)
-        socialX -= socialGap
-        drawSocialIcon(iconYoutube, socialX)
-        socialX -= socialGap
-        drawSocialIcon(iconLinkedIn, socialX)
-        socialX -= socialGap
-        drawSocialIcon(iconFacebook, socialX)
+        var socialX = rightTextEndX - 5f; val socialGap = 14f
+        drawIcon(iconTikTok, socialX, iconCenterY(line3Y), 9f, iconPaintGray); socialX -= socialGap
+        drawIcon(iconYoutube, socialX, iconCenterY(line3Y), 9f, iconPaintGray); socialX -= socialGap
+        drawIcon(iconLinkedIn, socialX, iconCenterY(line3Y), 9f, iconPaintGray); socialX -= socialGap
+        drawIcon(iconFacebook, socialX, iconCenterY(line3Y), 9f, iconPaintGray)
     }
 
     val productosSeleccionados: List<TipoProducto> = run {
         val lista = cotizacion.productos.ifEmpty { listOf(cotizacion.producto) }
-        lista.distinct().sortedBy { p ->
-            when (p) {
-                TipoProducto.HS875 -> 0
-                TipoProducto.HS1250 -> 1
-                TipoProducto.HS1500 -> 2
-                TipoProducto.PERSONALIZADO -> 3
-            }
-        }
+        lista.distinct().sortedBy { p -> when (p) { TipoProducto.HS875 -> 0; TipoProducto.HS1250 -> 1; TipoProducto.HS1500 -> 2; TipoProducto.PERSONALIZADO -> 3 } }
     }
 
     val zonaGeografica = cotizacion.zonaGeografica
-
-    val tableLeft = margin
-    val tableRight = pageWidth.toFloat() - margin
-    val headerHeight = 42f
-    val bodyTextSize = 9f
-    val cellPadding = 4f
-    val cellLineHeight = 12f
-
-    val colNumeroW = 25f
-    val colAreaW = 130f
-    val colAreaTotalW = 50f
-    val colMontajeW = 65f
-    val colAdecuacionesW = 65f
-
+    val tableLeft = margin; val tableRight = pageWidth.toFloat() - margin
+    val headerHeight = 42f; val bodyTextSize = 9f; val cellPadding = 4f; val cellLineHeight = 12f
+    val colNumeroW = 25f; val colAreaW = 130f; val colAreaTotalW = 50f; val colMontajeW = 65f; val colAdecuacionesW = 65f
     val priceColumnsCount = productosSeleccionados.size.coerceAtLeast(1)
     val colPricesTotalW = tableRight - tableLeft - (colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW)
     val colPriceW = colPricesTotalW / priceColumnsCount
-
     val startPreciosX = tableLeft + colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW
 
-    data class RowLayout(
-        val linesArea: List<String>,
-        val linesAreaTotal: List<String>,
-        val linesMontaje: List<String>,
-        val linesAdecuaciones: List<String>,
-        val linesPreciosPorProducto: List<List<String>>,
-        val height: Float
-    )
+    data class RowLayout(val linesArea: List<String>, val linesAreaTotal: List<String>, val linesMontaje: List<String>,
+                         val linesAdecuaciones: List<String>, val linesPreciosPorProducto: List<List<String>>, val height: Float)
 
-    paint.textSize = bodyTextSize
-    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-
+    paint.textSize = bodyTextSize; paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     val filas = mutableListOf<RowLayout>()
 
     cotizacion.ventanas.forEach { v ->
-        val txtArea = v.descripcion
-        val txtAreaTotal = "%.2f".format(v.areaM2)
+        val txtArea = v.descripcion; val txtAreaTotal = "%.2f".format(v.areaM2)
         val txtMontaje = v.tipoMontaje.ifBlank { cotizacion.tipoMontaje }
         val txtAdecuaciones = if (v.adecuacion == "No" || v.adecuacion.isBlank()) "Ninguna" else v.adecuacion
-
-        val preciosPorProducto: List<String> = productosSeleccionados.map { producto ->
-            val monto = v.subtotalPorProducto(producto, zonaGeografica)
-            "$ " + "%,.2f".format(monto)
-        }
-
+        val preciosPorProducto = productosSeleccionados.map { "$ " + "%,.2f".format(v.subtotalPorProducto(it, zonaGeografica)) }
         val linesArea = wrapText(txtArea, colAreaW - cellPadding * 2, paint)
         val linesAreaTotal = wrapText(txtAreaTotal, colAreaTotalW - cellPadding * 2, paint)
         val linesMontaje = wrapText(txtMontaje, colMontajeW - cellPadding * 2, paint)
         val linesAdecuaciones = wrapText(txtAdecuaciones, colAdecuacionesW - cellPadding * 2, paint)
-        val linesPreciosPorProducto: List<List<String>> = preciosPorProducto.map { listOf(it) }
-
-        val maxLines = listOf(
-            linesArea.size,
-            linesAreaTotal.size,
-            linesMontaje.size,
-            linesAdecuaciones.size,
-            linesPreciosPorProducto.maxOfOrNull { it.size } ?: 1
-        ).maxOrNull() ?: 1
-
-        val rowHeightDynamic = maxLines * cellLineHeight + 4f
-
-        filas.add(RowLayout(linesArea, linesAreaTotal, linesMontaje, linesAdecuaciones, linesPreciosPorProducto, rowHeightDynamic))
+        val linesPreciosPorProducto = preciosPorProducto.map { listOf(it) }
+        val maxLines = listOf(linesArea.size, linesAreaTotal.size, linesMontaje.size, linesAdecuaciones.size, linesPreciosPorProducto.maxOfOrNull { it.size } ?: 1).maxOrNull() ?: 1
+        filas.add(RowLayout(linesArea, linesAreaTotal, linesMontaje, linesAdecuaciones, linesPreciosPorProducto, maxLines * cellLineHeight + 4f))
     }
 
-    val condLineCount = 14
-    val condLineHeight = 7.5f
+    val condLineCount = 14; val condLineHeight = 7.5f
     val condicionesMinBlock = 16f + condLineCount * condLineHeight + 45f
-    val resumenBlockHeight = 18f * 5
+    val resumenBlockHeight = 22f * 5  // Actualizado: 22f por fila (antes era 18f)
     val extraSpaceNeededLastPage = condicionesMinBlock + resumenBlockHeight + 16f
 
     var pageNumber = 1
@@ -355,162 +244,101 @@ fun generarPdfCotizacion(
     var canvas = page.canvas
 
     drawHeader(canvas)
-
-    paint.color = Color.BLACK
-    paint.textSize = 16f
-    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-    paint.textAlign = Paint.Align.CENTER
-
-    val titulo = "COTIZACIÓN DE PROYECTO"
+    paint.color = Color.BLACK; paint.textSize = 16f
+    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); paint.textAlign = Paint.Align.CENTER
     val tituloY = 105f
-
-    canvas.drawText(titulo, pageWidth / 2f, tituloY, paint)
+    canvas.drawText("COTIZACIÓN DE PROYECTO", pageWidth / 2f, tituloY, paint)
     drawFolioBox(canvas, tituloY)
-
     paint.textAlign = Paint.Align.LEFT
 
     var y = 140f
-
-    val leftX = margin
-    val leftBlockWidth = 270f
-    val rightBlockWidth = 230f
+    val leftX = margin; val leftBlockWidth = 270f; val rightBlockWidth = 230f
     val rightX = pageWidth.toFloat() - margin - rightBlockWidth
 
-    fun drawInfoRowMultiline(
-        canvasRef: Canvas,
-        x: Float,
-        yTop: Float,
-        label: String,
-        value: String,
-        blockW: Float
-    ): Float {
-        val labelW = 90f
-        val gapW = 8f
-        val paddingX = 6f
-        val lineHeightText = 10f
-
-        val valueX = x + labelW + gapW
-        val valueW = blockW - labelW - gapW
-
-        paint.textSize = 8f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-
+    fun drawInfoRowCentered(canvasRef: Canvas, x: Float, yTop: Float, label: String, value: String, blockW: Float): Float {
+        val labelW = 100f; val gapW = 8f; val paddingX = 6f; val lineHeightText = 10f
+        val valueX = x + labelW + gapW; val valueW = blockW - labelW - gapW
+        paint.textSize = 8f; paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         val capitalizedValue = capitalizeWords(value)
-        val wrappedLines = wrapText(capitalizedValue, valueW - paddingX * 2, paint)
-
-        val numLines = wrappedLines.size.coerceAtLeast(1)
-        val rowH = (numLines * lineHeightText + 8f).coerceAtLeast(18f)
-        val rowGap = 6f
-
+        val wrappedLines = wrapText(capitalizedValue, valueW - paddingX * 2, paint, maxLines = 2)
+        val numLines = wrappedLines.size.coerceIn(1, 2)
+        val rowH = (numLines * lineHeightText + 8f).coerceAtLeast(20f)
         val yBottom = yTop + rowH
 
-        paint.style = Paint.Style.FILL
-        paint.color = Color.BLACK
+        paint.style = Paint.Style.FILL; paint.color = Color.BLACK
         canvasRef.drawRect(x, yTop, x + labelW, yBottom, paint)
+        paint.color = Color.WHITE; paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); paint.textSize = 8f; paint.textAlign = Paint.Align.LEFT
+        canvasRef.drawText(label, x + paddingX, yTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
-        paint.color = Color.WHITE
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 8f
-        paint.textAlign = Paint.Align.LEFT
-        val labelY = yTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvasRef.drawText(label, x + paddingX, labelY, paint)
-
-        paint.style = Paint.Style.FILL
-        paint.color = Color.WHITE
+        paint.style = Paint.Style.FILL; paint.color = Color.WHITE
+        canvasRef.drawRect(valueX, yTop, valueX + valueW, yBottom, paint)
+        paint.style = Paint.Style.STROKE; paint.color = Color.BLACK; paint.strokeWidth = 0.6f
         canvasRef.drawRect(valueX, yTop, valueX + valueW, yBottom, paint)
 
-        paint.style = Paint.Style.STROKE
-        paint.color = Color.BLACK
-        paint.strokeWidth = 0.6f
-        canvasRef.drawRect(valueX, yTop, valueX + valueW, yBottom, paint)
-
-        paint.style = Paint.Style.FILL
-        paint.color = Color.BLACK
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        paint.textSize = 8f
-
-        var textY = yTop + 4f + lineHeightText - paint.descent()
-        wrappedLines.forEach { line ->
-            canvasRef.drawText(line, valueX + paddingX, textY, paint)
-            textY += lineHeightText
-        }
-
-        return yBottom + rowGap
+        paint.style = Paint.Style.FILL; paint.color = Color.BLACK
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL); paint.textSize = 8f
+        val totalTextHeight = numLines * lineHeightText
+        var textY = yTop + (rowH - totalTextHeight) / 2f + lineHeightText - paint.descent()
+        wrappedLines.forEach { line -> canvasRef.drawText(line, valueX + paddingX, textY, paint); textY += lineHeightText }
+        return yBottom + 6f
     }
 
-    var leftY = y
-    var rightY = y
+    var leftY = y; var rightY = y
+    leftY = drawInfoRowCentered(canvas, leftX, leftY, "Nombre del Cliente:", cotizacion.clienteNombre, leftBlockWidth)
+    if (cotizacion.ciudad.isNotBlank()) leftY = drawInfoRowCentered(canvas, leftX, leftY, "Ciudad:", cotizacion.ciudad, leftBlockWidth)
 
-    leftY = drawInfoRowMultiline(canvas, leftX, leftY, "Nombre del Cliente:", cotizacion.clienteNombre, leftBlockWidth)
+    // Extraer colonia y calle correctamente
+    // ubicacion viene como: "Ciudad, Estado, Colonia, Calle" o "Ciudad, Colonia, Calle"
+    // Pero ciudad ya contiene "Ciudad, Estado", así que debemos extraer después de eso
+    val ubicacionCompleta = cotizacion.ubicacion
+    val ciudadCompleta = cotizacion.ciudad
 
-    if (cotizacion.ciudad.isNotBlank()) {
-        leftY = drawInfoRowMultiline(canvas, leftX, leftY, "Ciudad:", cotizacion.ciudad, leftBlockWidth)
+    // Remover la ciudad de la ubicación para obtener colonia y calle
+    var restoDireccion = ubicacionCompleta
+    if (ciudadCompleta.isNotBlank() && ubicacionCompleta.contains(ciudadCompleta)) {
+        // Quitar la ciudad del inicio
+        restoDireccion = ubicacionCompleta.replace(ciudadCompleta, "").trim()
+        // Quitar comas al inicio si quedaron
+        restoDireccion = restoDireccion.trimStart(',').trim()
     }
 
-    val partesUbicacion = cotizacion.ubicacion.split(",").map { it.trim() }
-    val colonia = partesUbicacion.getOrNull(1) ?: ""
-    val calle = partesUbicacion.getOrNull(2) ?: ""
+    // Ahora restoDireccion debería ser "Colonia, Calle" o solo uno de ellos
+    val partesRestantes = restoDireccion.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    val colonia = partesRestantes.getOrNull(0) ?: ""
+    val calleNumero = partesRestantes.getOrNull(1) ?: ""
 
-    if (colonia.isNotBlank()) {
-        leftY = drawInfoRowMultiline(canvas, leftX, leftY, "Colonia:", colonia, leftBlockWidth)
-    }
-
-    if (calle.isNotBlank()) {
-        leftY = drawInfoRowMultiline(canvas, leftX, leftY, "Calle y Número:", calle, leftBlockWidth)
-    }
+    if (colonia.isNotBlank()) leftY = drawInfoRowCentered(canvas, leftX, leftY, "Colonia:", colonia, leftBlockWidth)
+    if (calleNumero.isNotBlank()) leftY = drawInfoRowCentered(canvas, leftX, leftY, "Calle y Número:", calleNumero, leftBlockWidth)
 
     val metrajeFinal = cotizacion.ventanas.sumOf { it.areaM2 }
-    rightY = drawInfoRowMultiline(canvas, rightX, rightY, "Especialista:", cotizacion.especialista, rightBlockWidth)
-    rightY = drawInfoRowMultiline(canvas, rightX, rightY, "Fecha:", cotizacion.fecha, rightBlockWidth)
-    rightY = drawInfoRowMultiline(canvas, rightX, rightY, "Metraje Total:", "%.2f m²".format(metrajeFinal), rightBlockWidth)
-
+    rightY = drawInfoRowCentered(canvas, rightX, rightY, "Especialista:", cotizacion.especialista, rightBlockWidth)
+    rightY = drawInfoRowCentered(canvas, rightX, rightY, "Fecha:", cotizacion.fecha, rightBlockWidth)
+    rightY = drawInfoRowCentered(canvas, rightX, rightY, "Metraje Total:", "%.2f M²".format(metrajeFinal), rightBlockWidth)
     y = maxOf(leftY, rightY) + 12f
 
     fun drawTableHeader(startY: Float): Float {
-        paint.textSize = 9f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.color = Color.BLACK
-        paint.style = Paint.Style.FILL
-        paint.textAlign = Paint.Align.CENTER
-
+        paint.textSize = 9f; paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.color = Color.BLACK; paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.CENTER
         var x = tableLeft
 
         fun drawHeaderCell(text: String, width: Float) {
             canvas.drawRect(x, startY, x + width, startY + headerHeight, paint)
             paint.color = Color.WHITE
-            val centerX = x + width / 2f
-            val centerY = startY + headerHeight / 2f - (paint.descent() + paint.ascent()) / 2f
-            canvas.drawText(text, centerX, centerY, paint)
-            paint.color = Color.BLACK
-            x += width
+            canvas.drawText(text, x + width / 2f, startY + headerHeight / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+            paint.color = Color.BLACK; x += width
         }
 
-        drawHeaderCell("", colNumeroW)
-        drawHeaderCell("Área a proteger", colAreaW)
-        drawHeaderCell("Área total", colAreaTotalW)
-        drawHeaderCell("Tipo de montaje", colMontajeW)
+        drawHeaderCell("", colNumeroW); drawHeaderCell("Área a proteger", colAreaW)
+        drawHeaderCell("Área total", colAreaTotalW); drawHeaderCell("Tipo de montaje", colMontajeW)
         drawHeaderCell("Adecuaciones", colAdecuacionesW)
 
         productosSeleccionados.forEach { producto ->
-            val hsLabel = when (producto) {
-                TipoProducto.HS875 -> "HS-875"
-                TipoProducto.HS1250 -> "HS-1250"
-                TipoProducto.HS1500 -> "HS-1500"
-                TipoProducto.PERSONALIZADO -> "Pers."
-            }
-
+            val hsLabel = when (producto) { TipoProducto.HS875 -> "HS-875"; TipoProducto.HS1250 -> "HS-1250"; TipoProducto.HS1500 -> "HS-1500"; TipoProducto.PERSONALIZADO -> "Pers." }
             canvas.drawRect(x, startY, x + colPriceW, startY + headerHeight, paint)
-            val centerX = x + colPriceW / 2f
-            paint.color = Color.WHITE
-            paint.textAlign = Paint.Align.CENTER
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            paint.textSize = 10f
-            val textY = startY + headerHeight / 2f - (paint.descent() + paint.ascent()) / 2f
-            canvas.drawText(hsLabel, centerX, textY, paint)
-            paint.color = Color.BLACK
-            x += colPriceW
+            paint.color = Color.WHITE; paint.textSize = 10f
+            canvas.drawText(hsLabel, x + colPriceW / 2f, startY + headerHeight / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+            paint.color = Color.BLACK; x += colPriceW
         }
-
         return startY + headerHeight
     }
 
@@ -524,371 +352,225 @@ fun generarPdfCotizacion(
 
         if (isLastPage) {
             if (y + rowH + extraSpaceNeededLastPage > footerTop - 10f) {
-                drawFooter(canvas)
-                pdfDocument.finishPage(page)
-                pageNumber++
+                drawFooter(canvas); pdfDocument.finishPage(page); pageNumber++
                 pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
-                page = pdfDocument.startPage(pageInfo)
-                canvas = page.canvas
-                drawHeader(canvas)
-                y = headerBarHeight + 20f
-                y = drawTableHeader(y)
+                page = pdfDocument.startPage(pageInfo); canvas = page.canvas
+                drawHeader(canvas); y = headerBarHeight + 20f; y = drawTableHeader(y)
             }
         } else {
             if (y + rowH > footerTop - 10f) {
-                drawFooter(canvas)
-                pdfDocument.finishPage(page)
-                pageNumber++
+                drawFooter(canvas); pdfDocument.finishPage(page); pageNumber++
                 pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
-                page = pdfDocument.startPage(pageInfo)
-                canvas = page.canvas
-                drawHeader(canvas)
-                y = headerBarHeight + 20f
-                y = drawTableHeader(y)
+                page = pdfDocument.startPage(pageInfo); canvas = page.canvas
+                drawHeader(canvas); y = headerBarHeight + 20f; y = drawTableHeader(y)
             }
         }
 
-        val rowTop = y
-        val rowBottom = y + rowH
+        val rowTop = y; val rowBottom = y + rowH
+        paint.style = Paint.Style.FILL; paint.color = Color.WHITE
+        canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
+        paint.style = Paint.Style.STROKE; paint.color = Color.BLACK; paint.strokeWidth = 0.5f
+        canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
 
-        var cellX = tableLeft
+        var xCol = tableLeft
+        fun drawCellBorder(left: Float, width: Float) { canvas.drawLine(left + width, rowTop, left + width, rowBottom, paint) }
 
-        // Número - CENTRADO
-        paint.style = Paint.Style.FILL
-        paint.color = Color.WHITE
-        canvas.drawRect(cellX, rowTop, cellX + colNumeroW, rowBottom, paint)
-        paint.style = Paint.Style.STROKE
-        paint.color = Color.BLACK
-        paint.strokeWidth = 0.5f
-        canvas.drawRect(cellX, rowTop, cellX + colNumeroW, rowBottom, paint)
+        paint.style = Paint.Style.FILL; paint.color = Color.BLACK; paint.textSize = bodyTextSize
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL); paint.textAlign = Paint.Align.CENTER
 
-        paint.style = Paint.Style.FILL
-        paint.color = Color.BLACK
+        val numCenterY = rowTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText("#${filaIndex + 1}", xCol + colNumeroW / 2f, numCenterY, paint)
+        drawCellBorder(xCol, colNumeroW); xCol += colNumeroW
+
+        paint.textAlign = Paint.Align.LEFT
+        var textY = rowTop + cellPadding + cellLineHeight - paint.descent()
+        fila.linesArea.forEach { line -> canvas.drawText(line, xCol + cellPadding, textY, paint); textY += cellLineHeight }
+        drawCellBorder(xCol, colAreaW); xCol += colAreaW
+
         paint.textAlign = Paint.Align.CENTER
-        paint.textSize = bodyTextSize
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        val numY = rowTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f
-        canvas.drawText("#${filaIndex + 1}", cellX + colNumeroW / 2f, numY, paint)
-        cellX += colNumeroW
+        canvas.drawText(fila.linesAreaTotal.firstOrNull() ?: "", xCol + colAreaTotalW / 2f, numCenterY, paint)
+        drawCellBorder(xCol, colAreaTotalW); xCol += colAreaTotalW
+        canvas.drawText(fila.linesMontaje.firstOrNull() ?: "", xCol + colMontajeW / 2f, numCenterY, paint)
+        drawCellBorder(xCol, colMontajeW); xCol += colMontajeW
+        canvas.drawText(fila.linesAdecuaciones.firstOrNull() ?: "", xCol + colAdecuacionesW / 2f, numCenterY, paint)
+        drawCellBorder(xCol, colAdecuacionesW); xCol += colAdecuacionesW
 
-        // ========== FUNCIN PARA DIBUJAR CELDA CON TEXTO CENTRADO VERTICAL Y HORIZONTAL ==========
-        fun drawCenteredTextCell(lines: List<String>, width: Float) {
-            paint.style = Paint.Style.FILL
-            paint.color = Color.WHITE
-            canvas.drawRect(cellX, rowTop, cellX + width, rowBottom, paint)
-            paint.style = Paint.Style.STROKE
-            paint.color = Color.BLACK
-            canvas.drawRect(cellX, rowTop, cellX + width, rowBottom, paint)
-
-            paint.style = Paint.Style.FILL
-            paint.color = Color.BLACK
-            paint.textAlign = Paint.Align.CENTER  // CENTRADO HORIZONTAL
-            paint.textSize = bodyTextSize
-
-            // Calcular altura total del texto
-            val totalTextHeight = lines.size * cellLineHeight
-            // Calcular Y inicial para centrar verticalmente
-            val startTextY = rowTop + (rowH - totalTextHeight) / 2f + cellLineHeight - paint.descent()
-
-            var textY = startTextY
-            lines.forEach { line ->
-                canvas.drawText(line, cellX + width / 2f, textY, paint)  // Centro de la celda
-                textY += cellLineHeight
-            }
-            cellX += width
+        fila.linesPreciosPorProducto.forEachIndexed { idx, lines ->
+            canvas.drawText(lines.firstOrNull() ?: "", xCol + colPriceW / 2f, numCenterY, paint)
+            drawCellBorder(xCol, colPriceW); xCol += colPriceW
         }
-
-        drawCenteredTextCell(fila.linesArea, colAreaW)
-        drawCenteredTextCell(fila.linesAreaTotal, colAreaTotalW)
-        drawCenteredTextCell(fila.linesMontaje, colMontajeW)
-        drawCenteredTextCell(fila.linesAdecuaciones, colAdecuacionesW)
-
-        // Precios - ya estaban centrados
-        fila.linesPreciosPorProducto.forEach { lines ->
-            paint.style = Paint.Style.FILL
-            paint.color = Color.WHITE
-            canvas.drawRect(cellX, rowTop, cellX + colPriceW, rowBottom, paint)
-            paint.style = Paint.Style.STROKE
-            paint.color = Color.BLACK
-            canvas.drawRect(cellX, rowTop, cellX + colPriceW, rowBottom, paint)
-
-            paint.style = Paint.Style.FILL
-            paint.textAlign = Paint.Align.RIGHT
-            val textY = rowTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f
-            lines.forEach { line ->
-                canvas.drawText(line, cellX + colPriceW - cellPadding, textY, paint)
-            }
-            cellX += colPriceW
-        }
-
-        y = rowBottom
-        filaIndex++
+        y = rowBottom; filaIndex++
     }
 
-    // ======================= BLOQUE DE RESUMEN =======================
     val areaTotal = cotizacion.ventanas.sumOf { it.areaM2 }
-
-    fun descuentoPorM2(producto: TipoProducto): Double {
-        return cotizacion.getDescuentoPorProducto(producto)
+    fun descuentoPorM2(producto: TipoProducto): Double = when (producto) {
+        TipoProducto.HS875 -> cotizacion.descuentoHS875; TipoProducto.HS1250 -> cotizacion.descuentoHS1250
+        TipoProducto.HS1500 -> cotizacion.descuentoHS1500; TipoProducto.PERSONALIZADO -> 0.0
     }
 
-    val totalesPorProducto: Map<TipoProducto, Double> =
-        productosSeleccionados.associateWith { producto ->
-            cotizacion.ventanas.sumOf { v -> v.subtotalPorProducto(producto, zonaGeografica) }
-        }
+    val totalesPorProducto = productosSeleccionados.associateWith { producto -> cotizacion.ventanas.sumOf { it.subtotalPorProducto(producto, zonaGeografica) } }
+    val descuentosPorcentaje = productosSeleccionados.associateWith { producto ->
+        val subtotalProducto = totalesPorProducto[producto] ?: 0.0; val descM2 = descuentoPorM2(producto)
+        if (subtotalProducto == 0.0) 0.0 else (areaTotal * descM2 / subtotalProducto) * 100.0
+    }
+    val preciosFinalesPorProducto = productosSeleccionados.associateWith { producto ->
+        val subtotalProducto = totalesPorProducto[producto] ?: 0.0; val descM2 = descuentoPorM2(producto)
+        (subtotalProducto - areaTotal * descM2).coerceAtLeast(0.0)
+    }
 
-    val descuentosPorcentaje: Map<TipoProducto, Double> =
-        productosSeleccionados.associateWith { producto ->
-            val subtotalProducto = totalesPorProducto[producto] ?: 0.0
-            val descM2 = descuentoPorM2(producto)
-            if (subtotalProducto == 0.0) 0.0 else {
-                val descuentoImporte = areaTotal * descM2
-                (descuentoImporte / subtotalProducto) * 100.0
-            }
-        }
+    val labelWidth = 160f; val boxLeft = startPreciosX - labelWidth; val boxRight = tableRight
+    val valueColumnWidth = colPriceW; val rowHeightResumen = 22f  // Altura de fila
 
-    val preciosFinalesPorProducto: Map<TipoProducto, Double> =
-        productosSeleccionados.associateWith { producto ->
-            val subtotalProducto = totalesPorProducto[producto] ?: 0.0
-            val descM2 = descuentoPorM2(producto)
-            val descuentoImporte = areaTotal * descM2
-            (subtotalProducto - descuentoImporte).coerceAtLeast(0.0)
-        }
-
-    val labelWidth = 130f
-    val boxLeft = startPreciosX - labelWidth
-    val boxRight = tableRight
-
-    val valueColumnWidth = colPriceW
-
-    val rowHeightResumen = 16f
-    val totalResumenRows = 5
-    val bloqueAltura = rowHeightResumen * totalResumenRows
-
-    val footerTop = pageHeight.toFloat() - bottomBarHeight
-    val margenSobreFooter = 10f
-    val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - bloqueAltura
-    val espacioEntreTablaYResumen = 20f
-    val resumenTop = maxOf(y + espacioEntreTablaYResumen, resumenTopDesdeAbajo)
-    val resumenBottom = resumenTop + bloqueAltura
-
+    val footerTop = pageHeight.toFloat() - bottomBarHeight; val margenSobreFooter = 10f
+    val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - rowHeightResumen * 5
+    val resumenTop = maxOf(y + 20f, resumenTopDesdeAbajo); val resumenBottom = resumenTop + rowHeightResumen * 5
     var filaTop = resumenTop
 
-    fun drawResumenDataRow(
+    // Nuevos colores según el diseño
+    val colorSubtotal = Color.parseColor("#D9D9D9")
+    val colorSubtotalConDescuento = Color.parseColor("#898989")
+    val colorPrecioFinal = Color.parseColor("#494949")
+    val colorBlanco = Color.WHITE
+
+    // Calcular el área de valores (para el borde exterior)
+    val valuesBoxLeft = boxLeft + labelWidth
+    val valuesBoxRight = valuesBoxLeft + (valueColumnWidth * productosSeleccionados.size)
+
+    /**
+     * Dibuja una fila del resumen de precios con el nuevo diseño:
+     * - Borde negro exterior alrededor de toda la sección de valores
+     * - Sin cuadrículas internas entre celdas
+     * - Colores de fondo específicos por fila
+     * - Texto en negrita solo para SUBTOTAL, SUBTOTAL CON DESCUENTO y PRECIO FINAL
+     * - PRECIO FINAL con texto blanco
+     */
+    fun drawResumenRowNuevoDiseno(
         label: String,
         getTextForCol: (Int, TipoProducto) -> String,
-        destacar: Boolean,
+        labelBold: Boolean,
+        valueBold: Boolean,
+        bgColor: Int,
+        textColor: Int = Color.BLACK,
+        isFirstRow: Boolean = false,
         isLastRow: Boolean = false
     ) {
         val filaBottom = filaTop + rowHeightResumen
 
+        // Caja negra del label (siempre negra)
         paint.style = Paint.Style.FILL
         paint.color = Color.BLACK
         canvas.drawRect(boxLeft, filaTop, boxLeft + labelWidth, filaBottom, paint)
 
-        if (isLastRow) {
-            canvas.drawRect(boxLeft, filaBottom - 1f, boxLeft + labelWidth, filaBottom, paint)
-        }
-
-        canvas.drawRect(boxLeft, filaTop, boxLeft + labelWidth, filaTop + 1f, paint)
-
+        // Texto del label (siempre blanco)
         paint.color = Color.WHITE
         paint.textAlign = Paint.Align.LEFT
-        paint.textSize = 8f
-        paint.typeface = if (destacar) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        paint.textSize = 9f
+        paint.typeface = if (labelBold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        canvas.drawText(label.uppercase(), boxLeft + 10f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
-        canvas.drawText(label.uppercase(), boxLeft + 4f, filaBottom - 4f, paint)
-
+        // Columnas de valores
         productosSeleccionados.forEachIndexed { index, producto ->
             val left = boxLeft + labelWidth + index * valueColumnWidth
             val right = left + valueColumnWidth
 
+            // Fondo de la celda
             paint.style = Paint.Style.FILL
-            paint.color = Color.WHITE
+            paint.color = bgColor
             canvas.drawRect(left, filaTop, right, filaBottom, paint)
 
-            paint.style = Paint.Style.STROKE
-            paint.color = Color.BLACK
-            paint.strokeWidth = 0.5f
-            canvas.drawLine(left, filaTop, left, filaBottom, paint)
-            canvas.drawLine(right, filaTop, right, filaBottom, paint)
-
+            // Texto del valor (tamaño reducido para mejor perspectiva)
             paint.style = Paint.Style.FILL
-            paint.color = Color.BLACK
-            canvas.drawRect(left, filaTop, right, filaTop + 1f, paint)
+            paint.color = textColor
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 10f  // Reducido de 11f a 10f
+            paint.typeface = if (valueBold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            canvas.drawText(getTextForCol(index, producto), left + valueColumnWidth / 2f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        }
 
-            if (isLastRow) {
-                canvas.drawRect(left, filaBottom - 1f, right, filaBottom, paint)
-            }
+        // Dibujar borde negro exterior de la sección de valores
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.BLACK
+        paint.strokeWidth = 1.5f
 
-            paint.style = Paint.Style.FILL
-            paint.color = Color.BLACK
-            paint.textAlign = Paint.Align.RIGHT
-
-            val text = getTextForCol(index, producto)
-            paint.textSize = 8f
-            paint.typeface = if (destacar) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-
-            canvas.drawText(text, right - 4f, filaBottom - 4f, paint)
+        // Borde izquierdo (siempre)
+        canvas.drawLine(valuesBoxLeft, filaTop, valuesBoxLeft, filaBottom, paint)
+        // Borde derecho (siempre)
+        canvas.drawLine(valuesBoxRight, filaTop, valuesBoxRight, filaBottom, paint)
+        // Borde superior (solo primera fila)
+        if (isFirstRow) {
+            canvas.drawLine(valuesBoxLeft, filaTop, valuesBoxRight, filaTop, paint)
+        }
+        // Borde inferior (solo última fila)
+        if (isLastRow) {
+            canvas.drawLine(valuesBoxLeft, filaBottom, valuesBoxRight, filaBottom, paint)
         }
 
         filaTop = filaBottom
     }
 
-    drawResumenDataRow(
-        label = "Subtotal",
-        getTextForCol = { _, producto ->
-            val subtotalProducto = totalesPorProducto[producto] ?: 0.0
-            "$ " + "%,.2f".format(subtotalProducto)
-        },
-        destacar = true
-    )
+    // SUBTOTAL - Fondo #D9D9D9, label en negrita, valores en negrita, texto negro
+    drawResumenRowNuevoDiseno("Subtotal", { _, p -> "$ " + "%,.2f".format(totalesPorProducto[p] ?: 0.0) },
+        labelBold = true, valueBold = true, bgColor = colorSubtotal, textColor = Color.BLACK, isFirstRow = true)
 
-    drawResumenDataRow(
-        label = "Descuento",
-        getTextForCol = { _, producto ->
-            val pct = descuentosPorcentaje[producto] ?: 0.0
-            String.format("%.2f%%", pct)
-        },
-        destacar = false
-    )
+    // DESCUENTO - Fondo blanco, sin negrita, texto negro
+    drawResumenRowNuevoDiseno("Descuento", { _, p -> String.format("%.2f%%", descuentosPorcentaje[p] ?: 0.0) },
+        labelBold = false, valueBold = false, bgColor = colorBlanco, textColor = Color.BLACK)
 
-    drawResumenDataRow(
-        label = "Subtotal con descuento",
-        getTextForCol = { _, producto ->
-            val subtotalConDescSinIva = preciosFinalesPorProducto[producto] ?: 0.0
-            "$ " + "%,.2f".format(subtotalConDescSinIva)
-        },
-        destacar = true
-    )
+    // SUBTOTAL CON DESCUENTO - Fondo #898989, label en negrita, valores en negrita, texto negro
+    drawResumenRowNuevoDiseno("Subtotal con Descuento", { _, p -> "$ " + "%,.2f".format(preciosFinalesPorProducto[p] ?: 0.0) },
+        labelBold = true, valueBold = true, bgColor = colorSubtotalConDescuento, textColor = Color.BLACK)
 
-    drawResumenDataRow(
-        label = "IVA",
-        getTextForCol = { _, producto ->
-            val subtotalConDesc = preciosFinalesPorProducto[producto] ?: 0.0
-            val iva = subtotalConDesc * IVA_RATE
-            "$ " + "%,.2f".format(iva)
-        },
-        destacar = false
-    )
+    // IVA - Fondo blanco, sin negrita, texto negro
+    drawResumenRowNuevoDiseno("IVA", { _, p -> "$ " + "%,.2f".format((preciosFinalesPorProducto[p] ?: 0.0) * IVA_RATE) },
+        labelBold = false, valueBold = false, bgColor = colorBlanco, textColor = Color.BLACK)
 
-    drawResumenDataRow(
-        label = "Precio Final con IVA",
-        getTextForCol = { _, producto ->
-            val precioSinIva = preciosFinalesPorProducto[producto] ?: 0.0
-            val precioConIva = precioSinIva * (1.0 + IVA_RATE)
-            "$ " + "%,.2f".format(precioConIva)
-        },
-        destacar = true,
-        isLastRow = true
-    )
+    // PRECIO FINAL CON IVA - Fondo #494949, label en negrita, valores en negrita, texto BLANCO
+    drawResumenRowNuevoDiseno("Precio Final con IVA", { _, p -> "$ " + "%,.2f".format((preciosFinalesPorProducto[p] ?: 0.0) * (1.0 + IVA_RATE)) },
+        labelBold = true, valueBold = true, bgColor = colorPrecioFinal, textColor = Color.WHITE, isLastRow = true)
 
-    // ======================= CONDICIONES COMERCIALES =======================
-    // rea disponible: desde margin izquierdo hasta boxLeft, desde resumenTop hasta resumenBottom
+    // CONDICIONES COMERCIALES - USANDO IMAGEN (Manteniendo proporción)
     val condicionesLeft = margin
-    val condicionesRight = boxLeft - 15f  // Espacio entre condiciones y tabla de precios
-    val maxCondicionesWidth = condicionesRight - condicionesLeft
+    val condicionesRight = boxLeft - 15f
+    val condicionesAvailableWidth = condicionesRight - condicionesLeft
+    val condicionesAvailableHeight = resumenBottom - resumenTop
 
-    // Las condiciones empiezan alineadas con el bloque de precios (resumenTop)
-    // Y terminan alineadas con el final del bloque de precios (resumenBottom)
-    val condicionesTop = resumenTop
-    val condicionesBottom = resumenBottom
-    val alturaDisponibleCondiciones = condicionesBottom - condicionesTop
+    try {
+        val options = BitmapFactory.Options().apply { inScaled = false }
+        val condicionesImg = BitmapFactory.decodeResource(context.resources, R.drawable.condiciones_comerciales, options)
+        if (condicionesImg != null) {
+            // Calcular el tamaño manteniendo la proporción de la imagen
+            val imgWidth = condicionesImg.width.toFloat()
+            val imgHeight = condicionesImg.height.toFloat()
+            val imgAspectRatio = imgWidth / imgHeight
 
-    // LAS 12 CONDICIONES EXACTAS DEL TXT
-    val condicionesLineas = listOf(
-        "Precios cotizados en Dólares Americanos.",
-        "Los precios ya incluyen IVA.",
-        "Para Pago En Moneda Nacional Aplicará el T.C Vigente Al Día De Pago Según Banco De México.",
-        "Se Requiere 50% De Anticipo Para La Programación De Instalación.",
-        "No Hay Reembolsos Por Cancelación Después De 3 Días Del Pago De Anticipo.",
-        "Vigencia De La Cotización: 15 Días.",
-        "El Precio Ya Incluye Instalación Dentro De La Zona Continental De Quintana Roo, Para Proyectos Ubicados Fuera De Esta Zona Se Hará Un Cargo Extra Por Concepto De Viáticos.",
-        "Las Medidas Contempladas En Esta Propuesta Pueden Variar Después De La Rectificación.",
-        "La Instalación Se Programará Con Base En La Agenda Y Todo Proyecto Entrará A Una Fila De Instalación. Los Tiempos De Instalación Serán De Acuerdo A Las Fechas Que Se Tengan Programadas en Acapulco, En Caso De Existir Algún Espacio Disponible Antes Del Periodo Máximo, Se Le Notificará Al Cliente.",
-        "Aplicará La Garantía De Acuerdo Al Sistema Contratado Y Siempre Y Cuando Cumpla Con Los Cuidados Y Recomendaciones Entregadas Al Termino De La Instalación.",
-        "Los Descuentos Concedidos En Esta Cotización Podrán Modificarse Si El Metraje Total Disminuye O Se Cancela Algún rea.",
-        "El Costo De Adecuaciones O Modificaciones Estructurales Como Instalación De PTR o Cajillos En Prefabricados NO ESTAN INCLUIDOS."
-    )
+            // Ajustar al espacio disponible manteniendo proporción
+            var finalWidth = condicionesAvailableWidth
+            var finalHeight = finalWidth / imgAspectRatio
 
-    // Configuración de fuente para condiciones - legible y profesional
-    val condTitleSize = 6f
-    val condTextSize = 4.5f
-    val condLineSpacing = 6f
-
-    paint.textAlign = Paint.Align.LEFT
-    paint.color = Color.BLACK
-
-    // Título "Condiciones Comerciales:"
-    paint.textSize = condTitleSize
-    paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-
-    var condY = condicionesTop + condTitleSize + 2f
-    canvas.drawText("Condiciones Comerciales:", condicionesLeft, condY, paint)
-    condY += condLineSpacing
-
-    // Texto de las condiciones
-    paint.textSize = condTextSize
-    paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
-
-    // Función para dibujar una condición con número y wrap de texto
-    fun drawCondition(index: Int, text: String, startY: Float): Float {
-        val numberPrefix = "$index.- "
-        val numberWidth = paint.measureText(numberPrefix)
-        val maxTextWidth = maxCondicionesWidth - numberWidth
-
-        // Dividir el texto en líneas que quepan
-        val words = text.split(" ")
-        val lines = mutableListOf<String>()
-        var current = ""
-
-        for (word in words) {
-            val candidate = if (current.isEmpty()) word else "$current $word"
-            if (paint.measureText(candidate) > maxTextWidth) {
-                if (current.isNotEmpty()) lines.add(current)
-                current = word
-            } else {
-                current = candidate
+            // Si la altura calculada es mayor que la disponible, ajustar por altura
+            if (finalHeight > condicionesAvailableHeight) {
+                finalHeight = condicionesAvailableHeight
+                finalWidth = finalHeight * imgAspectRatio
             }
+
+            // Dibujar la imagen con su proporción correcta (alineada arriba-izquierda)
+            val destRect = RectF(
+                condicionesLeft,
+                resumenTop,
+                condicionesLeft + finalWidth,
+                resumenTop + finalHeight
+            )
+            canvas.drawBitmap(condicionesImg, null, destRect, null)
         }
-        if (current.isNotEmpty()) lines.add(current)
-
-        var currentY = startY
-
-        // Dibujar primera línea con número
-        if (lines.isNotEmpty()) {
-            canvas.drawText(numberPrefix, condicionesLeft, currentY, paint)
-            canvas.drawText(lines[0], condicionesLeft + numberWidth, currentY, paint)
-            currentY += condLineSpacing
-
-            // Dibujar líneas adicionales (sin número, indentadas)
-            for (i in 1 until lines.size) {
-                if (currentY < condicionesBottom - 2f) {
-                    canvas.drawText(lines[i], condicionesLeft + numberWidth, currentY, paint)
-                    currentY += condLineSpacing
-                }
-            }
-        }
-
-        return currentY
-    }
-
-    // Dibujar las 12 condiciones
-    condicionesLineas.forEachIndexed { index, linea ->
-        if (condY < condicionesBottom - condLineSpacing) {
-            condY = drawCondition(index + 1, linea, condY)
-        }
+    } catch (e: Exception) {
+        android.util.Log.e("PdfGenerator", "Error cargando imagen de condiciones: ${e.message}")
     }
 
     drawFooter(canvas)
     pdfDocument.finishPage(page)
 
     val docsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-    if (docsDir == null) {
-        pdfDocument.close()
-        return null
-    }
-
+    if (docsDir == null) { pdfDocument.close(); return null }
     if (!docsDir.exists()) docsDir.mkdirs()
 
     val timeStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
@@ -896,27 +578,16 @@ fun generarPdfCotizacion(
     val file = File(docsDir, fileName)
 
     return try {
-        FileOutputStream(file).use { out ->
-            pdfDocument.writeTo(out)
-        }
+        FileOutputStream(file).use { out -> pdfDocument.writeTo(out) }
         pdfDocument.close()
-
-        UploadQueueStorage.enqueue(
-            context,
-            PendingUpload(
-                id = java.util.UUID.randomUUID().toString(),
-                cotizacionId = cotizacion.folio.ifBlank { cotizacion.id.toString() },
-                clienteNombre = cotizacion.clienteNombre,
-                createdByNombre = cotizacion.especialista,
-                filePath = file.absolutePath,
-                status = "PENDING"
-            )
-        )
-
+        UploadQueueStorage.enqueue(context, PendingUpload(
+            id = java.util.UUID.randomUUID().toString(),
+            cotizacionId = cotizacion.folio.ifBlank { cotizacion.id.toString() },
+            clienteNombre = cotizacion.clienteNombre,
+            createdByNombre = cotizacion.especialista,
+            filePath = file.absolutePath,
+            status = "PENDING"
+        ))
         file
-    } catch (e: IOException) {
-        e.printStackTrace()
-        pdfDocument.close()
-        null
-    }
+    } catch (e: IOException) { e.printStackTrace(); pdfDocument.close(); null }
 }

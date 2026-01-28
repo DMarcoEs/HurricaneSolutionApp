@@ -144,7 +144,7 @@ fun AdminHomeScreen(
             )
             // mÂ² Total
             StitchAdminCard(
-                title = "MÂ² TOTAL",
+                title = "M² TOTAL",
                 value = if (isLoadingStats) "..." else String.format("%.0f", stats.totalMetrosCuadrados),
                 icon = Icons.Default.SquareFoot,
                 modifier = Modifier.weight(1f),

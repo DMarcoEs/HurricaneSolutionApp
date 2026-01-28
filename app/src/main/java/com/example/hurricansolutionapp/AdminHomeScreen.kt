@@ -142,7 +142,7 @@ fun AdminHomeScreen(
                 isDarkMode = isDarkMode,
                 onClick = onVerEmpleados
             )
-            // mÂ² Total
+
             StitchAdminCard(
                 title = "M² TOTAL",
                 value = if (isLoadingStats) "..." else String.format("%.0f", stats.totalMetrosCuadrados),

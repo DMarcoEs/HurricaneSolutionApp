@@ -361,7 +361,7 @@ fun generarPdfCotizacion(
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     paint.textAlign = Paint.Align.CENTER
 
-    val titulo = "COTIZACIN DE PROYECTO"
+    val titulo = "COTIZACIÓN DE PROYECTO"
     val tituloY = 105f
 
     canvas.drawText(titulo, pageWidth / 2f, tituloY, paint)

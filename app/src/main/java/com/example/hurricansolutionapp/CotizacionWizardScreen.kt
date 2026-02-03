@@ -407,7 +407,7 @@ private fun WizardSeleccionClienteContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "CLIENTE NUEVO",
+                    text = "LEAD SIN REGISTRO",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isDarkMode) Color.Black else Color.White,
@@ -419,7 +419,7 @@ private fun WizardSeleccionClienteContent(
 
             // Título "LEADS DEL CRM"
             Text(
-                text = "LEADS DEL CRM",
+                text = "LEAD PRE-REGISTRADO",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = textPrimary,

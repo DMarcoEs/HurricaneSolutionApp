@@ -163,7 +163,7 @@ fun HomeScreen(
 
         // Historial de Cotizaciones
         HomeMenuCard(
-            title = "Historial De Cotizaciones Generadas",
+            title = "Historial De Proyectos",
             subtitle = "Ver mi historial de cotizaciones",
             iconRes = R.drawable.ic_history_lucide,
             animationType = 1,
@@ -179,7 +179,7 @@ fun HomeScreen(
 
         // Sincronizaciones Pendientes
         HomeMenuCard(
-            title = "Sincronizaciones Pendientes",
+            title = "Proyectos Por Registrar",
             subtitle = "Subir Cotizaciones A La Nube",
             badgeCount = pendingCount,
             iconRes = R.drawable.ic_upload_lucide,
@@ -212,8 +212,8 @@ fun HomeScreen(
 
         // Envios a Instalacion
         HomeMenuCard(
-            title = "Envíos a Instalación",
-            subtitle = "Enviar cotizaciones al instalador",
+            title = "Proyectos A Instalar",
+            subtitle = "Generar cotizaciones para instalador",
             iconRes = R.drawable.ic_upload_lucide,
             animationType = 0,
             onClick = onEnviosInstalacion,
@@ -396,7 +396,7 @@ private fun HomeBigActionCard(isDarkMode: Boolean, onClick: () -> Unit) {
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = contentColor, modifier = Modifier.size(24.dp))
                 }
-                Text("NUEVA COTIZACIÓN", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("NUEVO PROYECTO", color = contentColor, fontSize = 18.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = contentColor.copy(alpha = 0.6f), modifier = Modifier.size(24.dp))
         }

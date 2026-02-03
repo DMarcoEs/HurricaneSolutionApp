@@ -201,7 +201,7 @@ fun AdminHomeScreen(
 
         // Historial de Cotizaciones
         StitchMenuCard(
-            title = "Historial De Cotizaciones Generadas",
+            title = "Historial De Proyectos",
             subtitle = "Ver mi historial de cotizaciones",
             iconRes = R.drawable.ic_history_lucide,
             animationType = StitchAnimationType.ROTATION,
@@ -217,7 +217,7 @@ fun AdminHomeScreen(
 
         // Sincronizaciones Pendientes
         StitchMenuCard(
-            title = "Sincronizaciones Pendientes",
+            title = "Proyectos Por Registrar",
             subtitle = "Subir Cotizaciones A La Nube",
             badgeCount = pendingCount,
             iconRes = R.drawable.ic_upload_lucide,
@@ -578,7 +578,7 @@ private fun StitchBigActionCard(
                     )
                 }
                 Text(
-                    "NUEVA COTIZACIÓN",
+                    "NUEVO PROYECTO",
                     color = contentColor,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,

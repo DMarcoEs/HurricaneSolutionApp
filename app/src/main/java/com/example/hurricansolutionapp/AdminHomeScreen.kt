@@ -31,6 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.annotation.DrawableRes
 import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Icon
 
 @Composable
 fun AdminHomeScreen(
@@ -43,7 +50,7 @@ fun AdminHomeScreen(
     onNuevaCotizacion: () -> Unit,
     onVerMisCotizaciones: () -> Unit,
     onPendientes: () -> Unit,
-    onPendientesDrive: () -> Unit,
+    onPendientesDrive: () -> Unit, // Mantener para compatibilidad pero no se usa
     onEnviosInstalacion: () -> Unit,
     // Funciones de ADMIN
     onConfigurePrecios: () -> Unit,
@@ -57,10 +64,42 @@ fun AdminHomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var showLogoutDialog by remember { mutableStateOf(false) }
     var stats by remember { mutableStateOf(AdminRepository.DashboardStats()) }
     var isLoadingStats by remember { mutableStateOf(true) }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // ESTADO DE GOOGLE DRIVE AUTH
+    // ═══════════════════════════════════════════════════════════════════════════════
+    var isGoogleAuthenticated by remember { mutableStateOf(DriveAuthManager.isAuthenticated(context)) }
+    var googleUserEmail by remember { mutableStateOf(DriveAuthManager.getSignedInAccount(context)?.email ?: "") }
+
+    // Launcher para Google Sign-In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        scope.launch {
+            val signInResult = DriveAuthManager.handleSignInResult(result.data)
+            if (signInResult.isSuccess) {
+                isGoogleAuthenticated = true
+                googleUserEmail = signInResult.getOrNull()?.email ?: ""
+                // Guardar el email autorizado
+                DriveAuthManager.saveAuthorizedAccountEmail(context, googleUserEmail)
+            }
+        }
+    }
+
+    // Verificar estado de auth al volver a la pantalla
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isGoogleAuthenticated = DriveAuthManager.isAuthenticated(context)
+                googleUserEmail = DriveAuthManager.getSignedInAccount(context)?.email ?: ""
+            }
+        })
+    }
 
     LaunchedEffect(Unit) {
         isLoadingStats = true
@@ -89,6 +128,19 @@ fun AdminHomeScreen(
         AdminTopBarStitch(
             isDarkMode = isDarkMode,
             onToggleDarkMode = onToggleDarkMode,
+            isGoogleAuthenticated = isGoogleAuthenticated,
+            googleUserEmail = googleUserEmail,
+            onGoogleSignIn = {
+                val signInIntent = DriveAuthManager.getSignInIntent(context)
+                googleSignInLauncher.launch(signInIntent)
+            },
+            onGoogleSignOut = {
+                scope.launch {
+                    DriveAuthManager.signOut(context)
+                    isGoogleAuthenticated = false
+                    googleUserEmail = ""
+                }
+            },
             surface = surface,
             border = border,
             textPrimary = textPrimary
@@ -216,7 +268,7 @@ fun AdminHomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Sincronizaciones Pendientes
+        // Sincronizaciones Pendientes (UNIFICADO - Supabase + Drive)
         StitchMenuCard(
             title = "Proyectos Por Registrar",
             subtitle = "Subir Cotizaciones A La Nube",
@@ -232,6 +284,8 @@ fun AdminHomeScreen(
         )
 
         Spacer(Modifier.height(12.dp))
+
+        // ELIMINADO: Pendientes Google Drive (ya está fusionado arriba)
 
         // Proyectos A Instalar - Generar PDF para instaladores
         StitchMenuCard(
@@ -359,12 +413,16 @@ private fun StitchSectionTitle(
 }
 
 /**
- * TopBar con badge ADMIN NEGRO en light / BLANCO en dark (NO azul)
+ * TopBar con badge ADMIN + Botón Google + Botón tema
  */
 @Composable
 private fun AdminTopBarStitch(
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
+    isGoogleAuthenticated: Boolean,
+    googleUserEmail: String,
+    onGoogleSignIn: () -> Unit,
+    onGoogleSignOut: () -> Unit,
     surface: Color,
     border: Color,
     textPrimary: Color
@@ -374,6 +432,8 @@ private fun AdminTopBarStitch(
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "rotation"
     )
+
+    var showGoogleMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -408,26 +468,150 @@ private fun AdminTopBarStitch(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
-                .clip(CircleShape)
-                .background(surface)
-                .border(1.5.dp, border, CircleShape)
-                .clickable { onToggleDarkMode() },
-            contentAlignment = Alignment.Center
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(
-                    id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon
-                ),
-                contentDescription = null,
-                tint = textPrimary,
+            // Botón de Google Drive
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(surface)
+                        .border(
+                            width = 1.5.dp,
+                            color = if (isGoogleAuthenticated) Color(0xFF34A853) else border,
+                            shape = CircleShape
+                        )
+                        .clickable { showGoogleMenu = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_google_drive),
+                        contentDescription = "Google Drive",
+                        tint = if (isGoogleAuthenticated) Color(0xFF34A853) else textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    // Indicador de estado
+                    if (isGoogleAuthenticated) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 2.dp, y = 2.dp)
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF34A853))
+                                .border(2.dp, surface, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(10.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 2.dp, y = 2.dp)
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEF4444))
+                                .border(2.dp, surface, CircleShape)
+                        )
+                    }
+                }
+
+                // Menú desplegable
+                DropdownMenu(
+                    expanded = showGoogleMenu,
+                    onDismissRequest = { showGoogleMenu = false },
+                    modifier = Modifier.background(if (isDarkMode) Color(0xFF18181B) else Color.White)
+                ) {
+                    if (isGoogleAuthenticated) {
+                        // Mostrar email
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        "Conectado a Drive",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF34A853),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        googleUserEmail,
+                                        color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            },
+                            onClick = { },
+                            enabled = false
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Cerrar sesión de Drive", color = Color(0xFFEF4444)) },
+                            onClick = {
+                                showGoogleMenu = false
+                                onGoogleSignOut()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Logout, null, tint = Color(0xFFEF4444))
+                            }
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Iniciar sesión en Drive",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textPrimary
+                                )
+                            },
+                            onClick = {
+                                showGoogleMenu = false
+                                onGoogleSignIn()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_google_drive),
+                                    contentDescription = null,
+                                    tint = Color(0xFF4285F4)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Botón de cambio de tema
+            Box(
                 modifier = Modifier
-                    .size(20.dp)
-                    .graphicsLayer(rotationZ = rotation)
-            )
+                    .size(46.dp)
+                    .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(surface)
+                    .border(1.5.dp, border, CircleShape)
+                    .clickable { onToggleDarkMode() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon
+                    ),
+                    contentDescription = null,
+                    tint = textPrimary,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer(rotationZ = rotation)
+                )
+            }
         }
     }
 }
@@ -499,32 +683,28 @@ private fun StitchAdminCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Icono gris
                 Icon(
-                    icon,
+                    imageVector = icon,
                     contentDescription = null,
                     tint = iconColor,
                     modifier = Modifier.size(24.dp)
                 )
-
+                Spacer(Modifier.height(8.dp))
                 if (value != null) {
-                    Spacer(Modifier.height(8.dp))
                     Text(
-                        value,
+                        text = value,
                         color = valueColor,
-                        fontSize = 32.sp,
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
-                } else {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
-
                 Text(
-                    title,
+                    text = title,
                     color = titleColor,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 1.sp
                 )
             }
         }
@@ -548,7 +728,6 @@ private fun StitchBigActionCard(
 
     val bgColor = if (isDarkMode) Color(0xFF111111) else Color.Black
     val contentColor = Color.White
-    val iconBgColor = Color.White.copy(alpha = 0.2f)
 
     Surface(
         modifier = Modifier
@@ -584,7 +763,7 @@ private fun StitchBigActionCard(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(iconBgColor),
+                        .background(Color.White.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -603,7 +782,7 @@ private fun StitchBigActionCard(
                 )
             }
             Icon(
-                Icons.Default.ArrowForward,
+                Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = contentColor.copy(alpha = 0.6f),
                 modifier = Modifier.size(24.dp)
@@ -709,7 +888,7 @@ private fun StitchMenuCard(
                 Text(subtitle, color = textMuted, fontSize = 12.sp)
             }
             if (badgeCount != null && badgeCount > 0) {
-                Text("* $badgeCount", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("• $badgeCount", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
     }

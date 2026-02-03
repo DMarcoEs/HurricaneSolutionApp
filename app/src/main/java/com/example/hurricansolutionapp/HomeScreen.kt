@@ -35,6 +35,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 // CONSTANTES DE COLOR - Usadas por MainActivity y otros archivos
 val Zinc950 = Color(0xFF09090B)
@@ -53,7 +55,7 @@ fun HomeScreen(
     onNuevaCotizacion: () -> Unit,
     onVerCotizaciones: () -> Unit,
     onPendientes: () -> Unit,
-    onPendientesDrive: () -> Unit,
+    onPendientesDrive: () -> Unit, // Mantener para compatibilidad pero no se usa
     onEnviosInstalacion: () -> Unit,
     logoutEnabled: Boolean,
     onCerrarSesion: () -> Unit
@@ -61,10 +63,42 @@ fun HomeScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // ESTADO DE GOOGLE DRIVE AUTH
+    // ═══════════════════════════════════════════════════════════════════════════════
+    var isGoogleAuthenticated by remember { mutableStateOf(DriveAuthManager.isAuthenticated(context)) }
+    var googleUserEmail by remember { mutableStateOf(DriveAuthManager.getSignedInAccount(context)?.email ?: "") }
+
+    // Launcher para Google Sign-In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        scope.launch {
+            val signInResult = DriveAuthManager.handleSignInResult(result.data)
+            if (signInResult.isSuccess) {
+                isGoogleAuthenticated = true
+                googleUserEmail = signInResult.getOrNull()?.email ?: ""
+                // Guardar el email autorizado
+                DriveAuthManager.saveAuthorizedAccountEmail(context, googleUserEmail)
+            }
+        }
+    }
+
+    // Verificar estado de auth al volver a la pantalla
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isGoogleAuthenticated = DriveAuthManager.isAuthenticated(context)
+                googleUserEmail = DriveAuthManager.getSignedInAccount(context)?.email ?: ""
+            }
+        })
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // VERIFICACIÓN AUTOMÁTICA DE PRECIOS
-    // ═══════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     // Flag para evitar notificaciones duplicadas
     var lastNotificationTime by remember { mutableStateOf(0L) }
@@ -120,10 +154,23 @@ fun HomeScreen(
     ) {
         Spacer(Modifier.height(12.dp))
 
-        // TOP BAR - Logo + Boton tema (sin badge ADMIN)
+        // TOP BAR - Logo + Botón Google + Botón tema
         HomeTopBar(
             isDarkMode = isDarkMode,
             onToggleDarkMode = onToggleDarkMode,
+            isGoogleAuthenticated = isGoogleAuthenticated,
+            googleUserEmail = googleUserEmail,
+            onGoogleSignIn = {
+                val signInIntent = DriveAuthManager.getSignInIntent(context)
+                googleSignInLauncher.launch(signInIntent)
+            },
+            onGoogleSignOut = {
+                scope.launch {
+                    DriveAuthManager.signOut(context)
+                    isGoogleAuthenticated = false
+                    googleUserEmail = ""
+                }
+            },
             surface = surface,
             border = border,
             textPrimary = textPrimary
@@ -177,7 +224,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Sincronizaciones Pendientes
+        // Sincronizaciones Pendientes (UNIFICADO - Supabase + Drive)
         HomeMenuCard(
             title = "Proyectos Por Registrar",
             subtitle = "Subir Cotizaciones A La Nube",
@@ -194,21 +241,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Pendientes Google Drive
-        HomeMenuCard(
-            title = "Pendientes Google Drive",
-            subtitle = "PDFs sin subir a Drive",
-            iconRes = R.drawable.ic_google_drive,
-            animationType = 0,
-            onClick = onPendientesDrive,
-            isDarkMode = isDarkMode,
-            surface = surface,
-            border = border,
-            textPrimary = textPrimary,
-            textMuted = textMuted
-        )
-
-        Spacer(Modifier.height(12.dp))
+        // ELIMINADO: Pendientes Google Drive (ya está fusionado arriba)
 
         // Envios a Instalacion
         HomeMenuCard(
@@ -282,6 +315,10 @@ fun HomeScreen(
 private fun HomeTopBar(
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
+    isGoogleAuthenticated: Boolean,
+    googleUserEmail: String,
+    onGoogleSignIn: () -> Unit,
+    onGoogleSignOut: () -> Unit,
     surface: Color,
     border: Color,
     textPrimary: Color
@@ -292,6 +329,8 @@ private fun HomeTopBar(
         label = "rotation"
     )
 
+    var showGoogleMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -300,22 +339,146 @@ private fun HomeTopBar(
         val logoRes = if (isDarkMode) R.drawable.hurricane_solution_blanco else R.drawable.logo_header_new
         HomeCroppedLogo(resId = logoRes, height = 48.dp)
 
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
-                .clip(CircleShape)
-                .background(surface)
-                .border(1.5.dp, border, CircleShape)
-                .clickable { onToggleDarkMode() },
-            contentAlignment = Alignment.Center
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon),
-                contentDescription = null,
-                tint = textPrimary,
-                modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = rotation)
-            )
+            // Botón de Google Drive
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(surface)
+                        .border(
+                            width = 1.5.dp,
+                            color = if (isGoogleAuthenticated) Color(0xFF34A853) else border,
+                            shape = CircleShape
+                        )
+                        .clickable { showGoogleMenu = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_google_drive),
+                        contentDescription = "Google Drive",
+                        tint = if (isGoogleAuthenticated) Color(0xFF34A853) else textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    // Indicador de estado
+                    if (isGoogleAuthenticated) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 2.dp, y = 2.dp)
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF34A853))
+                                .border(2.dp, surface, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(10.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 2.dp, y = 2.dp)
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEF4444))
+                                .border(2.dp, surface, CircleShape)
+                        )
+                    }
+                }
+
+                // Menú desplegable
+                DropdownMenu(
+                    expanded = showGoogleMenu,
+                    onDismissRequest = { showGoogleMenu = false },
+                    modifier = Modifier.background(if (isDarkMode) Color(0xFF18181B) else Color.White)
+                ) {
+                    if (isGoogleAuthenticated) {
+                        // Mostrar email
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        "Conectado a Drive",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF34A853),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        googleUserEmail,
+                                        color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            },
+                            onClick = { },
+                            enabled = false
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Cerrar sesión de Drive", color = Color(0xFFEF4444)) },
+                            onClick = {
+                                showGoogleMenu = false
+                                onGoogleSignOut()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Logout, null, tint = Color(0xFFEF4444))
+                            }
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Iniciar sesión en Drive",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textPrimary
+                                )
+                            },
+                            onClick = {
+                                showGoogleMenu = false
+                                onGoogleSignIn()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_google_drive),
+                                    contentDescription = null,
+                                    tint = Color(0xFF4285F4)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Botón de cambio de tema
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .shadow(elevation = if (isDarkMode) 0.dp else 6.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(surface)
+                    .border(1.5.dp, border, CircleShape)
+                    .clickable { onToggleDarkMode() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = if (isDarkMode) R.drawable.ic_sun else R.drawable.ic_moon),
+                    contentDescription = null,
+                    tint = textPrimary,
+                    modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = rotation)
+                )
+            }
         }
     }
 }
@@ -566,7 +729,7 @@ private fun trimTransparentHome(src: Bitmap): Bitmap {
 }
 
 private fun getHomeSpanishDate(): String {
-    val dias = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sabado")
+    val dias = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
     val meses = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
     val cal = java.util.Calendar.getInstance()
     return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"

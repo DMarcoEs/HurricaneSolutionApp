@@ -61,7 +61,12 @@ fun ClienteScreen(
         if (ciudad.isNotEmpty()) {
             // Obtener sugerencias desde 1 letra
             sugerenciasCiudad = ZonasData.getSugerencias(ciudad, 8)
-            showSugerencias = sugerenciasCiudad.isNotEmpty() && !sugerenciasCiudad.any { it.equals(ciudad, ignoreCase = true) }
+            showSugerencias = sugerenciasCiudad.isNotEmpty() && !sugerenciasCiudad.any {
+                it.equals(
+                    ciudad,
+                    ignoreCase = true
+                )
+            }
 
             // Detectar zona silenciosamente
             zonaDetectada = ZonasData.detectarZona(ciudad)
@@ -104,7 +109,11 @@ fun ClienteScreen(
             )
         },
         bottomBar = {
-            Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = surface, tonalElevation = 0.dp) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                color = surface,
+                tonalElevation = 0.dp
+            ) {
                 Button(
                     onClick = {
                         draft.nombre = nombre
@@ -116,7 +125,8 @@ fun ClienteScreen(
                         onContinuar()
                     },
                     enabled = isFormValid,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).height(56.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+                        .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isDarkMode) Color.White else Color.Black,
                         disabledContainerColor = textMuted.copy(alpha = 0.3f)
@@ -124,9 +134,19 @@ fun ClienteScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Siguiente", color = if (isDarkMode) Color.Black else Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Siguiente",
+                            color = if (isDarkMode) Color.Black else Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = if (isDarkMode) Color.Black else Color.White, modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            null,
+                            tint = if (isDarkMode) Color.Black else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
@@ -134,37 +154,105 @@ fun ClienteScreen(
         containerColor = bg
     ) { inner ->
         Column(
-            modifier = Modifier.padding(inner).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            modifier = Modifier.padding(inner).fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("INFORMACIÓN PERSONAL", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(
+                    "INFORMACIÓN PERSONAL",
+                    color = textMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
 
                 if (draft.esClienteActual) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color(0xFF1E3A8A).copy(alpha = 0.3f) else Color(0xFFDEEBFF)),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isDarkMode) Color(
+                                0xFF1E3A8A
+                            ).copy(alpha = 0.3f) else Color(0xFFDEEBFF)
+                        ),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF3B82F6) else Color(0xFF2563EB))
+                        border = BorderStroke(
+                            1.dp,
+                            if (isDarkMode) Color(0xFF3B82F6) else Color(0xFF2563EB)
+                        )
                     ) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Info, null, tint = if (isDarkMode) Color(0xFF60A5FA) else Color(0xFF2563EB), modifier = Modifier.size(20.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.Info,
+                                null,
+                                tint = if (isDarkMode) Color(0xFF60A5FA) else Color(0xFF2563EB),
+                                modifier = Modifier.size(20.dp)
+                            )
                             Spacer(Modifier.width(12.dp))
-                            Text("Cliente desde CRM: Nombre y teléfono no editables", fontSize = 13.sp, color = if (isDarkMode) Color(0xFFBFDBFE) else Color(0xFF1E40AF), fontWeight = FontWeight.Medium)
+                            Text(
+                                "Cliente desde CRM: Nombre y teléfono no editables",
+                                fontSize = 13.sp,
+                                color = if (isDarkMode) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                     Spacer(Modifier.height(8.dp))
                 }
 
-                StitchField(label = "Nombre Completo", value = nombre, hint = "Ej. Juan Perez", onValueChange = { nombre = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_user_lucide, readOnly = draft.esClienteActual)
-                StitchField(label = "Número de Celular", value = telefono, hint = "9841234567", onValueChange = { txt -> if (txt.all { it.isDigit() }) telefono = txt }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_phone_lucide, isPhone = true, keyboardType = KeyboardType.Number, readOnly = draft.esClienteActual)
-                StitchField(label = "Fecha de Cotización", value = fechaActual, hint = "", onValueChange = { }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_calendar_lucide, readOnly = true)
+                StitchField(
+                    label = "Nombre Completo",
+                    value = nombre,
+                    hint = "Ej. Juan Perez",
+                    onValueChange = { nombre = it },
+                    isDarkMode = isDarkMode,
+                    textPrimary = textPrimary,
+                    surface = surface,
+                    border = border,
+                    icon = R.drawable.ic_user_lucide,
+                    readOnly = draft.esClienteActual
+                )
+                StitchField(
+                    label = "Número de Celular",
+                    value = telefono,
+                    hint = "9841234567",
+                    onValueChange = { txt -> if (txt.all { it.isDigit() }) telefono = txt },
+                    isDarkMode = isDarkMode,
+                    textPrimary = textPrimary,
+                    surface = surface,
+                    border = border,
+                    icon = R.drawable.ic_phone_lucide,
+                    isPhone = true,
+                    keyboardType = KeyboardType.Number,
+                    readOnly = draft.esClienteActual
+                )
+                StitchField(
+                    label = "Fecha de Cotización",
+                    value = fechaActual,
+                    hint = "",
+                    onValueChange = { },
+                    isDarkMode = isDarkMode,
+                    textPrimary = textPrimary,
+                    surface = surface,
+                    border = border,
+                    icon = R.drawable.ic_calendar_lucide,
+                    readOnly = true
+                )
             }
 
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("UBICACIÓN DEL PROYECTO", color = textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(
+                    "UBICACIÓN DEL PROYECTO",
+                    color = textMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
 
                 // Campo de Ciudad con Autocompletado LIMPIO (sin badges)
                 CiudadAutocompleteField(
@@ -185,8 +273,30 @@ fun ClienteScreen(
                     border = border
                 )
 
-                StitchField(label = "Colonia / Fraccionamiento *", value = colonia, hint = "Ej. Centro", onValueChange = { colonia = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pin_lucide)
-                StitchField(label = "Calle y Número *", value = direccionDetalle, hint = "Ej. Av. Constitución #2000", onValueChange = { direccionDetalle = it }, isDarkMode = isDarkMode, textPrimary = textPrimary, surface = surface, border = border, icon = R.drawable.ic_map_pinned_lucide, isTextArea = true, isLocate = true)
+                StitchField(
+                    label = "Colonia / Fraccionamiento *",
+                    value = colonia,
+                    hint = "Ej. Centro",
+                    onValueChange = { colonia = it },
+                    isDarkMode = isDarkMode,
+                    textPrimary = textPrimary,
+                    surface = surface,
+                    border = border,
+                    icon = R.drawable.ic_map_pin_lucide
+                )
+                StitchField(
+                    label = "Calle y Número *",
+                    value = direccionDetalle,
+                    hint = "Ej. Av. Constitución #2000",
+                    onValueChange = { direccionDetalle = it },
+                    isDarkMode = isDarkMode,
+                    textPrimary = textPrimary,
+                    surface = surface,
+                    border = border,
+                    icon = R.drawable.ic_map_pinned_lucide,
+                    isTextArea = true,
+                    isLocate = true
+                )
             }
 
             Spacer(Modifier.height(40.dp))
@@ -197,26 +307,38 @@ fun ClienteScreen(
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
             containerColor = if (isDarkMode) Color(0xFF0A0A0A) else Color.White,
-            title = { Text("Salir de la cotización", color = if (isDarkMode) Color.White else Color(0xFF111418)) },
-            text = { Text("¿Que quieres hacer con el borrador actual?", color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563)) },
+            title = {
+                Text(
+                    "Se borrarán los datos",
+                    color = if (isDarkMode) Color.White else Color(0xFF111418),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "¿Seguro que deseas salir?\nLos datos ingresados se perderán.",
+                    color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF4B5563)
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { draft.clear(); showExitDialog = false; onBack() }) {
-                    Text("Borrar y salir", color = Color(0xFFE7180B))
+                TextButton(
+                    onClick = {
+                        draft.clear()
+                        showExitDialog = false
+                        onBack()
+                    }
+                ) {
+                    Text("Confirmar", color = Color(0xFFE7180B), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                Row {
-                    TextButton(onClick = { draft.nombre = nombre; draft.telefono = telefono; draft.ciudad = ciudad; draft.colonia = colonia; draft.direccionDetalle = direccionDetalle; showExitDialog = false; onBack() }) {
-                        Text("Salir sin borrar", color = if (isDarkMode) Color.White else Color.Black)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showExitDialog = false }) { Text("Cancelar", color = if (isDarkMode) Color.White else Color.Black) }
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text("Cancelar", color = if (isDarkMode) Color.White else Color.Black)
                 }
             }
         )
     }
 }
-
 // CAMPO DE CIUDAD CON AUTOCOMPLETADO - LIMPIO SIN BADGES
 
 @Composable

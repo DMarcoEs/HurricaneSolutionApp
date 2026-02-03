@@ -44,6 +44,7 @@ fun AdminHomeScreen(
     onVerMisCotizaciones: () -> Unit,
     onPendientes: () -> Unit,
     onPendientesDrive: () -> Unit,
+    onEnviosInstalacion: () -> Unit,
     // Funciones de ADMIN
     onConfigurePrecios: () -> Unit,
     onVerTodasCotizaciones: () -> Unit,
@@ -223,6 +224,22 @@ fun AdminHomeScreen(
             iconRes = R.drawable.ic_upload_lucide,
             animationType = StitchAnimationType.BOUNCE,
             onClick = onPendientes,
+            isDarkMode = isDarkMode,
+            surface = surface,
+            border = border,
+            textPrimary = textPrimary,
+            textMuted = textMuted
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Proyectos A Instalar - Generar PDF para instaladores
+        StitchMenuCard(
+            title = "Proyectos A Instalar",
+            subtitle = "Generar cotizaciones para instalador",
+            iconRes = R.drawable.ic_upload_lucide,
+            animationType = StitchAnimationType.NONE,
+            onClick = onEnviosInstalacion,
             isDarkMode = isDarkMode,
             surface = surface,
             border = border,

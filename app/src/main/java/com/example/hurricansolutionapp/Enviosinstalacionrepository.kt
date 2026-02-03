@@ -2,10 +2,7 @@ package com.example.hurricansolutionapp
 
 import android.content.Context
 
-/**
- * Repositorio para manejar los envíos a instalación
- * Usa SharedPreferences local para tracking de envíos
- */
+
 object EnviosInstalacionRepository {
 
     private const val TAG = "EnviosInstalacionRepo"
@@ -13,12 +10,13 @@ object EnviosInstalacionRepository {
     private const val KEY_ENVIADOS = "folios_enviados"
 
     /**
-     * Obtiene TODAS las cotizaciones que NO se han enviado a instalación
-     * (Sin filtro de cantidad de sistemas - permite múltiples)
+     * Obtiene TODAS las cotizaciones que NO se han enviado a instalacion
+     * Filtra por nombre del especialista si se proporciona
      */
     fun getCotizacionesPendientesEnvioTodas(
         context: Context,
-        userId: String? = null
+        userId: String? = null,
+        especialistaNombre: String? = null
     ): Result<List<Cotizacion>> {
         return try {
             // Obtener todas las cotizaciones locales
@@ -27,13 +25,20 @@ object EnviosInstalacionRepository {
             // Obtener folios ya enviados
             val foliosEnviados = getFoliosEnviados(context)
 
-            // Filtrar solo las que no han sido enviadas
-            // (Ya no filtramos por cantidad de sistemas)
-            val pendientes = todasCotizaciones.filter { cot ->
+            // Filtrar por productos no vacios y no enviadas
+            var pendientes = todasCotizaciones.filter { cot ->
                 cot.productos.isNotEmpty() && !foliosEnviados.contains(cot.folio)
             }
 
-            android.util.Log.d(TAG, "[OK] ${pendientes.size} cotizaciones pendientes de envío (todas)")
+            // Si se proporciona nombre de especialista, filtrar por el
+            // Cada usuario solo ve sus propias cotizaciones
+            if (!especialistaNombre.isNullOrBlank()) {
+                pendientes = pendientes.filter { cot ->
+                    cot.especialista.equals(especialistaNombre, ignoreCase = true)
+                }
+            }
+
+            android.util.Log.d(TAG, "[OK] ${pendientes.size} cotizaciones pendientes de envio (filtradas por: $especialistaNombre)")
             Result.success(pendientes)
 
         } catch (e: Exception) {
@@ -42,10 +47,7 @@ object EnviosInstalacionRepository {
         }
     }
 
-    /**
-     * Obtiene cotizaciones con 1 solo sistema que NO se han enviado a instalación
-     * (Método original para compatibilidad)
-     */
+
     fun getCotizacionesPendientesEnvio(
         context: Context,
         userId: String? = null
@@ -67,9 +69,7 @@ object EnviosInstalacionRepository {
         }
     }
 
-    /**
-     * Marca una cotización como enviada a instalación (localmente)
-     */
+
     fun marcarComoEnviada(context: Context, folio: String): Result<Unit> {
         return try {
             val foliosEnviados = getFoliosEnviados(context).toMutableSet()
@@ -86,7 +86,7 @@ object EnviosInstalacionRepository {
     }
 
     /**
-     * Verifica si una cotización ya fue enviada
+     * Verifica si una cotizaciÃ³n ya fue enviada
      */
     fun fueEnviada(context: Context, folio: String): Boolean {
         return getFoliosEnviados(context).contains(folio)
@@ -124,7 +124,7 @@ object EnviosInstalacionRepository {
 
     /**
      * Actualiza un registro existente en instalador_datos
-     * Se usa cuando la cotización ya fue enviada y se modificó
+     * Se usa cuando la cotizaciÃ³n ya fue enviada y se modificÃ³
      */
     suspend fun actualizarRegistroInstalacion(
         cotizacion: Cotizacion,

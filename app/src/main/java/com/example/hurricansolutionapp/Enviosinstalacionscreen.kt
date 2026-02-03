@@ -27,16 +27,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Pantalla "Órdenes de Instalación" para Especialistas
- *
- * Flujo simplificado:
- * 1. Especialista ve lista de cotizaciones
- * 2. Toca una cotización → Ve resumen con datos
- * 3. Selecciona sistema y fecha de instalación
- * 4. Genera PDF de Orden de Instalación
- * 5. Comparte por WhatsApp/Email
- */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnviosInstalacionScreen(
@@ -53,7 +44,6 @@ fun EnviosInstalacionScreen(
     var cotizaciones by remember { mutableStateOf<List<Cotizacion>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Estados del diálogo de generación
     var cotizacionSeleccionada by remember { mutableStateOf<Cotizacion?>(null) }
     var sistemaSeleccionado by remember { mutableStateOf<String?>(null) }
     var fechaInstalacion by remember { mutableStateOf("") }
@@ -76,16 +66,19 @@ fun EnviosInstalacionScreen(
 
     val userId = remember { SessionManager.getUserId(context) }
     val userRole = remember { SessionManager.getRole(context) }
+    val userName = remember { SessionManager.getNombre(context) }
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
     // Cargar cotizaciones al iniciar
+    // Cada usuario solo ve sus propias cotizaciones (filtradas por nombre de especialista)
     LaunchedEffect(Unit) {
         scope.launch {
             isLoading = true
             try {
                 val result = EnviosInstalacionRepository.getCotizacionesPendientesEnvioTodas(
                     context = context,
-                    userId = if (isAdmin) null else userId
+                    userId = userId,
+                    especialistaNombre = userName  // Filtrar por nombre del usuario actual
                 )
                 if (result.isSuccess) {
                     cotizaciones = result.getOrNull() ?: emptyList()
@@ -107,7 +100,6 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // Función para generar el PDF
     fun generarPdfInstalacion(cotizacion: Cotizacion, sistema: String, fecha: String, obs: String) {
         scope.launch {
             isGeneratingPdf = true
@@ -139,7 +131,6 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    // Función para seleccionar fecha con DatePicker
     fun mostrarDatePicker() {
         val calendar = Calendar.getInstance()
         DatePickerDialog(
@@ -155,9 +146,6 @@ fun EnviosInstalacionScreen(
         }.show()
     }
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // DIÁLOGO DE RESUMEN Y GENERACIÓN DE PDF
-    // ══════════════════════════════════════════════════════════════════════════════
     if (cotizacionSeleccionada != null) {
         val cot = cotizacionSeleccionada!!
         val tieneMultiplesSistemas = cot.productos.size > 1
@@ -207,9 +195,7 @@ fun EnviosInstalacionScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // ═══════════════════════════════════════════════════════════════
-                    // SECCIÓN: DATOS DEL CLIENTE
-                    // ═══════════════════════════════════════════════════════════════
+
                     Text(
                         "DATOS DEL CLIENTE",
                         color = textMuted,
@@ -228,7 +214,6 @@ fun EnviosInstalacionScreen(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Nombre
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Person, null, tint = textMuted, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -239,7 +224,6 @@ fun EnviosInstalacionScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-                            // Teléfono
                             if (cot.clienteTelefono.isNotBlank()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Outlined.Phone, null, tint = textMuted, modifier = Modifier.size(16.dp))
@@ -251,7 +235,6 @@ fun EnviosInstalacionScreen(
                                     )
                                 }
                             }
-                            // Ubicación
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.LocationOn, null, tint = textMuted, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -266,9 +249,6 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // ═══════════════════════════════════════════════════════════════
-                    // SECCIÓN: MEDIDAS - Compacta y con scroll si hay muchas
-                    // ═══════════════════════════════════════════════════════════════
                     Text(
                         "MEDIDAS A INSTALAR",
                         color = textMuted,
@@ -286,7 +266,6 @@ fun EnviosInstalacionScreen(
                                 .fillMaxWidth()
                                 .padding(12.dp)
                         ) {
-                            // Resumen: cantidad y área total
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -312,12 +291,10 @@ fun EnviosInstalacionScreen(
                                 }
                             }
 
-                            // Lista de medidas con scroll si hay más de 3
                             if (cot.ventanas.isNotEmpty()) {
                                 Spacer(Modifier.height(8.dp))
                                 HorizontalDivider(color = border.copy(alpha = 0.5f))
 
-                                // Contenedor con altura máxima y scroll
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -358,9 +335,6 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // ═══════════════════════════════════════════════════════════════
-                    // SECCIÓN: SELECCIÓN DE SISTEMA
-                    // ═══════════════════════════════════════════════════════════════
                     Text(
                         "SISTEMA DE PROTECCIÓN",
                         color = textMuted,
@@ -449,9 +423,6 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // ═══════════════════════════════════════════════════════════════
-                    // SECCIÓN: FECHA DE INSTALACIÓN
-                    // ═══════════════════════════════════════════════════════════════
                     Text(
                         "FECHA DE INSTALACIÓN",
                         color = textMuted,
@@ -496,9 +467,6 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // ═══════════════════════════════════════════════════════════════
-                    // SECCIÓN: OBSERVACIONES (OPCIONAL)
-                    // ═══════════════════════════════════════════════════════════════
                     Text(
                         "OBSERVACIONES (OPCIONAL)",
                         color = textMuted,
@@ -534,14 +502,11 @@ fun EnviosInstalacionScreen(
                 }
             },
             confirmButton = {
-                // Área de botones - siempre visible
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Si el PDF ya fue generado, mostrar botones de acción
                     if (pdfGenerado != null) {
-                        // Mensaje de éxito
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center,
@@ -567,7 +532,6 @@ fun EnviosInstalacionScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Botón VER PDF
                             Button(
                                 onClick = { verPdf(context, pdfGenerado!!) },
                                 modifier = Modifier
@@ -588,7 +552,6 @@ fun EnviosInstalacionScreen(
                                 Text("Ver PDF", color = textPrimary, fontSize = 13.sp)
                             }
 
-                            // Botón COMPARTIR
                             Button(
                                 onClick = { compartirPdf(context, pdfGenerado!!) },
                                 modifier = Modifier
@@ -608,7 +571,6 @@ fun EnviosInstalacionScreen(
                             }
                         }
 
-                        // Botón Volver a generar
                         OutlinedButton(
                             onClick = {
                                 pdfGenerado = null // Resetear para volver a generar
@@ -629,7 +591,6 @@ fun EnviosInstalacionScreen(
                             Text("Volver a generar", color = textMuted, fontSize = 13.sp)
                         }
 
-                        // Botón Cerrar
                         TextButton(
                             onClick = {
                                 cotizacionSeleccionada = null
@@ -643,13 +604,12 @@ fun EnviosInstalacionScreen(
                             Text("Cerrar", color = textMuted)
                         }
                     } else {
-                        // Botón de Generar PDF
                         val canGenerate = sistemaSeleccionado != null && fechaInstalacion.isNotBlank()
 
                         // Mensaje si falta fecha
                         if (sistemaSeleccionado != null && fechaInstalacion.isBlank()) {
                             Text(
-                                "⚠ Selecciona una fecha de instalación",
+                                "Selecciona una fecha de instalación",
                                 color = Color(0xFFF59E0B),
                                 fontSize = 12.sp,
                                 modifier = Modifier.fillMaxWidth(),
@@ -691,7 +651,6 @@ fun EnviosInstalacionScreen(
                             }
                         }
 
-                        // Botón Cancelar
                         TextButton(
                             onClick = {
                                 cotizacionSeleccionada = null
@@ -710,9 +669,7 @@ fun EnviosInstalacionScreen(
         )
     }
 
-    // ══════════════════════════════════════════════════════════════════════════════
     // PANTALLA PRINCIPAL - LISTA DE COTIZACIONES
-    // ══════════════════════════════════════════════════════════════════════════════
     Scaffold(
         containerColor = bg,
         topBar = {
@@ -728,7 +685,6 @@ fun EnviosInstalacionScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Barra de búsqueda (sin botón de actualizar)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -859,7 +815,6 @@ fun EnviosInstalacionScreen(
                                     onVerPdf = { pdfExistente?.let { verPdf(context, it) } },
                                     onCompartirPdf = { pdfExistente?.let { compartirPdf(context, it) } },
                                     onVolverAGenerar = {
-                                        // Eliminar del mapa y abrir diálogo
                                         pdfsGenerados = pdfsGenerados - cotizacion.folio
                                         cotizacionSeleccionada = cotizacion
                                     }
@@ -875,9 +830,6 @@ fun EnviosInstalacionScreen(
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// CARD DE COTIZACIÓN
-// ══════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun OrdenInstalacionCard(
     cotizacion: Cotizacion,
@@ -988,7 +940,6 @@ private fun OrdenInstalacionCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            // Ubicación
             if (cotizacion.ubicacion.isNotBlank() || cotizacion.ciudad.isNotBlank()) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1010,7 +961,6 @@ private fun OrdenInstalacionCard(
                 }
             }
 
-            // Métricas: Fecha, Aperturas, Área
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1040,7 +990,6 @@ private fun OrdenInstalacionCard(
 
             HorizontalDivider(color = border.copy(alpha = 0.3f))
 
-            // Botones según estado
             if (tienePdf) {
                 // PDF ya generado - mostrar 3 botones
                 Row(
@@ -1110,7 +1059,6 @@ private fun OrdenInstalacionCard(
                     }
                 }
             } else {
-                // Sin PDF - mostrar botón de generar
                 Button(
                     onClick = onGenerarOrden,
                     modifier = Modifier.fillMaxWidth(),

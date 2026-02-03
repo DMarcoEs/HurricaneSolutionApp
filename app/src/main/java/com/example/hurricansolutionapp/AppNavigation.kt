@@ -174,6 +174,7 @@ fun AppNavigation(
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
 
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
+                onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 onVerMetros = { navController.navigate(Routes.ADMIN_METROS) },
 
                 onConfigurePrecios = { navController.navigate(Routes.ADMIN_PRECIOS) },
@@ -477,7 +478,6 @@ fun AppNavigation(
         }
 
 
-        // ✓ INSTALADOR - HOME
 
         composable(Routes.INSTALADOR_HOME) {
             InstaladorHomeScreen(
@@ -524,7 +524,7 @@ fun AppNavigation(
         }
 
 
-        // INSTALADOR - FORMULARIO DE RECTIFICACIÓN
+        // INSTALADOR - FORMULARIO DE RECTIFICACIÃ“N
 
         composable(
             route = Routes.INSTALADOR_FORM,
@@ -544,7 +544,6 @@ fun AppNavigation(
             )
         }
 
-        // ✓ INSTALADOR - RESUMEN
         composable(
             route = Routes.INSTALADOR_RESUMEN,
             enterTransition = { enterTransition() },
@@ -566,7 +565,6 @@ fun AppNavigation(
         }
 
 
-        // ✓ INSTALADOR - GOOGLE DRIVE
 
         composable(
             route = Routes.INSTALADOR_DRIVE,

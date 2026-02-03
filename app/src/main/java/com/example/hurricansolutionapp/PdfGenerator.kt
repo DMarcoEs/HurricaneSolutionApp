@@ -419,7 +419,7 @@ fun generarPdfCotizacion(
     }
 
     val labelWidth = 160f; val boxLeft = startPreciosX - labelWidth; val boxRight = tableRight
-    val valueColumnWidth = colPriceW; val rowHeightResumen = 22f  // Altura de fila
+    val valueColumnWidth = colPriceW; val rowHeightResumen = 22f
 
     val footerTop = pageHeight.toFloat() - bottomBarHeight; val margenSobreFooter = 10f
     val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - rowHeightResumen * 5
@@ -464,9 +464,9 @@ fun generarPdfCotizacion(
         // Texto del label (siempre blanco)
         paint.color = Color.WHITE
         paint.textAlign = Paint.Align.LEFT
-        paint.textSize = 9f
+        paint.textSize = 7.5f
         paint.typeface = if (labelBold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        canvas.drawText(label.uppercase(), boxLeft + 10f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawText(label.uppercase(), boxLeft + 8f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
         // Columnas de valores
         productosSeleccionados.forEachIndexed { index, producto ->
@@ -482,7 +482,7 @@ fun generarPdfCotizacion(
             paint.style = Paint.Style.FILL
             paint.color = textColor
             paint.textAlign = Paint.Align.CENTER
-            paint.textSize = 10f  // Reducido de 11f a 10f
+            paint.textSize = 7.5f
             paint.typeface = if (valueBold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             canvas.drawText(getTextForCol(index, producto), left + valueColumnWidth / 2f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
         }
@@ -490,7 +490,7 @@ fun generarPdfCotizacion(
         // Dibujar borde negro exterior de la sección de valores
         paint.style = Paint.Style.STROKE
         paint.color = Color.BLACK
-        paint.strokeWidth = 1.5f
+        paint.strokeWidth = .95f
 
         // Borde izquierdo (siempre)
         canvas.drawLine(valuesBoxLeft, filaTop, valuesBoxLeft, filaBottom, paint)

@@ -22,9 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // COLORES PARA LOS ESTADOS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 private val PendingBgLight = Color(0xFFF3F4F6)
 private val PendingBgDark = Color(0xFF27272A)
@@ -73,11 +73,15 @@ fun PendingUploadsScreen(
     LaunchedEffect(refreshKey) {
         items = UploadQueueStorage.getAll(context)
         isGoogleAuthenticated = DriveAuthManager.isAuthenticated(context)
+
+        // ✅ NUEVO: Limpiar automáticamente los items completamente subidos (ambos DONE)
+        UploadQueueStorage.clearFullyCompleted(context)
+        items = UploadQueueStorage.getAll(context)
     }
 
     // Auto-refresh si hay items en proceso
     LaunchedEffect(items) {
-        val hayEnProceso = items.any { it.status == "UPLOADING" || it.status == "PENDING" }
+        val hayEnProceso = items.any { it.status == "UPLOADING" || it.driveStatus == "UPLOADING" }
         if (hayEnProceso) {
             kotlinx.coroutines.delay(2000)
             refreshKey++
@@ -167,19 +171,59 @@ fun PendingUploadsScreen(
                         },
                         onUploadDrive = {
                             scope.launch {
+                                // ✅ NUEVO: Marcar como "UPLOADING" antes de empezar
+                                UploadQueueStorage.markDriveUploading(context, item.id)
+                                refresh()
+
                                 val pdfFile = java.io.File(item.filePath)
                                 if (pdfFile.exists()) {
                                     val userName = SessionManager.getNombre(context)
                                     val userRole = SessionManager.getRole(context)
-                                    DriveUploadManager.uploadPdfToDriveAuto(
-                                        context = context,
-                                        pdfFile = pdfFile,
-                                        userName = userName,
-                                        userRole = userRole,
-                                        folio = item.cotizacionId
-                                    )
+
+                                    try {
+                                        val success = DriveUploadManager.uploadPdfToDriveAuto(
+                                            context = context,
+                                            pdfFile = pdfFile,
+                                            userName = userName,
+                                            userRole = userRole,
+                                            folio = item.cotizacionId
+                                        )
+
+                                        // ✅ NUEVO: Actualizar el estado basado en el resultado
+                                        if (success) {
+                                            UploadQueueStorage.markDriveDone(context, item.id)
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Subido a Google Drive exitosamente",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            // Si falla pero no lanza excepción, puede ser por auth
+                                            if (!DriveAuthManager.isAuthenticated(context)) {
+                                                UploadQueueStorage.markDriveError(context, item.id, "No autenticado con Google Drive")
+                                            } else {
+                                                UploadQueueStorage.markDriveError(context, item.id, "Error al subir archivo")
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        // ✅ NUEVO: Capturar errores y marcar como ERROR
+                                        UploadQueueStorage.markDriveError(context, item.id, e.message ?: "Error desconocido")
+                                        android.util.Log.e("PendingUploads", "Error subiendo a Drive: ${e.message}", e)
+                                    }
+                                } else {
+                                    // El archivo no existe
+                                    UploadQueueStorage.markDriveError(context, item.id, "Archivo PDF no encontrado")
                                 }
+
                                 refresh()
+
+                                // ✅ NUEVO: Si ambos están DONE, limpiar automáticamente
+                                val updatedItem = UploadQueueStorage.getAll(context).find { it.id == item.id }
+                                if (updatedItem?.status == "DONE" && updatedItem.driveStatus == "DONE") {
+                                    kotlinx.coroutines.delay(1500) // Pequeña pausa para que el usuario vea el estado
+                                    UploadQueueStorage.remove(context, item.id)
+                                    refresh()
+                                }
                             }
                         },
                         onRemove = {
@@ -261,7 +305,7 @@ private fun UnifiedPendingCard(
         else -> item.status
     }
     val driveStatus = when {
-        !isGoogleAuthenticated -> "NOT_AUTH"
+        !isGoogleAuthenticated && item.driveStatus != "DONE" -> "NOT_AUTH"
         item.driveStatus == "DONE" -> "DONE"
         item.driveStatus == "ERROR" -> "ERROR"
         item.driveStatus == "UPLOADING" -> "UPLOADING"
@@ -269,9 +313,9 @@ private fun UnifiedPendingCard(
     }
 
     val isSupabaseUploading = item.status == "UPLOADING"
-    val isDriveUploading = driveStatus == "UPLOADING"
+    val isDriveUploading = item.driveStatus == "UPLOADING"
     val isSupabaseDone = item.status == "DONE"
-    val isDriveDone = driveStatus == "DONE"
+    val isDriveDone = item.driveStatus == "DONE"
 
     val canUploadSupabase = !isSupabaseUploading && !isSupabaseDone && isOnline
     val canUploadDrive = !isDriveUploading && !isDriveDone && isOnline && isGoogleAuthenticated
@@ -367,7 +411,7 @@ private fun UnifiedPendingCard(
                             Spacer(Modifier.width(4.dp))
                             Text(
                                 when {
-                                    isDriveDone -> "✓"
+                                    isDriveDone -> "✓ SUBIDO"
                                     !isGoogleAuthenticated -> "NO AUTH"
                                     driveStatus == "ERROR" -> "REINTENTAR"
                                     else -> "DRIVE"

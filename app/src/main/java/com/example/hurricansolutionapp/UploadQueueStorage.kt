@@ -9,7 +9,6 @@ object UploadQueueStorage {
     private const val KEY = "pending_uploads"
     private val gson = Gson()
 
-
     fun getAll(context: Context): MutableList<PendingUpload> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val json = prefs.getString(KEY, null) ?: return mutableListOf()
@@ -34,6 +33,10 @@ object UploadQueueStorage {
         saveAll(context, newList)
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // FUNCIONES PARA SUPABASE STATUS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
     fun markDone(context: Context, id: String) {
         val list = getAll(context)
         val idx = list.indexOfFirst { it.id == id }
@@ -52,12 +55,6 @@ object UploadQueueStorage {
         }
     }
 
-    fun clearDone(context: Context) {
-        val list = getAll(context)
-        val newList = list.filterNot { it.status == "DONE" }
-        saveAll(context, newList)
-    }
-
     fun markUploading(context: Context, id: String) {
         val all = getAll(context)
         val updated = all.map {
@@ -67,6 +64,50 @@ object UploadQueueStorage {
         saveAll(context, updated)
     }
 
+    fun clearDone(context: Context) {
+        val list = getAll(context)
+        val newList = list.filterNot { it.status == "DONE" }
+        saveAll(context, newList)
+    }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // FUNCIONES PARA DRIVE STATUS (NUEVO)
+    // ═══════════════════════════════════════════════════════════════════════════════
 
+    fun markDriveUploading(context: Context, id: String) {
+        val all = getAll(context)
+        val updated = all.map {
+            if (it.id == id) it.copy(driveStatus = "UPLOADING", driveError = null)
+            else it
+        }
+        saveAll(context, updated)
+    }
+
+    fun markDriveDone(context: Context, id: String) {
+        val all = getAll(context)
+        val updated = all.map {
+            if (it.id == id) it.copy(driveStatus = "DONE", driveError = null)
+            else it
+        }
+        saveAll(context, updated)
+    }
+
+    fun markDriveError(context: Context, id: String, error: String) {
+        val all = getAll(context)
+        val updated = all.map {
+            if (it.id == id) it.copy(driveStatus = "ERROR", driveError = error)
+            else it
+        }
+        saveAll(context, updated)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // FUNCIÓN PARA LIMPIAR COMPLETADOS (AMBOS DONE)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    fun clearFullyCompleted(context: Context) {
+        val list = getAll(context)
+        val newList = list.filterNot { it.status == "DONE" && it.driveStatus == "DONE" }
+        saveAll(context, newList)
+    }
 }

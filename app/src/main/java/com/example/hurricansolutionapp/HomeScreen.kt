@@ -35,8 +35,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
-// CONSTANTES DE COLOR - Usadas por MainActivity y otros archivos
+// CONSTANTES DE COLOR
 val Zinc950 = Color(0xFF09090B)
 val Zinc900 = Color(0xFF18181B)
 val Zinc800 = Color(0xFF27272A)
@@ -62,7 +64,7 @@ fun HomeScreen(
     val context = LocalContext.current
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // ESTADO DE GOOGLE DRIVE AUTH - USA SESIÓN EXISTENTE
+    // ESTADO DE GOOGLE DRIVE AUTH
     // ═══════════════════════════════════════════════════════════════════════════════
     var isGoogleAuthenticated by remember {
         mutableStateOf(
@@ -77,6 +79,40 @@ fun HomeScreen(
                 context
             )?.email ?: ""
         )
+    }
+
+    // Launcher para Google Sign-In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        scope.launch {
+            try {
+                val signInResult = DriveAuthManager.handleSignInResult(context, result.data)
+                if (signInResult.isSuccess) {
+                    val account = signInResult.getOrNull()
+                    isGoogleAuthenticated = true
+                    googleUserEmail = account?.email ?: ""
+                    android.widget.Toast.makeText(
+                        context,
+                        "Conectado: ${account?.email}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Error al iniciar sesión",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("HomeScreen", "Error en Google Sign-In: ${e.message}")
+                android.widget.Toast.makeText(
+                    context,
+                    "Error: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     // Verificar estado al volver a la pantalla
@@ -120,9 +156,7 @@ fun HomeScreen(
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastNotificationTime > 25_000) {
                     val huboActualizacion = PriceManager.checkForUpdates()
-                    if (huboActualizacion) {
-                        lastNotificationTime = currentTime
-                    }
+                    if (huboActualizacion) lastNotificationTime = currentTime
                 }
             } catch (_: Exception) {
             }
@@ -154,32 +188,20 @@ fun HomeScreen(
             isGoogleAuthenticated = isGoogleAuthenticated,
             googleUserEmail = googleUserEmail,
             onGoogleSignIn = {
-                // Solo actualizar el estado - NO intentar nuevo login (evita Error 10)
-                val existingAccount =
-                    com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(
-                        context
-                    )
-                if (existingAccount != null) {
-                    isGoogleAuthenticated = true
-                    googleUserEmail = existingAccount.email ?: ""
-                    android.widget.Toast.makeText(
-                        context,
-                        "Conectado: ${existingAccount.email}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    android.widget.Toast.makeText(
-                        context,
-                        "Inicia sesión desde una cotización primero",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
+                // Intentar login con Google
+                val signInIntent = DriveAuthManager.getSignInIntent(context)
+                googleSignInLauncher.launch(signInIntent)
             },
             onGoogleSignOut = {
                 scope.launch {
                     DriveAuthManager.signOut(context)
                     isGoogleAuthenticated = false
                     googleUserEmail = ""
+                    android.widget.Toast.makeText(
+                        context,
+                        "Sesión de Drive cerrada",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             },
             surface = surface,
@@ -280,14 +302,14 @@ fun HomeScreen(
             },
             text = {
                 Text(
-                    "¿Deseas cerrar sesión?\nTendras que volver a iniciar sesión.",
+                    "¿Deseas cerrar sesión?\nTendrás que volver a iniciar sesión.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
             },
             confirmButton = {
                 TextButton(onClick = { showLogoutDialog = false; onCerrarSesion() }) {
-                    Text("Si, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
+                    Text("Sí, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -359,7 +381,7 @@ private fun HomeTopBar(
                         tint = if (isGoogleAuthenticated) Color(0xFF34A853) else textPrimary,
                         modifier = Modifier.size(20.dp)
                     )
-                    // Indicador
+                    // Indicador de estado
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -428,7 +450,7 @@ private fun HomeTopBar(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    "Ver estado de Drive",
+                                    "Iniciar sesión en Drive",
                                     fontWeight = FontWeight.SemiBold,
                                     color = textPrimary
                                 )

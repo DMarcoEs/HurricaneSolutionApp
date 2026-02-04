@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -30,9 +29,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import com.google.android.gms.common.api.ApiException
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,101 +49,7 @@ fun ResumenScreen(
     var folioGenerado by rememberSaveable { mutableStateOf(cotizacion.folio) }
     var subiendoPdf by remember { mutableStateOf(false) }
     var mensajeSubida by remember { mutableStateOf<String?>(null) }
-    var subiendoDrive by remember { mutableStateOf(false) }
-    var driveUploadSuccess by remember { mutableStateOf<Boolean?>(null) }
-    var driveErrorMessage by remember { mutableStateOf<String?>(null) }
 
-
-    fun uploadToDrive() {
-        if (pdfFile == null || folioGenerado.isBlank()) {
-            Toast.makeText(context, "No hay PDF para subir", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val userName = SessionManager.getNombre(context)
-        val userRole = SessionManager.getRole(context)
-
-        if (userName.isBlank() || userRole.isBlank()) {
-            Toast.makeText(context, "Sesión no valida", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        subiendoDrive = true
-        driveUploadSuccess = null
-        driveErrorMessage = null
-
-        scope.launch {
-            try {
-                val result = GoogleDriveRepository.uploadPdfToStructuredFolder(
-                    context = context,
-                    localPdfFile = pdfFile!!,
-                    userName = userName,
-                    userRole = userRole
-                )
-
-                if (result.isSuccess) {
-                    val uploadResult = result.getOrNull()!!
-
-                    if (uploadResult.success) {
-                        driveUploadSuccess = true
-                        Toast.makeText(
-                            context,
-                            "PDF subido a Drive: ${uploadResult.folderPath}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        driveUploadSuccess = false
-                        driveErrorMessage = uploadResult.error
-                        Toast.makeText(
-                            context,
-                            "Error: ${uploadResult.error}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                } else {
-                    driveUploadSuccess = false
-                    driveErrorMessage = result.exceptionOrNull()?.message
-                    Toast.makeText(
-                        context,
-                        "Error al subir: ${result.exceptionOrNull()?.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-
-            } catch (e: Exception) {
-                driveUploadSuccess = false
-                driveErrorMessage = e.message
-                Toast.makeText(
-                    context,
-                    "Error: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } finally {
-                subiendoDrive = false
-            }
-        }
-    }
-
-
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        scope.launch {
-            val resultData = result.data
-            val signInResult = DriveAuthManager.handleSignInResult(context, resultData)
-
-            if (signInResult.isSuccess) {
-                Toast.makeText(context, "Autenticado con Google", Toast.LENGTH_SHORT).show()
-                uploadToDrive()
-            } else {
-                Toast.makeText(
-                    context,
-                    "Error de autenticación: ${signInResult.exceptionOrNull()?.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
 
     var hs875Selected by rememberSaveable {
         mutableStateOf(if (desdeHistorial) cotizacion.productos.contains(TipoProducto.HS875) else true)
@@ -281,14 +184,6 @@ fun ResumenScreen(
     }
 
 
-    fun handleDriveUpload() {
-        if (!DriveAuthManager.isAuthenticated(context)) {
-            val signInIntent = DriveAuthManager.getSignInIntent(context)
-            signInLauncher.launch(signInIntent)
-        } else {
-            uploadToDrive()
-        }
-    }
 
     BackHandler {
         when {
@@ -611,61 +506,12 @@ fun ResumenScreen(
                                     )
                                 }
                             }
-
-                            // Segunda fila: BOTN DE GOOGLE DRIVE
-                            Button(
-                                onClick = { handleDriveUpload() },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp),
-                                enabled = !subiendoDrive,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = when {
-                                        driveUploadSuccess == true -> Color(0xFF10B981)
-                                        driveUploadSuccess == false -> Color(0xFFEF4444)
-                                        else -> Color(0xFF4285F4)
-                                    }
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                if (subiendoDrive) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        "Subiendo a Drive...",
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                } else {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_google_drive),
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        when {
-                                            driveUploadSuccess == true -> "Subido a Google Drive"
-                                            driveUploadSuccess == false -> "Error - Reintentar"
-                                            else -> "Subir a Google Drive"
-                                        },
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
                         }
                     }
                 }
             }
         }
+
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier

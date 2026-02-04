@@ -35,6 +35,8 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun AdminHomeScreen(
@@ -65,7 +67,7 @@ fun AdminHomeScreen(
     var isLoadingStats by remember { mutableStateOf(true) }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // ESTADO DE GOOGLE DRIVE AUTH - USA SESIÓN EXISTENTE
+    // ESTADO DE GOOGLE DRIVE AUTH
     // ═══════════════════════════════════════════════════════════════════════════════
     var isGoogleAuthenticated by remember {
         mutableStateOf(
@@ -80,6 +82,40 @@ fun AdminHomeScreen(
                 context
             )?.email ?: ""
         )
+    }
+
+    // Launcher para Google Sign-In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        scope.launch {
+            try {
+                val signInResult = DriveAuthManager.handleSignInResult(context, result.data)
+                if (signInResult.isSuccess) {
+                    val account = signInResult.getOrNull()
+                    isGoogleAuthenticated = true
+                    googleUserEmail = account?.email ?: ""
+                    android.widget.Toast.makeText(
+                        context,
+                        "Conectado: ${account?.email}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Error al iniciar sesión",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AdminHomeScreen", "Error en Google Sign-In: ${e.message}")
+                android.widget.Toast.makeText(
+                    context,
+                    "Error: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     // Verificar estado al volver a la pantalla
@@ -126,31 +162,19 @@ fun AdminHomeScreen(
             isGoogleAuthenticated = isGoogleAuthenticated,
             googleUserEmail = googleUserEmail,
             onGoogleSignIn = {
-                val existingAccount =
-                    com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(
-                        context
-                    )
-                if (existingAccount != null) {
-                    isGoogleAuthenticated = true
-                    googleUserEmail = existingAccount.email ?: ""
-                    android.widget.Toast.makeText(
-                        context,
-                        "Conectado: ${existingAccount.email}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    android.widget.Toast.makeText(
-                        context,
-                        "Inicia sesión desde una cotización primero",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
+                val signInIntent = DriveAuthManager.getSignInIntent(context)
+                googleSignInLauncher.launch(signInIntent)
             },
             onGoogleSignOut = {
                 scope.launch {
                     DriveAuthManager.signOut(context)
                     isGoogleAuthenticated = false
                     googleUserEmail = ""
+                    android.widget.Toast.makeText(
+                        context,
+                        "Sesión de Drive cerrada",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             },
             surface = surface,
@@ -192,7 +216,7 @@ fun AdminHomeScreen(
                 onClick = onVerTodasCotizaciones
             )
             StitchAdminCard(
-                title = "ESPECIALISTAS",
+                title = "EMPLEADOS",
                 value = if (isLoadingStats) "..." else stats.empleadosActivos.toString(),
                 icon = Icons.Default.People,
                 modifier = Modifier.weight(1f),
@@ -317,7 +341,7 @@ fun AdminHomeScreen(
             },
             text = {
                 Text(
-                    "Deseas cerrar sesión de administrador?\nTendrás que volver a iniciar sesión.",
+                    "¿Deseas cerrar sesión de administrador?\nTendrás que volver a iniciar sesión.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
@@ -325,7 +349,7 @@ fun AdminHomeScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutDialog = false; onCerrarSesion()
-                }) { Text("Si, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold) }
+                }) { Text("Sí, salir", color = Color(0xFFE53935), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
@@ -523,7 +547,7 @@ private fun AdminTopBarStitch(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    "Ver estado de Drive",
+                                    "Iniciar sesión en Drive",
                                     fontWeight = FontWeight.SemiBold,
                                     color = textPrimary
                                 )

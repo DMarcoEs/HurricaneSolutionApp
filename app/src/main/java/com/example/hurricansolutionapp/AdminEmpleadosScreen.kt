@@ -95,7 +95,7 @@ fun AdminEmpleadosScreen(
         topBar = {
             // StitchTopBar sin separador
             StitchTopBar(
-                title = "Gestionar Empleados",
+                title = "Gestionar Especialistas",
                 onBack = onBack,
                 isDarkMode = isDarkMode
             )

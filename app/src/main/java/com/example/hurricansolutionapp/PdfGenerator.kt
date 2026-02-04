@@ -509,7 +509,7 @@ fun generarPdfCotizacion(
     }
 
     // SUBTOTAL - Fondo #D9D9D9, label en negrita, valores en negrita, texto negro
-    drawResumenRowNuevoDiseno("Subtotal", { _, p -> "$ " + "%,.2f".format(totalesPorProducto[p] ?: 0.0) },
+    drawResumenRowNuevoDiseno("Subtotal USD", { _, p -> "$ " + "%,.2f".format(totalesPorProducto[p] ?: 0.0) },
         labelBold = true, valueBold = true, bgColor = colorSubtotal, textColor = Color.BLACK, isFirstRow = true)
 
     // DESCUENTO - Fondo blanco, sin negrita, texto negro
@@ -517,7 +517,7 @@ fun generarPdfCotizacion(
         labelBold = false, valueBold = false, bgColor = colorBlanco, textColor = Color.BLACK)
 
     // SUBTOTAL CON DESCUENTO - Fondo #898989, label en negrita, valores en negrita, texto negro
-    drawResumenRowNuevoDiseno("Subtotal con Descuento", { _, p -> "$ " + "%,.2f".format(preciosFinalesPorProducto[p] ?: 0.0) },
+    drawResumenRowNuevoDiseno("Subtotal con Descuento USD", { _, p -> "$ " + "%,.2f".format(preciosFinalesPorProducto[p] ?: 0.0) },
         labelBold = true, valueBold = true, bgColor = colorSubtotalConDescuento, textColor = Color.BLACK)
 
     // IVA - Fondo blanco, sin negrita, texto negro
@@ -525,7 +525,7 @@ fun generarPdfCotizacion(
         labelBold = false, valueBold = false, bgColor = colorBlanco, textColor = Color.BLACK)
 
     // PRECIO FINAL CON IVA - Fondo #494949, label en negrita, valores en negrita, texto BLANCO
-    drawResumenRowNuevoDiseno("Precio Final con IVA", { _, p -> "$ " + "%,.2f".format((preciosFinalesPorProducto[p] ?: 0.0) * (1.0 + IVA_RATE)) },
+    drawResumenRowNuevoDiseno("Precio Final USD", { _, p -> "$ " + "%,.2f".format((preciosFinalesPorProducto[p] ?: 0.0) * (1.0 + IVA_RATE)) },
         labelBold = true, valueBold = true, bgColor = colorPrecioFinal, textColor = Color.WHITE, isLastRow = true)
 
     // CONDICIONES COMERCIALES - USANDO IMAGEN (Manteniendo proporción)

@@ -152,7 +152,7 @@ fun ConfigurarPreciosScreen(
         }
 
         if (v875 < b875 || v1250 < b1250 || v1500 < b1500) {
-            Toast.makeText(context, "El precio de venta debe ser mayor o igual al precio base", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "El precio de venta debe ser mayor o igual al precio mínimo", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -432,7 +432,7 @@ private fun PrecioProductoCard(
 
             Spacer(Modifier.height(16.dp))
 
-            Text("PRECIO BASE / COSTO (USD/m²)", color = textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text("PRECIO MÍNIMO", color = textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = precioBase,

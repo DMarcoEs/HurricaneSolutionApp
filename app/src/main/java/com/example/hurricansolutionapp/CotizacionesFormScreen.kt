@@ -209,7 +209,7 @@ fun CotizacionesFormScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                "Agregar",
+                                "Agregar otra medida",
                                 color = textPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -296,7 +296,7 @@ fun CotizacionesFormScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                "Siguiente",
+                                "Terminar",
                                 color = if (isDarkMode) Color.Black else Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp

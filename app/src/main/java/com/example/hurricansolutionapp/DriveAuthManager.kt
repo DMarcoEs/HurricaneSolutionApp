@@ -96,9 +96,9 @@ object DriveAuthManager {
     /**
      * Procesa el resultado de la autenticación
      *
-     * ACTUALIZADO: Guarda el email de la cuenta autorizada para validaciones futuras
+     * CORREGIDO: Ahora recibe el context como parámetro separado
      */
-    suspend fun handleSignInResult(data: Intent?): Result<GoogleSignInAccount> {
+    suspend fun handleSignInResult(context: Context, data: Intent?): Result<GoogleSignInAccount> {
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.await()
@@ -106,10 +106,7 @@ object DriveAuthManager {
             android.util.Log.d(TAG, "✅ Autenticación exitosa: ${account.email}")
 
             // Guardar como cuenta autorizada
-            saveAuthorizedAccountEmail(
-                context = data?.extras?.get("context") as? Context,
-                account.email ?: ""
-            )
+            saveAuthorizedAccountEmail(context, account.email ?: "")
 
             Result.success(account)
 
@@ -125,8 +122,8 @@ object DriveAuthManager {
      * Esto permite validar que siempre se use la misma cuenta y evitar
      * el problema de múltiples cuentas que causa error 10 y archivos en limbo
      */
-    fun saveAuthorizedAccountEmail(context: Context?, email: String) {
-        if (context == null || email.isBlank()) return
+    private fun saveAuthorizedAccountEmail(context: Context, email: String) {
+        if (email.isBlank()) return
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_AUTHORIZED_EMAIL, email).apply()

@@ -27,6 +27,15 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Función para obtener colores disponibles según el sistema HS
+fun getColoresDisponibles(sistema: String): List<String> {
+    return when {
+        sistema.contains("875", ignoreCase = true) -> listOf("Negro", "Café")
+        sistema.contains("1250", ignoreCase = true) -> listOf("Blanco", "Beige")
+        sistema.contains("1500", ignoreCase = true) -> listOf("Café")
+        else -> emptyList()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,12 +55,13 @@ fun EnviosInstalacionScreen(
 
     var cotizacionSeleccionada by remember { mutableStateOf<Cotizacion?>(null) }
     var sistemaSeleccionado by remember { mutableStateOf<String?>(null) }
+    var colorSeleccionado by remember { mutableStateOf<String?>(null) }  // NUEVO: Color de tela
     var fechaInstalacion by remember { mutableStateOf("") }
     var observaciones by remember { mutableStateOf("") }
     var isGeneratingPdf by remember { mutableStateOf(false) }
     var pdfGenerado by remember { mutableStateOf<File?>(null) }
 
-    // Estado para rastrear PDFs generados por folio (para mostrar botones en la card)
+    // Estado para rastrear PDFs generados por folio
     var pdfsGenerados by remember { mutableStateOf<Map<String, File>>(emptyMap()) }
 
     // Colores
@@ -70,7 +80,6 @@ fun EnviosInstalacionScreen(
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
     // Cargar cotizaciones al iniciar
-    // Cada usuario solo ve sus propias cotizaciones (filtradas por nombre de especialista)
     LaunchedEffect(Unit) {
         scope.launch {
             isLoading = true
@@ -78,7 +87,7 @@ fun EnviosInstalacionScreen(
                 val result = EnviosInstalacionRepository.getCotizacionesPendientesEnvioTodas(
                     context = context,
                     userId = userId,
-                    especialistaNombre = userName  // Filtrar por nombre del usuario actual
+                    especialistaNombre = userName
                 )
                 if (result.isSuccess) {
                     cotizaciones = result.getOrNull() ?: emptyList()
@@ -100,7 +109,17 @@ fun EnviosInstalacionScreen(
         }
     }
 
-    fun generarPdfInstalacion(cotizacion: Cotizacion, sistema: String, fecha: String, obs: String) {
+    // Resetear color cuando cambia el sistema
+    LaunchedEffect(sistemaSeleccionado) {
+        if (sistemaSeleccionado != null) {
+            val colores = getColoresDisponibles(sistemaSeleccionado!!)
+            colorSeleccionado = colores.firstOrNull()
+        } else {
+            colorSeleccionado = null
+        }
+    }
+
+    fun generarPdfInstalacion(cotizacion: Cotizacion, sistema: String, color: String?, fecha: String, obs: String) {
         scope.launch {
             isGeneratingPdf = true
             try {
@@ -108,6 +127,7 @@ fun EnviosInstalacionScreen(
                     context = context,
                     cotizacion = cotizacion,
                     sistemaSeleccionado = sistema,
+                    colorSeleccionado = color,
                     instaladorDatos = null,
                     medidasRectificadas = null,
                     fechaSolicitadaManual = fecha,
@@ -116,7 +136,6 @@ fun EnviosInstalacionScreen(
 
                 if (pdfFile != null && pdfFile.exists()) {
                     pdfGenerado = pdfFile
-                    // Guardar en el mapa para mostrar botones en la card
                     pdfsGenerados = pdfsGenerados + (cotizacion.folio to pdfFile)
                     Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT).show()
                 } else {
@@ -156,6 +175,7 @@ fun EnviosInstalacionScreen(
                 if (!isGeneratingPdf) {
                     cotizacionSeleccionada = null
                     sistemaSeleccionado = null
+                    colorSeleccionado = null
                     fechaInstalacion = ""
                     observaciones = ""
                     pdfGenerado = null
@@ -382,7 +402,6 @@ fun EnviosInstalacionScreen(
                             }
                         }
                     } else {
-                        // Solo un sistema
                         val sistema = cot.productos.firstOrNull()
                         LaunchedEffect(Unit) {
                             sistemaSeleccionado = sistema?.name
@@ -419,6 +438,79 @@ fun EnviosInstalacionScreen(
                                     tint = primary,
                                     modifier = Modifier.size(20.dp)
                                 )
+                            }
+                        }
+                    }
+
+                    // NUEVO: Sección de selección de COLOR DE TELA
+                    if (sistemaSeleccionado != null) {
+                        val coloresDisponibles = getColoresDisponibles(sistemaSeleccionado!!)
+
+                        if (coloresDisponibles.isNotEmpty()) {
+                            Text(
+                                "COLOR DE TELA",
+                                color = textMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                coloresDisponibles.forEach { color ->
+                                    val isSelected = colorSeleccionado == color
+                                    Surface(
+                                        onClick = { colorSeleccionado = color },
+                                        color = if (isSelected) primary.copy(alpha = 0.1f) else inputBg,
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(
+                                            width = if (isSelected) 2.dp else 1.dp,
+                                            color = if (isSelected) primary else border
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Círculo de color representativo
+                                            val colorVisual = when (color.lowercase()) {
+                                                "negro" -> Color.Black
+                                                "café", "cafe" -> Color(0xFF8B4513)
+                                                "blanco" -> Color.White
+                                                "beige" -> Color(0xFFF5F5DC)
+                                                else -> Color.Gray
+                                            }
+                                            Surface(
+                                                modifier = Modifier.size(16.dp),
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = colorVisual,
+                                                border = BorderStroke(1.dp, Color.Gray)
+                                            ) {}
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                color,
+                                                color = textPrimary,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
+                                            if (isSelected) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    null,
+                                                    tint = primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -527,7 +619,6 @@ fun EnviosInstalacionScreen(
                             )
                         }
 
-                        // Botones Ver PDF y Compartir (mismo estilo)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -572,9 +663,7 @@ fun EnviosInstalacionScreen(
                         }
 
                         OutlinedButton(
-                            onClick = {
-                                pdfGenerado = null // Resetear para volver a generar
-                            },
+                            onClick = { pdfGenerado = null },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(44.dp),
@@ -595,6 +684,7 @@ fun EnviosInstalacionScreen(
                             onClick = {
                                 cotizacionSeleccionada = null
                                 sistemaSeleccionado = null
+                                colorSeleccionado = null
                                 fechaInstalacion = ""
                                 observaciones = ""
                                 pdfGenerado = null
@@ -606,7 +696,6 @@ fun EnviosInstalacionScreen(
                     } else {
                         val canGenerate = sistemaSeleccionado != null && fechaInstalacion.isNotBlank()
 
-                        // Mensaje si falta fecha
                         if (sistemaSeleccionado != null && fechaInstalacion.isBlank()) {
                             Text(
                                 "Selecciona una fecha de instalación",
@@ -620,7 +709,7 @@ fun EnviosInstalacionScreen(
                         Button(
                             onClick = {
                                 val sistema = sistemaSeleccionado ?: cot.productos.firstOrNull()?.name ?: "HS875"
-                                generarPdfInstalacion(cot, sistema, fechaInstalacion, observaciones)
+                                generarPdfInstalacion(cot, sistema, colorSeleccionado, fechaInstalacion, observaciones)
                             },
                             enabled = canGenerate && !isGeneratingPdf,
                             modifier = Modifier
@@ -655,6 +744,7 @@ fun EnviosInstalacionScreen(
                             onClick = {
                                 cotizacionSeleccionada = null
                                 sistemaSeleccionado = null
+                                colorSeleccionado = null
                                 fechaInstalacion = ""
                                 observaciones = ""
                             },
@@ -669,7 +759,7 @@ fun EnviosInstalacionScreen(
         )
     }
 
-    // PANTALLA PRINCIPAL - LISTA DE COTIZACIONES
+    // PANTALLA PRINCIPAL
     Scaffold(
         containerColor = bg,
         topBar = {
@@ -698,131 +788,73 @@ fun EnviosInstalacionScreen(
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, "Limpiar", tint = textMuted)
+                            Icon(Icons.Default.Clear, null, tint = textMuted, modifier = Modifier.size(18.dp))
                         }
                     }
                 },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = inputBg,
-                    unfocusedContainerColor = inputBg,
-                    focusedBorderColor = border,
-                    unfocusedBorderColor = border,
                     focusedTextColor = textPrimary,
-                    unfocusedTextColor = textPrimary
+                    unfocusedTextColor = textPrimary,
+                    focusedBorderColor = primary,
+                    unfocusedBorderColor = border,
+                    focusedContainerColor = inputBg,
+                    unfocusedContainerColor = inputBg
                 ),
                 shape = RoundedCornerShape(10.dp),
                 singleLine = true
             )
 
-            // Banner informativo
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                color = primary.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Outlined.Description,
-                        null,
-                        tint = textPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Column {
-                        Text(
-                            "Genera la Orden de Instalación",
-                            color = textPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                    CircularProgressIndicator(color = primary)
+                }
+            } else if (filteredList.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Outlined.Inbox,
+                            null,
+                            tint = textMuted,
+                            modifier = Modifier.size(48.dp)
                         )
+                        Spacer(Modifier.height(12.dp))
                         Text(
-                            "Selecciona una cotización para crear el PDF",
+                            if (searchQuery.isNotBlank()) "Sin resultados" else "No hay cotizaciones pendientes",
                             color = textMuted,
-                            fontSize = 11.sp
+                            fontSize = 14.sp
                         )
                     }
                 }
-            }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filteredList, key = { it.folio }) { cotizacion ->
+                        val pdfExistente = pdfsGenerados[cotizacion.folio]
 
-            Spacer(Modifier.height(12.dp))
-
-            // Lista de cotizaciones
-            Box(modifier = Modifier.fillMaxSize()) {
-                when {
-                    isLoading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = textPrimary, strokeWidth = 2.dp)
-                        }
-                    }
-                    filteredList.isEmpty() -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Outlined.Inventory2,
-                                null,
-                                tint = textMuted.copy(alpha = 0.5f),
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                if (searchQuery.isNotBlank()) "No se encontraron resultados"
-                                else "No hay cotizaciones disponibles",
-                                color = textMuted,
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                    else -> {
-                        LazyColumn(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                Text(
-                                    "${filteredList.size} cotización${if (filteredList.size != 1) "es" else ""}",
-                                    color = textMuted,
-                                    fontSize = 12.sp
-                                )
-                            }
-
-                            items(filteredList, key = { it.folio }) { cotizacion ->
-                                val pdfExistente = pdfsGenerados[cotizacion.folio]
-                                OrdenInstalacionCard(
-                                    cotizacion = cotizacion,
-                                    isDarkMode = isDarkMode,
-                                    cardBg = cardBg,
-                                    textPrimary = textPrimary,
-                                    textMuted = textMuted,
-                                    border = border,
-                                    primary = primary,
-                                    onPrimary = onPrimary,
-                                    pdfGenerado = pdfExistente,
-                                    onGenerarOrden = { cotizacionSeleccionada = cotizacion },
-                                    onVerPdf = { pdfExistente?.let { verPdf(context, it) } },
-                                    onCompartirPdf = { pdfExistente?.let { compartirPdf(context, it) } },
-                                    onVolverAGenerar = {
-                                        pdfsGenerados = pdfsGenerados - cotizacion.folio
-                                        cotizacionSeleccionada = cotizacion
-                                    }
-                                )
-                            }
-
-                            item { Spacer(Modifier.height(16.dp)) }
-                        }
+                        CotizacionInstalacionCard(
+                            cotizacion = cotizacion,
+                            pdfGenerado = pdfExistente,
+                            isDarkMode = isDarkMode,
+                            onClick = {
+                                cotizacionSeleccionada = cotizacion
+                                sistemaSeleccionado = null
+                                colorSeleccionado = null
+                                fechaInstalacion = ""
+                                observaciones = ""
+                                pdfGenerado = null
+                            },
+                            onVerPdf = { pdfExistente?.let { verPdf(context, it) } },
+                            onCompartirPdf = { pdfExistente?.let { compartirPdf(context, it) } }
+                        )
                     }
                 }
             }
@@ -831,126 +863,49 @@ fun EnviosInstalacionScreen(
 }
 
 @Composable
-private fun OrdenInstalacionCard(
+private fun CotizacionInstalacionCard(
     cotizacion: Cotizacion,
-    isDarkMode: Boolean,
-    cardBg: Color,
-    textPrimary: Color,
-    textMuted: Color,
-    border: Color,
-    primary: Color,
-    onPrimary: Color,
     pdfGenerado: File?,
-    onGenerarOrden: () -> Unit,
+    isDarkMode: Boolean,
+    onClick: () -> Unit,
     onVerPdf: () -> Unit,
-    onCompartirPdf: () -> Unit,
-    onVolverAGenerar: () -> Unit
+    onCompartirPdf: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val fecha = try {
-        cotizacion.fecha?.let { dateFormat.format(Date(it)) } ?: "-"
-    } catch (e: Exception) { "-" }
-
-    val numSistemas = cotizacion.productos.size
-    val sistemasText = if (numSistemas == 1) {
-        cotizacion.productos.firstOrNull()?.etiquetaCorta ?: "-"
-    } else {
-        "$numSistemas sistemas"
-    }
+    val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF111418)
+    val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+    val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+    val primary = if (isDarkMode) Color.White else Color.Black
+    val onPrimary = if (isDarkMode) Color.Black else Color.White
 
     val areaTotal = cotizacion.ventanas.sumOf { it.alto * it.ancho }
-    val numVentanas = cotizacion.ventanas.size
-
-    val tienePdf = pdfGenerado != null
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
         color = cardBg,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, if (tienePdf) primary.copy(alpha = 0.5f) else border.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, border)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
         ) {
-            // Header: Folio + Sistema
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        cotizacion.folio,
+                        cotizacion.clienteNombre,
                         color = textPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    // Indicador de PDF generado
-                    if (tienePdf) {
-                        Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    null,
-                                    tint = Color(0xFF10B981),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Text(
-                                    "PDF",
-                                    color = Color(0xFF10B981),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-                Surface(
-                    color = primary,
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Text(
-                        sistemasText,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        color = onPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            // Nombre del cliente
-            Text(
-                cotizacion.clienteNombre,
-                color = textPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (cotizacion.ubicacion.isNotBlank() || cotizacion.ciudad.isNotBlank()) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Outlined.LocationOn,
-                        null,
-                        tint = textMuted,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         cotizacion.ubicacion.ifBlank { cotizacion.ciudad },
                         color = textMuted,
@@ -959,71 +914,94 @@ private fun OrdenInstalacionCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Surface(
+                    color = primary,
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        cotizacion.folio,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = onPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
+
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = border.copy(alpha = 0.5f))
+            Spacer(Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.CalendarToday, null, tint = textMuted, modifier = Modifier.size(14.dp))
-                    Text(fecha, color = textMuted, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.Window,
+                        null,
+                        tint = textMuted,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "${cotizacion.ventanas.size} aperturas",
+                        color = textMuted,
+                        fontSize = 12.sp
+                    )
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.Window, null, tint = textMuted, modifier = Modifier.size(14.dp))
-                    Text("$numVentanas apertura${if (numVentanas != 1) "s" else ""}", color = textMuted, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.SquareFoot,
+                        null,
+                        tint = textMuted,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "${String.format("%.2f", areaTotal)} m²",
+                        color = textMuted,
+                        fontSize = 12.sp
+                    )
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.SquareFoot, null, tint = textMuted, modifier = Modifier.size(14.dp))
-                    Text("${String.format("%.1f", areaTotal)} m²", color = textMuted, fontSize = 12.sp)
-                }
+                Text(
+                    cotizacion.fecha,
+                    color = textMuted,
+                    fontSize = 12.sp
+                )
             }
 
-            HorizontalDivider(color = border.copy(alpha = 0.3f))
-
-            if (tienePdf) {
-                // PDF ya generado - mostrar 3 botones
+            if (pdfGenerado != null) {
+                Spacer(Modifier.height(10.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Ver PDF
-                    Button(
-                        onClick = onVerPdf,
+                    OutlinedButton(
+                        onClick = { onVerPdf() },
                         modifier = Modifier
                             .weight(1f)
-                            .height(40.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-                        ),
+                            .height(36.dp),
                         shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, border),
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Icon(
                             Icons.Default.Visibility,
                             null,
-                            tint = textPrimary,
+                            tint = textMuted,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text("Ver", color = textPrimary, fontSize = 12.sp)
+                        Text("Ver", color = textMuted, fontSize = 12.sp)
                     }
 
-                    // Compartir
                     Button(
-                        onClick = onCompartirPdf,
+                        onClick = { onCompartirPdf() },
                         modifier = Modifier
                             .weight(1f)
-                            .height(40.dp),
+                            .height(36.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primary),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp)
@@ -1037,49 +1015,10 @@ private fun OrdenInstalacionCard(
                         Spacer(Modifier.width(4.dp))
                         Text("Compartir", color = onPrimary, fontSize = 12.sp)
                     }
-
-                    // Regenerar
-                    OutlinedButton(
-                        onClick = onVolverAGenerar,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, border),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            null,
-                            tint = textMuted,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Nueva", color = textMuted, fontSize = 12.sp)
-                    }
-                }
-            } else {
-                Button(
-                    onClick = onGenerarOrden,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = primary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.PictureAsPdf,
-                        null,
-                        tint = onPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Generar Orden de Instalación",
-                        color = onPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
                 }
             }
         }
     }
 }
+
+// Las funciones verPdf y compartirPdf están definidas en PdfUtils.kt

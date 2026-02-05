@@ -5,6 +5,7 @@ import android.graphics.*
 import android.graphics.pdf.PdfDocument
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 
 
 object PdfInstaladorGenerator {
@@ -23,7 +24,17 @@ object PdfInstaladorGenerator {
     private const val OBS_BOX_HEIGHT = 85f
     private const val OBS_TITLE_GAP = 10f
     private const val OBS_BOTTOM_GAP = 12f
-    private const val OBS_FOOTER_TOTAL_HEIGHT = 115f // reserva fija para que SIEMPRE quede abajo
+    private const val OBS_FOOTER_TOTAL_HEIGHT = 115f
+
+    // Colores de tela por sistema HS
+    private fun getColoresTela(sistema: String): String {
+        return when {
+            sistema.contains("875", ignoreCase = true) -> "Negro y Café"
+            sistema.contains("1250", ignoreCase = true) -> "Blanco y Beige"
+            sistema.contains("1500", ignoreCase = true) -> "Café"
+            else -> "N/A"
+        }
+    }
 
     /**
      * Genera PDF de Orden de Instalación
@@ -31,6 +42,7 @@ object PdfInstaladorGenerator {
      * @param context Contexto de Android
      * @param cotizacion Datos de la cotización
      * @param sistemaSeleccionado Sistema seleccionado (HS875, HS1250, HS1500)
+     * @param colorSeleccionado Color de tela seleccionado (opcional)
      * @param instaladorDatos Datos del instalador (opcional, de Supabase)
      * @param medidasRectificadas Medidas rectificadas (opcional)
      * @param fechaSolicitadaManual Fecha de instalación manual (cuando no hay instaladorDatos)
@@ -40,6 +52,7 @@ object PdfInstaladorGenerator {
         context: Context,
         cotizacion: Cotizacion,
         sistemaSeleccionado: String,
+        colorSeleccionado: String? = null,
         instaladorDatos: InstaladorDatos? = null,
         medidasRectificadas: List<MedidaInstalador>? = null,
         fechaSolicitadaManual: String? = null,
@@ -48,6 +61,7 @@ object PdfInstaladorGenerator {
         return try {
             android.util.Log.d(TAG, "Generando PDF de instalación para: ${cotizacion.folio}")
             android.util.Log.d(TAG, "Sistema: $sistemaSeleccionado")
+            android.util.Log.d(TAG, "Color: $colorSeleccionado")
             android.util.Log.d(TAG, "Fecha manual: $fechaSolicitadaManual")
             android.util.Log.d(TAG, "Ventanas: ${cotizacion.ventanas.size}")
 
@@ -64,30 +78,31 @@ object PdfInstaladorGenerator {
             // 2) Título
             yPosition = drawTitle(canvas, yPosition)
 
-            // 3) Datos cliente - ahora con parámetros manuales
+            // 3) Datos cliente - con Sistema HS y Color HS
             yPosition = drawClienteSection(
                 canvas = canvas,
                 startY = yPosition,
                 cotizacion = cotizacion,
+                sistemaSeleccionado = sistemaSeleccionado,
+                colorSeleccionado = colorSeleccionado,
                 instaladorDatos = instaladorDatos,
                 fechaSolicitadaManual = fechaSolicitadaManual
             )
 
             // 4) Reservar footer fijo para Observaciones (SIEMPRE)
             val footerTopY = PAGE_HEIGHT - MARGIN - OBS_FOOTER_TOTAL_HEIGHT
-            val tableBottomLimit = footerTopY - 10f // separación visual antes del footer
+            val tableBottomLimit = footerTopY - 10f
 
-            // 5) Tabla (no debe invadir footer)
+            // 5) Tabla (sin columna Tipo Sistema)
             yPosition = drawMedidasTable(
                 canvas = canvas,
                 startY = yPosition,
                 bottomLimit = tableBottomLimit,
                 cotizacion = cotizacion,
-                sistemaSeleccionado = sistemaSeleccionado,
                 medidasRectificadas = medidasRectificadas
             )
 
-            // 6) Observaciones - usar manuales si no hay instaladorDatos
+            // 6) Observaciones
             val obs = observacionesManuales?.ifBlank { null }
                 ?: instaladorDatos?.getObservacionesSeguras()
                 ?: ""
@@ -119,6 +134,15 @@ object PdfInstaladorGenerator {
         return "Instaladores_${clienteFormateado}_${folio}.pdf"
     }
 
+    // Función para capitalizar palabras profesionalmente
+    private fun capitalizeWords(text: String): String {
+        return text.split(" ").joinToString(" ") { word ->
+            word.lowercase(Locale.getDefault()).replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+            }
+        }
+    }
+
 
     // HEADER
 
@@ -127,7 +151,6 @@ object PdfInstaladorGenerator {
         val headerTop = 0f
         val headerBottom = HEADER_HEIGHT
 
-        // Proporción 20 : 60 : 20
         val leftZoneWidth = PAGE_WIDTH * 0.20f
         val centerZoneWidth = PAGE_WIDTH * 0.60f
         val rightZoneWidth = PAGE_WIDTH * 0.20f
@@ -135,7 +158,6 @@ object PdfInstaladorGenerator {
         val centerZoneLeft = leftZoneWidth
         val centerZoneRight = centerZoneLeft + centerZoneWidth
 
-        // Fondo negro SOLO en el 60% central (logos sin fondo negro)
         val bgPaint = Paint().apply {
             color = Color.BLACK
             style = Paint.Style.FILL
@@ -145,7 +167,7 @@ object PdfInstaladorGenerator {
         try {
             val options = BitmapFactory.Options().apply { inScaled = false }
 
-            // =================== Logo Izquierda (20%) ===================
+            // Logo Izquierda (20%)
             val logoHurricane = BitmapFactory.decodeResource(
                 context.resources,
                 R.drawable.logo_header_new,
@@ -158,7 +180,6 @@ object PdfInstaladorGenerator {
                 val aspect = croppedLogo.width.toFloat() / croppedLogo.height.toFloat()
                 var logoWidth = logoHeight * aspect
 
-                // Escala si excede el 20% (con margen interno)
                 val maxWidth = leftZoneWidth * 0.90f
                 if (logoWidth > maxWidth) {
                     val s = maxWidth / logoWidth
@@ -174,7 +195,7 @@ object PdfInstaladorGenerator {
                 canvas.drawBitmap(croppedLogo, null, rect, null)
             }
 
-            // =================== Logo Derecha (20%) ===================
+            // Logo Derecha (20%)
             val logoUsa = BitmapFactory.decodeResource(
                 context.resources,
                 R.drawable.made_in_usa,
@@ -200,7 +221,6 @@ object PdfInstaladorGenerator {
 
                 val rect = RectF(left, top, left + usaWidth, top + usaHeight)
 
-                // Escala de grises para el sello
                 val grayMatrix = ColorMatrix().apply { setSaturation(0f) }
                 val usaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     colorFilter = ColorMatrixColorFilter(grayMatrix)
@@ -211,7 +231,7 @@ object PdfInstaladorGenerator {
             android.util.Log.e(TAG, "Error cargando logos: ${e.message}")
         }
 
-        // Texto centrado dentro del 60% central
+        // Texto centrado
         val sloganPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             textSize = 8f
@@ -244,13 +264,15 @@ object PdfInstaladorGenerator {
     }
 
 
-    // CLIENT SECTION (formulario)
+    // CLIENT SECTION (formulario) - MODIFICADO con Sistema HS y Color HS
 
 
     private fun drawClienteSection(
         canvas: Canvas,
         startY: Float,
         cotizacion: Cotizacion,
+        sistemaSeleccionado: String,
+        colorSeleccionado: String?,
         instaladorDatos: InstaladorDatos?,
         fechaSolicitadaManual: String? = null
     ): Float {
@@ -310,25 +332,31 @@ object PdfInstaladorGenerator {
             ?: instaladorDatos?.getFechaSolicitadaSegura()
             ?: ""
 
+        // Obtener nombre del sistema y color
+        val sistemaDisplayName = sistemaSeleccionado.getSistemaDisplayName()
+        val colorTela = colorSeleccionado ?: getColoresTela(sistemaSeleccionado)
+
         val leftData = listOf(
-            "Nombre del Cliente:" to cotizacion.clienteNombre,
-            "Dirección:" to (instaladorDatos?.getDireccionSegura()?.take(35)
+            "Nombre del Cliente:" to capitalizeWords(cotizacion.clienteNombre),
+            "Dirección:" to capitalizeWords(instaladorDatos?.getDireccionSegura()?.take(35)
                 ?: direccionExtraida.take(35)),
-            "Fraccionamiento:" to (instaladorDatos?.getColoniaSegura()?.ifBlank { coloniaExtraida }
+            "Fraccionamiento:" to capitalizeWords(instaladorDatos?.getColoniaSegura()?.ifBlank { coloniaExtraida }
                 ?: coloniaExtraida),
-            "Municipio:" to (instaladorDatos?.getCiudadSegura()?.ifBlank { cotizacion.ciudad }
+            "Municipio:" to capitalizeWords(instaladorDatos?.getCiudadSegura()?.ifBlank { cotizacion.ciudad }
                 ?: cotizacion.ciudad),
-            "Especialista:" to cotizacion.especialista
+            "Especialista:" to capitalizeWords(cotizacion.especialista),
+            "Sistema HS:" to sistemaDisplayName  // NUEVO
         )
 
         val rightData = listOf(
             "Rectificadas:" to if (instaladorDatos?.rectificadas == true) "Sí" else "No",
-            "Tipo de Propiedad:" to (instaladorDatos?.getTipoPropiedadSegura()?.ifBlank { "Casa" }
+            "Tipo de Propiedad:" to capitalizeWords(instaladorDatos?.getTipoPropiedadSegura()?.ifBlank { "Casa" }
                 ?: "Casa"),
-            "Nivel:" to (instaladorDatos?.getNivelSeguro()?.ifBlank { nivelCalculado }
+            "Nivel:" to capitalizeWords(instaladorDatos?.getNivelSeguro()?.ifBlank { nivelCalculado }
                 ?: nivelCalculado),
             "Requiere Andamios:" to if (instaladorDatos?.requiereAndamios == true) "Sí" else "No",
-            "Fecha Solicitada:" to fechaMostrar
+            "Fecha Solicitada:" to fechaMostrar,
+            "Color de Tela:" to colorTela  // NUEVO
         )
 
         for (i in leftData.indices) {
@@ -408,7 +436,7 @@ object PdfInstaladorGenerator {
     }
 
 
-    // TABLE (header gris + grid, Zona+filas pegadas)
+    // TABLE (header gris + grid, SIN columna Tipo Sistema)
 
 
     private fun drawMedidasTable(
@@ -416,13 +444,12 @@ object PdfInstaladorGenerator {
         startY: Float,
         bottomLimit: Float,
         cotizacion: Cotizacion,
-        sistemaSeleccionado: String,
         medidasRectificadas: List<MedidaInstalador>?
     ): Float {
         var y = startY
 
         val headerBgPaint = Paint().apply {
-            color = Color.parseColor("#E6E6E6") // gris claro
+            color = Color.parseColor("#E6E6E6")
             style = Paint.Style.FILL
         }
         val headerTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -454,35 +481,38 @@ object PdfInstaladorGenerator {
         val tableLeft = MARGIN
         val tableRight = PAGE_WIDTH - MARGIN
 
-        // Columnas (mantener)
+        // Columnas MODIFICADAS - Sin Tipo Sistema
+        // Redistribuir el espacio de forma más equilibrada
         val colAreaProteger = tableLeft
-        val colCantidad = tableLeft + 130f
-        val colAncho = tableLeft + 175f
-        val colAlto = tableLeft + 220f
-        val colAreaTotal = tableLeft + 265f
-        val colTipoMontaje = tableLeft + 320f
-        val colAdecuaciones = tableLeft + 400f
-        val colTipoSistema = tableLeft + 465f
+        val colCantidad = tableLeft + 150f      // Más espacio para área a proteger
+        val colAncho = tableLeft + 200f
+        val colAlto = tableLeft + 250f
+        val colAreaTotal = tableLeft + 300f
+        val colTipoMontaje = tableLeft + 360f
+        val colAdecuaciones = tableLeft + 450f  // Columna final
 
         val cols = floatArrayOf(
             colAreaProteger, colCantidad, colAncho, colAlto,
-            colAreaTotal, colTipoMontaje, colAdecuaciones, colTipoSistema
+            colAreaTotal, colTipoMontaje, colAdecuaciones
         )
 
+        // Headers SIN "Tipo Sistema"
         val headers = listOf(
-            "Area a Proteger", "Cantidad", "Ancho", "Alto",
-            "Area Total", "Tipo de Montaje", "Adecuaciones", "Tipo Sistema"
+            "Área a Proteger", "Cantidad", "Ancho", "Alto",
+            "Área Total", "Tipo de Montaje", "Adecuaciones"
         )
 
         // HEADER
         if (y + TABLE_ROW_HEIGHT > bottomLimit) return y
 
+        // Fondo del header para "Área a Proteger"
         canvas.drawRect(
             cols[0],
             y,
             cols[1],
             y + TABLE_ROW_HEIGHT,
             Paint().apply { color = Color.parseColor("#b7b7b7"); style = Paint.Style.FILL })
+        // Fondo del header para el resto
         canvas.drawRect(cols[1], y, tableRight, y + TABLE_ROW_HEIGHT, headerBgPaint)
 
         // Borde exterior + grid header
@@ -510,28 +540,25 @@ object PdfInstaladorGenerator {
 
         val itemsAgrupados = when {
             medidasRectificadas?.isNotEmpty() == true ->
-                medidasRectificadas.groupBy { it.getZonaSegura().ifBlank { "Sin zona" } }
+                medidasRectificadas.groupBy { capitalizeWords(it.getZonaSegura().ifBlank { "Sin zona" }) }
 
             else ->
-                cotizacion.ventanas.groupBy { it.zona.ifBlank { "Sin zona" } }
+                cotizacion.ventanas.groupBy { capitalizeWords(it.zona.ifBlank { "Sin zona" }) }
         }
 
-        val sistemaDisplay = sistemaSeleccionado.getSistemaDisplayName()
-        var isFirstItem = true
-
         itemsAgrupados.forEach { (zona, itemsEnZona) ->
-            // --- Zona row (4 bordes excepto inferior) ---
+            // --- Zona row ---
             if (y + TABLE_ROW_HEIGHT > bottomLimit) return y
 
             val zonaTop = y
             val zonaBottom = y + TABLE_ROW_HEIGHT
 
-            // TOP + LEFT + RIGHT (NO bottom)
+            // Bordes de zona
             canvas.drawLine(tableLeft, zonaTop, tableRight, zonaTop, linePaint)
             canvas.drawLine(tableLeft, zonaTop, tableLeft, zonaBottom, linePaint)
             canvas.drawLine(tableRight, zonaTop, tableRight, zonaBottom, linePaint)
 
-            // grid vertical
+            // Grid vertical
             cols.forEach { x -> canvas.drawLine(x, zonaTop, x, zonaBottom, linePaint) }
 
             val zonaTextY =
@@ -549,25 +576,28 @@ object PdfInstaladorGenerator {
                 val textY =
                     rowTop + TABLE_ROW_HEIGHT / 2f - (cellPaint.descent() + cellPaint.ascent()) / 2f
 
-                // LEFT/RIGHT siempre
+                // Bordes
                 canvas.drawLine(tableLeft, rowTop, tableLeft, rowBottom, linePaint)
                 canvas.drawLine(tableRight, rowTop, tableRight, rowBottom, linePaint)
-
-                // BOTTOM siempre
                 canvas.drawLine(tableLeft, rowBottom, tableRight, rowBottom, linePaint)
 
-                // TOP solo si NO es la primera fila bajo la zona
                 if (index != 0) {
                     canvas.drawLine(tableLeft, rowTop, tableRight, rowTop, linePaint)
                 }
 
-                // grid vertical siempre
+                // Grid vertical
                 cols.forEach { x -> canvas.drawLine(x, rowTop, x, rowBottom, linePaint) }
 
                 when (item) {
                     is MedidaInstalador -> {
                         val area = item.alto * item.ancho
-                        canvas.drawText(item.descripcion.take(25), cols[0] + 2f, textY, cellPaint)
+                        // Área a Proteger - Centrado y con formato profesional
+                        canvas.drawText(
+                            capitalizeWords(item.descripcion.take(30)),
+                            (cols[0] + cols[1]) / 2f,
+                            textY,
+                            cellCenterPaint
+                        )
                         canvas.drawText(
                             item.cantidad.toString(),
                             (cols[1] + cols[2]) / 2f,
@@ -593,31 +623,28 @@ object PdfInstaladorGenerator {
                             cellCenterPaint
                         )
                         canvas.drawText(
-                            item.getTipoMontajeSeguro().take(12),
+                            capitalizeWords(item.getTipoMontajeSeguro().take(15)),
                             (cols[5] + cols[6]) / 2f,
                             textY,
                             cellCenterPaint
                         )
                         canvas.drawText(
                             if (item.requiereAdecuacion) "Sí" else "No",
-                            (cols[6] + cols[7]) / 2f,
+                            (cols[6] + tableRight) / 2f,
                             textY,
                             cellCenterPaint
                         )
-                        if (isFirstItem) {
-                            canvas.drawText(
-                                sistemaDisplay,
-                                (cols[7] + tableRight) / 2f,
-                                textY,
-                                cellCenterPaint
-                            )
-                            isFirstItem = false
-                        }
                     }
 
                     is Ventana -> {
                         val area = item.alto * item.ancho
-                        canvas.drawText(item.descripcion.take(25), cols[0] + 2f, textY, cellPaint)
+                        // Área a Proteger - Centrado y con formato profesional
+                        canvas.drawText(
+                            capitalizeWords(item.descripcion.take(30)),
+                            (cols[0] + cols[1]) / 2f,
+                            textY,
+                            cellCenterPaint
+                        )
                         canvas.drawText("1", (cols[1] + cols[2]) / 2f, textY, cellCenterPaint)
                         canvas.drawText(
                             String.format("%.2f", item.ancho),
@@ -638,33 +665,24 @@ object PdfInstaladorGenerator {
                             cellCenterPaint
                         )
                         canvas.drawText(
-                            item.tipoMontaje.take(12),
+                            capitalizeWords(item.tipoMontaje.take(15)),
                             (cols[5] + cols[6]) / 2f,
                             textY,
                             cellCenterPaint
                         )
                         canvas.drawText(
                             if (item.adecuacion != "No" && item.adecuacion.isNotBlank()) "Sí" else "No",
-                            (cols[6] + cols[7]) / 2f,
+                            (cols[6] + tableRight) / 2f,
                             textY,
                             cellCenterPaint
                         )
-                        if (isFirstItem) {
-                            canvas.drawText(
-                                sistemaDisplay,
-                                (cols[7] + tableRight) / 2f,
-                                textY,
-                                cellCenterPaint
-                            )
-                            isFirstItem = false
-                        }
                     }
                 }
 
                 y = rowBottom
             }
 
-            // Separación entre grupos (zona+filas)
+            // Separación entre grupos
             y += 6f
         }
 

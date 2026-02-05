@@ -15,23 +15,9 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.*
 
-/**
- * Manager para subida automática de PDFs Y sincronización de cotizaciones con Supabase.
- * Cuando se genera un PDF, automáticamente intenta subirlo si hay conexión.
- * También sincroniza los datos de la cotización a Supabase para que el Admin pueda verlos.
- */
+
 object AutoUploadManager {
 
-    /**
-     * Genera el PDF, guarda la cotización en Supabase, y sube el PDF.
-     *
-     * @param context Contexto de la aplicación
-     * @param cotizacion La cotización a generar
-     * @param scope CoroutineScope para la subida asíncrona
-     * @param onPdfGenerated Callback cuando el PDF se genera (antes de subir)
-     * @param onUploadComplete Callback cuando la subida termina (éxito o error)
-     * @return El archivo PDF generado, o null si falló
-     */
     fun generarYSubirPdf(
         context: Context,
         cotizacion: Cotizacion,
@@ -47,20 +33,17 @@ object AutoUploadManager {
             return null
         }
 
-        // Notificar que el PDF se generó
+
         onPdfGenerated?.invoke(pdfFile)
 
-        // 2. Sincronizar cotización a Supabase (para que Admin pueda ver)
         scope.launch(Dispatchers.IO) {
             try {
                 sincronizarCotizacionASupabase(context, cotizacion, pdfFile.absolutePath)
             } catch (e: Exception) {
                 e.printStackTrace()
-                // No fallamos si la sincronización falla - al menos quedó local
             }
         }
 
-        // 3. Si hay conexión, intentar subir PDF inmediatamente
         if (isOnline(context)) {
             scope.launch(Dispatchers.IO) {
                 try {
@@ -71,59 +54,81 @@ object AutoUploadManager {
                     }
 
                     if (pendingItem != null) {
-                        // Intentar subir
+                        // Intentar subir a Supabase
                         UploadRepository.uploadOne(context, pendingItem)
 
-                        // Verificar resultado
+                        // Verificar resultado de Supabase
                         val updated = UploadQueueStorage.getAll(context)
                             .find { it.id == pendingItem.id }
 
-                        val success = updated?.status == "DONE"
-                        val error = updated?.lastError
+                        val supabaseSuccess = updated?.status == "DONE"
+                        val supabaseError = updated?.lastError
 
-                        // Si el PDF se subió, actualizar la ruta en Supabase
-                        if (success && cotizacion.folio.isNotBlank()) {
+                        if (supabaseSuccess && cotizacion.folio.isNotBlank()) {
                             try {
                                 val userId = SessionManager.getUserId(context)
-                                // Formatear nombre igual que en UploadRepository
                                 val clienteFormateado = formatNameForPath(cotizacion.clienteNombre)
                                 val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${cotizacion.folio}.pdf"
                                 actualizarPdfPathEnSupabase(cotizacion.folio, pdfRemotePath)
 
-                                // [OK] NUEVO: Subir automáticamente a Google Drive
                                 val userName = SessionManager.getNombre(context)
                                 val userRole = SessionManager.getRole(context)
+
                                 if (userName.isNotBlank() && userRole.isNotBlank()) {
-                                    try {
-                                        DriveUploadManager.uploadPdfToDriveAuto(
-                                            context = context,
-                                            pdfFile = pdfFile,
-                                            userName = userName,
-                                            userRole = userRole,
-                                            folio = cotizacion.folio
-                                        )
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("AutoUploadManager", "Error subiendo a Drive: ${e.message}")
+                                    if (DriveAuthManager.isAuthenticated(context)) {
+                                        try {
+                                            // Marcar como "UPLOADING" antes de subir
+                                            UploadQueueStorage.markDriveUploading(context, pendingItem.id)
+
+                                            val driveSuccess = DriveUploadManager.uploadPdfToDriveAuto(
+                                                context = context,
+                                                pdfFile = pdfFile,
+                                                userName = userName,
+                                                userRole = userRole,
+                                                folio = cotizacion.folio
+                                            )
+
+                                            if (driveSuccess) {
+                                                UploadQueueStorage.markDriveDone(context, pendingItem.id)
+                                                android.util.Log.d("AutoUploadManager", "Drive: Subido y estado actualizado")
+                                            } else {
+                                                UploadQueueStorage.markDriveError(context, pendingItem.id, "Error al subir a Drive")
+                                                android.util.Log.w("AutoUploadManager", "Drive: Fall la subida")
+                                            }
+                                        } catch (e: Exception) {
+                                            UploadQueueStorage.markDriveError(context, pendingItem.id, e.message ?: "Error desconocido")
+                                            android.util.Log.e("AutoUploadManager", "Error subiendo a Drive: ${e.message}")
+                                        }
+                                    } else {
+                                        // No autenticado - dejar como PENDING para subida manual
+                                        android.util.Log.d("AutoUploadManager", "Drive: No autenticado, quedará pendiente")
                                     }
                                 }
 
-                                // [OK] NUEVO: Llamar webhook de Make.com para subir a Google Drive
-                                // y actualizar GoHighLevel
+                                // Llamar webhook de Make.com (si aplica)
                                 val leadId = obtenerLeadIdDeCotizacion(context, cotizacion)
                                 if (leadId != null) {
                                     llamarWebhookMakeCom(context, cotizacion, pdfRemotePath, leadId)
                                 }
+
+                                val finalItem = UploadQueueStorage.getAll(context).find { it.id == pendingItem.id }
+                                if (finalItem?.status == "DONE" && finalItem.driveStatus == "DONE") {
+                                    kotlinx.coroutines.delay(500)
+                                    UploadQueueStorage.remove(context, pendingItem.id)
+                                    android.util.Log.d("AutoUploadManager", "Item limpiado automáticamente (ambos DONE)")
+                                }
+
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         }
 
                         withContext(Dispatchers.Main) {
-                            onUploadComplete?.invoke(success, error)
+                            onUploadComplete?.invoke(supabaseSuccess, supabaseError)
                         }
                     } else {
                         withContext(Dispatchers.Main) {
-                            onUploadComplete?.invoke(false, "No se encontró el archivo en cola")
+                            onUploadComplete?.invoke(false, "No se encontrará el archivo en cola")
                         }
                     }
                 } catch (e: Exception) {
@@ -133,16 +138,13 @@ object AutoUploadManager {
                 }
             }
         } else {
-            // Sin conexión - quedará pendiente para después
             onUploadComplete?.invoke(false, "Sin conexión - quedará pendiente")
         }
 
         return pdfFile
     }
 
-    /**
-     * Sincroniza una cotización a Supabase para que el Admin pueda verla.
-     */
+
     private suspend fun sincronizarCotizacionASupabase(
         context: Context,
         cotizacion: Cotizacion,
@@ -151,7 +153,6 @@ object AutoUploadManager {
         val userId = SessionManager.getUserId(context)
         if (userId.isBlank()) return
 
-        // Convertir ventanas al modelo de inserción
         val ventanasInsert = cotizacion.ventanas.map { v ->
             VentanaInsert(
                 descripcion = v.descripcion,
@@ -200,106 +201,52 @@ object AutoUploadManager {
             totalHs875 = totalHs875,
             totalHs1250 = totalHs1250,
             totalHs1500 = totalHs1500,
-            totales = totales,
             ventanas = ventanasInsert,
-            pdfPath = null // Se actualiza después cuando se sube el PDF
+            totales = totales,
+            pdfPath = pdfLocalPath
         )
 
-        // Guardar en Supabase
-        AdminRepository.saveCotizacion(cotizacionInsert)
+        try {
+            val supabase = SupabaseClientProvider.client
+            supabase.from("cotizaciones").upsert(cotizacionInsert) {
+            }
+            android.util.Log.d("AutoUploadManager", "Cotización sincronizada a Supabase: ${cotizacion.folio}")
+        } catch (e: Exception) {
+            android.util.Log.e("AutoUploadManager", "Error sincronizando cotización: ${e.message}")
+            throw e
+        }
     }
 
-    /**
-     * Actualiza el path del PDF en Supabase después de que se sube.
-     */
+
     private suspend fun actualizarPdfPathEnSupabase(folio: String, pdfPath: String) {
         try {
-            val client = SupabaseClientProvider.client
-            client.from("cotizaciones")
-                .update(mapOf("pdf_path" to pdfPath)) {
-                    filter {
-                        eq("folio", folio)
-                    }
+            val supabase = SupabaseClientProvider.client
+            supabase.from("cotizaciones").update(
+                mapOf("pdf_path" to pdfPath)
+            ) {
+                filter {
+                    eq("folio", folio)
                 }
+            }
+            android.util.Log.d("AutoUploadManager", "PDF path actualizado en Supabase: $pdfPath")
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("AutoUploadManager", "Error actualizando pdf_path: ${e.message}")
         }
     }
 
-    /**
-     * Intenta subir todos los pendientes en segundo plano.
-     * Útil para llamar cuando se detecta conexión a internet.
-     */
-    fun subirPendientesEnBackground(
-        context: Context,
-        scope: CoroutineScope,
-        onComplete: ((Int, Int) -> Unit)? = null // (exitosos, fallidos)
-    ) {
-        if (!isOnline(context)) {
-            onComplete?.invoke(0, 0)
-            return
-        }
 
-        scope.launch(Dispatchers.IO) {
-            var exitosos = 0
-            var fallidos = 0
-
-            val pendientes = UploadQueueStorage.getAll(context)
-                .filter { it.status == "PENDING" || it.status == "ERROR" }
-
-            for (item in pendientes) {
-                try {
-                    UploadRepository.uploadOne(context, item)
-
-                    // Verificar resultado
-                    val updated = UploadQueueStorage.getAll(context)
-                        .find { it.id == item.id }
-
-                    if (updated?.status == "DONE") {
-                        exitosos++
-                    } else {
-                        fallidos++
-                    }
-                } catch (e: Exception) {
-                    fallidos++
-                }
-            }
-
-            withContext(Dispatchers.Main) {
-                onComplete?.invoke(exitosos, fallidos)
-            }
-        }
-    }
-
-    /**
-     * Limpia los uploads completados (DONE) de la cola.
-     */
-    fun limpiarCompletados(context: Context) {
-        UploadQueueStorage.clearDone(context)
-    }
-
-    /**
-     * Sincroniza todas las cotizaciones locales que aún no están en Supabase.
-     * Útil para migrar datos existentes.
-     */
     fun sincronizarCotizacionesLocales(
         context: Context,
         scope: CoroutineScope,
-        onComplete: ((Int, Int) -> Unit)? = null // (sincronizadas, errores)
+        onComplete: ((sincronizadas: Int, errores: Int) -> Unit)? = null
     ) {
-        if (!isOnline(context)) {
-            onComplete?.invoke(0, 0)
-            return
-        }
-
         scope.launch(Dispatchers.IO) {
             var sincronizadas = 0
             var errores = 0
 
-            val cotizacionesLocales = obtenerCotizacionesLocal(context)
-            val userId = SessionManager.getUserId(context)
+            val cotizacionesLocales: List<Cotizacion> = obtenerCotizacionesLocal(context)
 
-            if (userId.isBlank()) {
+            if (!isOnline(context)) {
                 withContext(Dispatchers.Main) {
                     onComplete?.invoke(0, cotizacionesLocales.size)
                 }
@@ -348,18 +295,13 @@ object AutoUploadManager {
         }
     }
 
-    /**
-     * Obtiene el leadId desde el CotizacionStorage local
-     */
-    /**
-     * Obtiene el leadId buscando por teléfono del cliente
-     */
+
     private suspend fun obtenerLeadIdDeCotizacion(
         context: Context,
         cotizacion: Cotizacion
     ): String? {
         return try {
-            // Buscar lead por número de teléfono
+
             val lead = LeadsRepository.getLeadByPhone(cotizacion.clienteTelefono)
             lead?.id
         } catch (e: Exception) {
@@ -387,6 +329,7 @@ object AutoUploadManager {
             .replace("[^A-Za-z0-9_]+".toRegex(), "")
             .take(50)
     }
+
     /**
      * Llama al webhook de Make.com para subir PDF a Google Drive
      * y actualizar GoHighLevel
@@ -397,7 +340,6 @@ object AutoUploadManager {
         pdfRemotePath: String,
         leadId: String?
     ) {
-        // Verificar si los webhooks están habilitados
         if (!WebhookConfig.WEBHOOKS_ENABLED) {
             android.util.Log.d("AutoUploadManager", "Webhooks deshabilitados - skip")
             return
@@ -412,7 +354,6 @@ object AutoUploadManager {
         try {
             android.util.Log.d("AutoUploadManager", "Llamando webhook de Make.com...")
 
-            // Construir URL pública del PDF en Supabase
             val pdfPublicUrl = "https://vlorculyexquudkiwxoq.supabase.co/storage/v1/object/public/cotizaciones/$pdfRemotePath"
 
             // Obtener ghl_opportunity_id del lead
@@ -473,11 +414,10 @@ object AutoUploadManager {
                     val driveFileUrl = jsonResponse["drive_file_url"]?.jsonPrimitive?.content
                     val folderPath = jsonResponse["folder_path"]?.jsonPrimitive?.content
 
-                    android.util.Log.d("AutoUploadManager", "[OK] PDF subido a Google Drive")
-                    android.util.Log.d("AutoUploadManager", "   URL: $driveFileUrl")
-                    android.util.Log.d("AutoUploadManager", "   Carpeta: $folderPath")
+                    android.util.Log.d("AutoUploadManager", "PDF subido a Google Drive")
+                    android.util.Log.d("AutoUploadManager", "URL: $driveFileUrl")
+                    android.util.Log.d("AutoUploadManager", "Carpeta: $folderPath")
 
-                    // Actualizar pipeline stage en Supabase también
                     LeadsRepository.updateLeadPipelineStage(
                         leadId = leadId,
                         newStage = "Seguimiento Medidas"
@@ -488,7 +428,7 @@ object AutoUploadManager {
                 }
             } else {
                 android.util.Log.e("AutoUploadManager", "Error en webhook: HTTP $statusCode")
-                android.util.Log.e("AutoUploadManager", "   Body: $responseBody")
+                android.util.Log.e("AutoUploadManager", "Body: $responseBody")
             }
 
             client.close()

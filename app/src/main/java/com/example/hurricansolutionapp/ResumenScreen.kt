@@ -62,26 +62,43 @@ fun ResumenScreen(
     }
 
     var aplicaDescuento by rememberSaveable {
-        mutableStateOf(if (desdeHistorial) (cotizacion.descuentoHS875 > 0 || cotizacion.descuentoHS1250 > 0 || cotizacion.descuentoHS1500 > 0) else false)
-    }
-    var descuentoHS875 by rememberSaveable {
         mutableStateOf(
-            if (desdeHistorial && cotizacion.descuentoHS875 > 0) cotizacion.descuentoHS875.toInt()
-                .toString() else ""
+            if (desdeHistorial) (cotizacion.descuentoHS875 > 0 || cotizacion.descuentoHS1250 > 0 || cotizacion.descuentoHS1500 > 0)
+            else false
         )
     }
-    var descuentoHS1250 by rememberSaveable {
+
+// Precio final deseado por m² (en lugar de descuento)
+    var precioFinalHS875 by rememberSaveable {
         mutableStateOf(
-            if (desdeHistorial && cotizacion.descuentoHS1250 > 0) cotizacion.descuentoHS1250.toInt()
-                .toString() else ""
+            if (desdeHistorial && cotizacion.descuentoHS875 > 0) {
+                val precioVenta = TipoProducto.HS875.getPrecioVenta()
+                (precioVenta - cotizacion.descuentoHS875).toInt().toString()
+            } else ""
         )
     }
-    var descuentoHS1500 by rememberSaveable {
+
+    var precioFinalHS1250 by rememberSaveable {
         mutableStateOf(
-            if (desdeHistorial && cotizacion.descuentoHS1500 > 0) cotizacion.descuentoHS1500.toInt()
-                .toString() else ""
+            if (desdeHistorial && cotizacion.descuentoHS1250 > 0) {
+                val precioVenta = TipoProducto.HS1250.getPrecioVenta()
+                (precioVenta - cotizacion.descuentoHS1250).toInt().toString()
+            } else ""
         )
     }
+
+    var precioFinalHS1500 by rememberSaveable {
+        mutableStateOf(
+            if (desdeHistorial && cotizacion.descuentoHS1500 > 0) {
+                val precioVenta = TipoProducto.HS1500.getPrecioVenta()
+                (precioVenta - cotizacion.descuentoHS1500).toInt().toString()
+            } else ""
+        )
+    }
+
+
+    var mostrarAdvertenciaDescuento by remember { mutableStateOf(false) }
+    var productoAdvertencia by remember { mutableStateOf("") }
 
     // Tab seleccionado para el card unificado (0 = Tipo de Sistema, 1 = Descuentos)
     var selectedConfigTab by rememberSaveable { mutableIntStateOf(0) }
@@ -122,32 +139,81 @@ fun ResumenScreen(
         }
     }
 
-    fun getDescuentoValidado(producto: TipoProducto, textoDescuento: String): Double {
-        val descuento = textoDescuento.replace(",", ".").toDoubleOrNull() ?: 0.0
+    fun getDescuentoDesdePrecioFinal(producto: TipoProducto, textoPrecioFinal: String): Double {
+        val precioFinalDeseado = textoPrecioFinal.replace(",", ".").toDoubleOrNull() ?: 0.0
+        if (precioFinalDeseado <= 0.0) return 0.0
+
+        val precioVenta = producto.getPrecioVenta()
+        val precioBase = producto.getPrecioBase()
+
+        // Si el precio ingresado es menor al base, usar el base (máximo descuento posible)
+        val precioFinalValidado = precioFinalDeseado.coerceIn(precioBase, precioVenta)
+        val descuentoCalculado = precioVenta - precioFinalValidado
+
         val maxDescuento = producto.getMaxDescuento()
-        return descuento.coerceIn(0.0, maxDescuento)
+        return descuentoCalculado.coerceIn(0.0, maxDescuento)
     }
 
-    fun validarInputDescuento(input: String, maxDescuento: Double): String {
+    fun validarInputPrecioFinal(input: String, producto: TipoProducto): String {
         val filtered = input.filter { it.isDigit() }
+        if (filtered.isEmpty()) return ""
+
         val valor = filtered.toIntOrNull() ?: return filtered
-        return if (valor > maxDescuento.toInt()) {
-            maxDescuento.toInt().toString()
-        } else {
-            filtered
+
+        val precioVenta = producto.getPrecioVenta().toInt()
+        val precioBase = producto.getPrecioBase().toInt()
+
+        return when {
+            // Si excede el precio de venta, limitar al máximo
+            valor > precioVenta -> precioVenta.toString()
+            // Si es menor al precio base Y ya tiene los dígitos suficientes, limitar al mínimo
+            valor < precioBase && filtered.length >= precioBase.toString().length -> precioBase.toString()
+            // Caso normal: permitir escribir
+            else -> filtered
+        }
+    }
+
+    fun validarYAdvertir(input: String, producto: TipoProducto): String {
+        val filtered = input.filter { it.isDigit() }
+        if (filtered.isEmpty()) return ""
+
+        val valor = filtered.toIntOrNull() ?: return filtered
+
+        val precioVenta = producto.getPrecioVenta().toInt()
+        val precioBase = producto.getPrecioBase().toInt()
+
+        return when {
+            valor > precioVenta -> precioVenta.toString()
+            // Si tiene suficientes dígitos y es menor al base, mostrar advertencia
+            valor < precioBase && filtered.length >= precioBase.toString().length -> {
+                mostrarAdvertenciaDescuento = true
+                productoAdvertencia = producto.etiquetaCorta
+                precioBase.toString()
+            }
+            else -> {
+                mostrarAdvertenciaDescuento = false
+                filtered
+            }
         }
     }
 
     fun calcularTotal(producto: TipoProducto): Double {
-        val descuentoTexto = when (producto) {
-            TipoProducto.HS875 -> descuentoHS875
-            TipoProducto.HS1250 -> descuentoHS1250
-            TipoProducto.HS1500 -> descuentoHS1500
-            else -> "0"
+        val precioFinalTexto = when (producto) {
+            TipoProducto.HS875 -> precioFinalHS875
+            TipoProducto.HS1250 -> precioFinalHS1250
+            TipoProducto.HS1500 -> precioFinalHS1500
+            else -> ""
         }
-        val descuento = if (aplicaDescuento) getDescuentoValidado(producto, descuentoTexto) else 0.0
-        val precioFinal =
+
+        val descuento = if (aplicaDescuento) getDescuentoDesdePrecioFinal(producto, precioFinalTexto) else 0.0
+
+        val precioFinal = if (aplicaDescuento && precioFinalTexto.isNotBlank()) {
+            // precioVenta - descuento ya queda entre base y venta por la validación
             (producto.getPrecioVenta() - descuento).coerceAtLeast(producto.getPrecioBase())
+        } else {
+            producto.getPrecioVenta()
+        }
+
         return cotizacion.ventanas.sumOf { it.areaM2 * precioFinal }
     }
 
@@ -159,17 +225,19 @@ fun ResumenScreen(
         val cotizacionParaPdf = if (desdeHistorial) {
             cotizacion.copy(
                 productos = productosSeleccionados.ifEmpty { cotizacion.productos },
-                descuentoHS875 = if (aplicaDescuento) getDescuentoValidado(
+                descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
                     TipoProducto.HS875,
-                    descuentoHS875
+                    precioFinalHS875
                 ) else cotizacion.descuentoHS875,
-                descuentoHS1250 = if (aplicaDescuento) getDescuentoValidado(
+
+                descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
                     TipoProducto.HS1250,
-                    descuentoHS1250
+                    precioFinalHS1250
                 ) else cotizacion.descuentoHS1250,
-                descuentoHS1500 = if (aplicaDescuento) getDescuentoValidado(
+
+                descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
                     TipoProducto.HS1500,
-                    descuentoHS1500
+                    precioFinalHS1500
                 ) else cotizacion.descuentoHS1500
             )
         } else {
@@ -182,8 +250,6 @@ fun ResumenScreen(
         }
         return pdf
     }
-
-
 
     BackHandler {
         when {
@@ -270,18 +336,20 @@ fun ResumenScreen(
                                     folio = folioFinal,
                                     productos = productosSeleccionados,
                                     producto = productosSeleccionados.first(),
-                                    descuentoHS875 = if (aplicaDescuento) getDescuentoValidado(
+                                    descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
                                         TipoProducto.HS875,
-                                        descuentoHS875
-                                    ) else 0.0,
-                                    descuentoHS1250 = if (aplicaDescuento) getDescuentoValidado(
+                                        precioFinalHS875
+                                    ) else cotizacion.descuentoHS875,
+
+                                    descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
                                         TipoProducto.HS1250,
-                                        descuentoHS1250
-                                    ) else 0.0,
-                                    descuentoHS1500 = if (aplicaDescuento) getDescuentoValidado(
+                                        precioFinalHS1250
+                                    ) else cotizacion.descuentoHS1250,
+
+                                    descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
                                         TipoProducto.HS1500,
-                                        descuentoHS1500
-                                    ) else 0.0
+                                        precioFinalHS1500
+                                    ) else cotizacion.descuentoHS1500
                                 )
 
                                 guardarCotizacionLocal(context, cotizacionFinal)
@@ -802,41 +870,59 @@ fun ResumenScreen(
                                                 exit = fadeOut() + shrinkVertically()
                                             ) {
                                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                                    // Advertencia de descuento máximo
+                                                    AnimatedVisibility(
+                                                        visible = mostrarAdvertenciaDescuento,
+                                                        enter = fadeIn() + expandVertically(),
+                                                        exit = fadeOut() + shrinkVertically()
+                                                    ) {
+                                                        Surface(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            color = Color(0xFFFEF2F2),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            border = BorderStroke(1.dp, Color(0xFFFECACA))
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.padding(12.dp),
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Warning,
+                                                                    contentDescription = null,
+                                                                    tint = Color(0xFFDC2626),
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
+                                                                Text(
+                                                                    "No se puede aplicar un descuento mayor al permitido para $productoAdvertencia",
+                                                                    color = Color(0xFFDC2626),
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.Medium
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
                                                     if (hs875Selected) DiscountInputField(
-                                                        "HS-875",
-                                                        descuentoHS875,
-                                                        {
-                                                            descuentoHS875 = validarInputDescuento(
-                                                                it,
-                                                                TipoProducto.HS875.getMaxDescuento()
-                                                            )
-                                                        },
+                                                        "HS-875 (Precio final/m²)",
+                                                        precioFinalHS875,
+                                                        { precioFinalHS875 = validarYAdvertir(it, TipoProducto.HS875) },
                                                         isDarkMode,
                                                         textPrimary,
                                                         border
                                                     )
                                                     if (hs1250Selected) DiscountInputField(
-                                                        "HS-1250",
-                                                        descuentoHS1250,
-                                                        {
-                                                            descuentoHS1250 = validarInputDescuento(
-                                                                it,
-                                                                TipoProducto.HS1250.getMaxDescuento()
-                                                            )
-                                                        },
+                                                        "HS-1250 (Precio final/m²)",
+                                                        precioFinalHS1250,
+                                                        { precioFinalHS1250 = validarYAdvertir(it, TipoProducto.HS1250) },
                                                         isDarkMode,
                                                         textPrimary,
                                                         border
                                                     )
                                                     if (hs1500Selected) DiscountInputField(
-                                                        "HS-1500",
-                                                        descuentoHS1500,
-                                                        {
-                                                            descuentoHS1500 = validarInputDescuento(
-                                                                it,
-                                                                TipoProducto.HS1500.getMaxDescuento()
-                                                            )
-                                                        },
+                                                        "HS-1500 (Precio final/m²)",
+                                                        precioFinalHS1500,
+                                                        { precioFinalHS1500 = validarYAdvertir(it, TipoProducto.HS1500) },
                                                         isDarkMode,
                                                         textPrimary,
                                                         border
@@ -1200,6 +1286,8 @@ private fun SystemCard(
         }
     }
 }
+
+
 
 @Composable
 private fun DiscountInputField(

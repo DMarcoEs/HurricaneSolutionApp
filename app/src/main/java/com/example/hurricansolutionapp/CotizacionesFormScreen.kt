@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.platform.LocalConfiguration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +109,34 @@ fun CotizacionesFormScreen(
     val pillText = if (isDarkMode) Color.Black else Color.White
     val adecuacionesBg = if (isDarkMode) Color(0xFF09090B) else Color(0xFFF9FAFB)
 
+    // ═══ TEXTO RESPONSIVO ═══
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+
+    val titleSize = when {
+        screenWidth < 360 -> 14.sp
+        screenWidth < 400 -> 16.sp
+        else -> 18.sp
+    }
+
+    val bodySize = when {
+        screenWidth < 360 -> 12.sp
+        screenWidth < 400 -> 13.sp
+        else -> 14.sp
+    }
+
+    val smallSize = when {
+        screenWidth < 360 -> 10.sp
+        screenWidth < 400 -> 11.sp
+        else -> 12.sp
+    }
+
+    val tinySize = when {
+        screenWidth < 360 -> 8.sp
+        screenWidth < 400 -> 9.sp
+        else -> 10.sp
+    }
+
     fun validarMedidaActual(): Boolean {
         val desc = actual.descripcion.trim()
         val altoNum = getNumericValue(actual.alto).toDoubleOrNull()
@@ -144,13 +173,11 @@ fun CotizacionesFormScreen(
                 shadowElevation = 8.dp
             ) {
                 if (!primeraConfirmada) {
-                    // CORREGIDO: El botón ahora guarda la medida actual Y agrega una nueva vacía
                     Button(
                         onClick = {
                             if (validarMedidaActual()) {
                                 syncDraft()
                                 primeraConfirmada = true
-                                // Agregar nueva medida vacía y mover al siguiente índice
                                 ventanas.add(VentanaFormState())
                                 indexActual = ventanas.lastIndex
                                 syncDraft()
@@ -250,14 +277,14 @@ fun CotizacionesFormScreen(
                                         alto = alto,
                                         ancho = ancho,
                                         precioM2 = HS875_DEFAULT_PRICE,
-                                        adecuacion = if (v.adecuacion == "Sí") v.adecuacionDetalle.ifBlank { "Sí" } else "No",
+                                        adecuacion = if (v.adecuacion == "Si") v.adecuacionDetalle.ifBlank { "Si" } else "No",
                                         tipoMontaje = v.tipoMontaje
                                     )
                                 }
                                 if (ventanasValidas.isEmpty()) {
                                     Toast.makeText(
                                         context,
-                                        "Agrega al menos 1 medida válida",
+                                        "Agrega al menos 1 medida valida",
                                         Toast.LENGTH_SHORT
                                     ).show(); return@Button
                                 }
@@ -386,11 +413,10 @@ fun CotizacionesFormScreen(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        // [OK] NUEVO: Campo ZONA antes de descripción
                         StitchInputFieldMaterial(
                             "ZONA",
                             actual.zona,
-                            "Ej. Terraza, Sala, Recámara",
+                            "Ej. Terraza, Sala, RecÁmara",
                             {
                                 if (indexActual in ventanas.indices) {
                                     ventanas[indexActual] =
@@ -538,7 +564,7 @@ fun CotizacionesFormScreen(
                                 letterSpacing = 1.5.sp
                             )
                             StitchToggleButtonMaterial(
-                                if (actual.adecuacion == "Sí") "Sí" else "No",
+                                if (actual.adecuacion == "Si") "Si" else "No",
                                 {
                                     if (indexActual in ventanas.indices) {
                                         ventanas[indexActual] = ventanas[indexActual].copy(
@@ -551,7 +577,7 @@ fun CotizacionesFormScreen(
                                 textMuted
                             )
                             AnimatedVisibility(
-                                actual.adecuacion == "Sí",
+                                actual.adecuacion == "Si",
                                 enter = fadeIn() + expandVertically(),
                                 exit = fadeOut() + shrinkVertically()
                             ) {
@@ -928,9 +954,9 @@ private fun StitchToggleButtonMaterial(
                 }
             }
         }
-        val siSelected = selectedOption == "Sí"
+        val siSelected = selectedOption == "Si"
         Surface(
-            onClick = { onOptionSelected("Sí") },
+            onClick = { onOptionSelected("Si") },
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight(),
@@ -948,7 +974,7 @@ private fun StitchToggleButtonMaterial(
                             modifier = Modifier.size(16.dp)
                         ); Spacer(Modifier.width(6.dp))
                     }; Text(
-                    "Sí",
+                    "Si",
                     color = when {
                         siSelected && isDarkMode -> Color.Black; siSelected -> Color.White; else -> textMuted.copy(
                             0.6f

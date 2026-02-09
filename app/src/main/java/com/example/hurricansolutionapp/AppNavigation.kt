@@ -524,7 +524,6 @@ fun AppNavigation(
         }
 
 
-        // INSTALADOR - FORMULARIO DE RECTIFICACIÃ“N
 
         composable(
             route = Routes.INSTALADOR_FORM,

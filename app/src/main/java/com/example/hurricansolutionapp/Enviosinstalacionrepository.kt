@@ -86,7 +86,7 @@ object EnviosInstalacionRepository {
     }
 
     /**
-     * Verifica si una cotizaciÃ³n ya fue enviada
+     * Verifica si una cotización ya fue enviada
      */
     fun fueEnviada(context: Context, folio: String): Boolean {
         return getFoliosEnviados(context).contains(folio)
@@ -124,7 +124,7 @@ object EnviosInstalacionRepository {
 
     /**
      * Actualiza un registro existente en instalador_datos
-     * Se usa cuando la cotizaciÃ³n ya fue enviada y se modificÃ³
+     * Se usa cuando la cotización ya fue enviada y se modificó
      */
     suspend fun actualizarRegistroInstalacion(
         cotizacion: Cotizacion,

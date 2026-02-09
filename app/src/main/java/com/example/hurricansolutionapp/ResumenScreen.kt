@@ -29,7 +29,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
-
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.focus.onFocusChanged
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,6 +113,35 @@ fun ResumenScreen(
     val headerBg = if (isDarkMode) Color(0xFF1F1F1F) else Color(0xFFF9FAFB)
     val accentBorder = if (isDarkMode) Color(0xFF6B7280) else Color.Black
 
+    // ═══ TEXTO RESPONSIVO ═══
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+
+    // Tamaños de texto responsivos basados en el ancho de pantalla
+    val titleSize = when {
+        screenWidth < 360 -> 14.sp   // Pantallas pequeñas
+        screenWidth < 400 -> 16.sp   // Pantallas medianas
+        else -> 18.sp                 // Pantallas grandes
+    }
+
+    val bodySize = when {
+        screenWidth < 360 -> 12.sp
+        screenWidth < 400 -> 13.sp
+        else -> 14.sp
+    }
+
+    val smallSize = when {
+        screenWidth < 360 -> 10.sp
+        screenWidth < 400 -> 11.sp
+        else -> 12.sp
+    }
+
+    val tinySize = when {
+        screenWidth < 360 -> 8.sp
+        screenWidth < 400 -> 9.sp
+        else -> 10.sp
+    }
+
     val productosSeleccionados = remember(hs875Selected, hs1250Selected, hs1500Selected) {
         mutableListOf<TipoProducto>().apply {
             if (hs875Selected) add(TipoProducto.HS875)
@@ -154,60 +185,60 @@ fun ResumenScreen(
         return descuentoCalculado.coerceIn(0.0, maxDescuento)
     }
 
-    // Valida el input permitiendo decimales
-    fun validarInputPrecioFinal(input: String, producto: TipoProducto): String {
+    // Solo filtra caracteres inválidos - NO valida rangos mientras escribe
+    fun filtrarInput(input: String): String {
         // Permitir dígitos y un solo punto decimal
-        val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
+        var filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
             .replace(",", ".")
 
-        // Evitar múltiples puntos
-        val parts = filtered.split(".")
-        val cleanInput = if (parts.size > 2) {
-            parts[0] + "." + parts.drop(1).joinToString("")
-        } else {
-            filtered
+        // Evitar múltiples puntos - mantener solo el primero
+        val firstDotIndex = filtered.indexOf('.')
+        if (firstDotIndex != -1) {
+            val beforeDot = filtered.substring(0, firstDotIndex + 1)
+            val afterDot = filtered.substring(firstDotIndex + 1).replace(".", "")
+            filtered = beforeDot + afterDot
         }
 
         // Limitar a 2 decimales
-        val finalInput = if (cleanInput.contains(".")) {
-            val decimalParts = cleanInput.split(".")
-            if (decimalParts.size == 2 && decimalParts[1].length > 2) {
-                decimalParts[0] + "." + decimalParts[1].take(2)
-            } else {
-                cleanInput
+        if (filtered.contains(".")) {
+            val parts = filtered.split(".")
+            if (parts.size == 2 && parts[1].length > 2) {
+                filtered = parts[0] + "." + parts[1].take(2)
             }
-        } else {
-            cleanInput
         }
 
-        return finalInput
+        return filtered
     }
 
-    // Valida y advierte si está por debajo del precio mínimo
-    fun validarYAdvertir(input: String, producto: TipoProducto): String {
-        val filtered = validarInputPrecioFinal(input, producto)
-        if (filtered.isEmpty() || filtered == ".") return filtered
+    // Valida y corrige el valor cuando pierde el foco
+    fun validarAlPerderFoco(valor: String, producto: TipoProducto): String {
+        if (valor.isEmpty() || valor == ".") {
+            mostrarAdvertenciaDescuento = false
+            return ""
+        }
 
-        val valor = filtered.toDoubleOrNull() ?: return filtered
+        val numero = valor.toDoubleOrNull()
+        if (numero == null) {
+            mostrarAdvertenciaDescuento = false
+            return ""
+        }
 
         val precioVenta = producto.getPrecioVenta()
         val precioBase = producto.getPrecioBase()
 
         return when {
-            // Si excede el precio de venta, limitar al máximo
-            valor > precioVenta -> {
+            numero > precioVenta -> {
                 mostrarAdvertenciaDescuento = false
                 String.format(Locale.US, "%.2f", precioVenta)
             }
-            // Si es menor al precio base, mostrar advertencia y corregir
-            valor < precioBase && filtered.length >= 3 && !filtered.endsWith(".") -> {
+            numero < precioBase -> {
                 mostrarAdvertenciaDescuento = true
                 productoAdvertencia = producto.etiquetaCorta
                 String.format(Locale.US, "%.2f", precioBase)
             }
             else -> {
                 mostrarAdvertenciaDescuento = false
-                filtered
+                valor
             }
         }
     }
@@ -919,28 +950,37 @@ fun ResumenScreen(
                                                     }
 
                                                     if (hs875Selected) DiscountInputField(
-                                                        "HS-875 (Precio final/m²)",
-                                                        precioFinalHS875,
-                                                        { precioFinalHS875 = validarYAdvertir(it, TipoProducto.HS875) },
-                                                        isDarkMode,
-                                                        textPrimary,
-                                                        border
+                                                        label = "HS-875 (Precio final/m²)",
+                                                        value = precioFinalHS875,
+                                                        onValueChange = { precioFinalHS875 = filtrarInput(it) },
+                                                        onFocusLost = { precioFinalHS875 = validarAlPerderFoco(precioFinalHS875, TipoProducto.HS875) },
+                                                        precioBase = TipoProducto.HS875.getPrecioBase(),
+                                                        precioVenta = TipoProducto.HS875.getPrecioVenta(),
+                                                        isDarkMode = isDarkMode,
+                                                        textPrimary = textPrimary,
+                                                        border = border
                                                     )
                                                     if (hs1250Selected) DiscountInputField(
-                                                        "HS-1250 (Precio final/m²)",
-                                                        precioFinalHS1250,
-                                                        { precioFinalHS1250 = validarYAdvertir(it, TipoProducto.HS1250) },
-                                                        isDarkMode,
-                                                        textPrimary,
-                                                        border
+                                                        label = "HS-1250 (Precio final/m²)",
+                                                        value = precioFinalHS1250,
+                                                        onValueChange = { precioFinalHS1250 = filtrarInput(it) },
+                                                        onFocusLost = { precioFinalHS1250 = validarAlPerderFoco(precioFinalHS1250, TipoProducto.HS1250) },
+                                                        precioBase = TipoProducto.HS1250.getPrecioBase(),
+                                                        precioVenta = TipoProducto.HS1250.getPrecioVenta(),
+                                                        isDarkMode = isDarkMode,
+                                                        textPrimary = textPrimary,
+                                                        border = border
                                                     )
                                                     if (hs1500Selected) DiscountInputField(
-                                                        "HS-1500 (Precio final/m²)",
-                                                        precioFinalHS1500,
-                                                        { precioFinalHS1500 = validarYAdvertir(it, TipoProducto.HS1500) },
-                                                        isDarkMode,
-                                                        textPrimary,
-                                                        border
+                                                        label = "HS-1500 (Precio final/m²)",
+                                                        value = precioFinalHS1500,
+                                                        onValueChange = { precioFinalHS1500 = filtrarInput(it) },
+                                                        onFocusLost = { precioFinalHS1500 = validarAlPerderFoco(precioFinalHS1500, TipoProducto.HS1500) },
+                                                        precioBase = TipoProducto.HS1500.getPrecioBase(),
+                                                        precioVenta = TipoProducto.HS1500.getPrecioVenta(),
+                                                        isDarkMode = isDarkMode,
+                                                        textPrimary = textPrimary,
+                                                        border = border
                                                     )
                                                 }
                                             }
@@ -1309,10 +1349,15 @@ private fun DiscountInputField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
+    onFocusLost: () -> Unit,
+    precioBase: Double,
+    precioVenta: Double,
     isDarkMode: Boolean,
     textPrimary: Color,
     border: Color
 ) {
+    var hasFocus by remember { mutableStateOf(false) }
+
     Column {
         Text(
             label,
@@ -1321,13 +1366,20 @@ private fun DiscountInputField(
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
         )
+        Spacer(Modifier.height(4.dp))
+        // Mostrar rango permitido
+        Text(
+            "Rango: $${String.format("%.0f", precioBase)} - $${String.format("%.0f", precioVenta)}",
+            color = if (isDarkMode) Color(0xFF6B7280) else Color(0xFF9CA3AF),
+            fontSize = 9.sp
+        )
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             placeholder = {
                 Text(
-                    "0",
+                    String.format("%.0f", precioVenta),
                     color = if (isDarkMode) Color(0xFF6B7280) else Color(0xFF9CA3AF)
                 )
             },
@@ -1339,7 +1391,15 @@ private fun DiscountInputField(
                     fontSize = 14.sp
                 )
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focusState ->
+                    if (hasFocus && !focusState.isFocused) {
+                        // Perdió el foco - validar y corregir
+                        onFocusLost()
+                    }
+                    hasFocus = focusState.isFocused
+                },
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = if (isDarkMode) Color(0xFF1F1F1F) else Color.White,

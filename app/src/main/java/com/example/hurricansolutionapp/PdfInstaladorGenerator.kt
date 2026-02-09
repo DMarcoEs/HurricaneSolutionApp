@@ -355,7 +355,7 @@ object PdfInstaladorGenerator {
                 drawHeaderCell("Alto", colAltoW)
                 drawHeaderCell("M²", colM2W)
                 drawHeaderCell("Montaje", colMontajeW)
-                drawHeaderCell("Adec.", colAdecuacionesW)
+                drawHeaderCell("Adecuaciones", colAdecuacionesW)
 
                 return startY + headerHeight
             }

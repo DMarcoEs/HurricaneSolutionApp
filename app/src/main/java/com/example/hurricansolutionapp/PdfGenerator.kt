@@ -140,11 +140,9 @@ fun generarPdfCotizacion(
                 val imgHeight = footerImg.height.toFloat()
                 val imgAspectRatio = imgWidth / imgHeight
 
-                // El footer ocupa todo el ancho de la página
                 val finalWidth = pageWidth.toFloat()
                 val finalHeight = finalWidth / imgAspectRatio
 
-                // Posicionar en la parte inferior de la página
                 val footerTop = pageHeight.toFloat() - finalHeight
 
                 val destRect = RectF(0f, footerTop, finalWidth, pageHeight.toFloat())
@@ -162,7 +160,7 @@ fun generarPdfCotizacion(
 
     val zonaGeografica = cotizacion.zonaGeografica
     val tableLeft = margin; val tableRight = pageWidth.toFloat() - margin
-    val headerHeight = 42f; val bodyTextSize = 9f; val cellPadding = 4f; val cellLineHeight = 12f
+    val headerHeight = 28f; val bodyTextSize = 9f; val cellPadding = 4f; val cellLineHeight = 12f
     val colNumeroW = 25f; val colAreaW = 130f; val colAreaTotalW = 50f; val colMontajeW = 65f; val colAdecuacionesW = 65f
     val priceColumnsCount = productosSeleccionados.size.coerceAtLeast(1)
     val colPricesTotalW = tableRight - tableLeft - (colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW)
@@ -204,7 +202,6 @@ fun generarPdfCotizacion(
         filas.add(RowLayout(txtZona, linesArea, linesAreaTotal, linesMontaje, linesAdecuaciones, linesPreciosPorProducto, maxLines * cellLineHeight + 4f))
     }
 
-    // AGRUPAR FILAS POR ZONA - Mantener orden de aparición
     val zonasEnOrden = filas.map { it.zona }.distinct()
     val filasAgrupadasPorZona = zonasEnOrden.associateWith { zona -> filas.filter { it.zona == zona } }
 
@@ -377,11 +374,9 @@ fun generarPdfCotizacion(
     var filaIndexGlobal = 0
     val totalFilas = filas.size
 
-    // Iterar por zonas en orden de aparición
     filasAgrupadasPorZona.forEach { (zona, filasDeZona) ->
         val footerTop = pageHeight.toFloat() - bottomBarHeight
 
-        // Verificar espacio para título de zona
         if (y + zonaTitleHeight > footerTop - 10f) {
             drawFooter(canvas); pdfDocument.finishPage(page); pageNumber++
             pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
@@ -389,10 +384,8 @@ fun generarPdfCotizacion(
             drawHeader(canvas); y = headerBarHeight + 20f; y = drawTableHeader(y)
         }
 
-        // Dibujar título de zona UNA SOLA VEZ para todas las filas de esa zona
         y = drawZonaTitle(zona, y)
 
-        // Dibujar TODAS las filas de esta zona bajo el mismo título
         filasDeZona.forEachIndexed { indexEnZona, fila ->
             val rowH = fila.height
             val isLastGlobal = filaIndexGlobal == totalFilas - 1
@@ -403,7 +396,6 @@ fun generarPdfCotizacion(
                     pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
                     page = pdfDocument.startPage(pageInfo); canvas = page.canvas
                     drawHeader(canvas); y = headerBarHeight + 20f; y = drawTableHeader(y)
-                    // NO volver a dibujar el título de zona aquí, solo si es nueva página
                     if (indexEnZona > 0) {
                         y = drawZonaTitle(zona + " (cont.)", y)
                     } else {
@@ -416,7 +408,6 @@ fun generarPdfCotizacion(
                     pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
                     page = pdfDocument.startPage(pageInfo); canvas = page.canvas
                     drawHeader(canvas); y = headerBarHeight + 20f; y = drawTableHeader(y)
-                    // Indicar continuación si hay más filas de la misma zona
                     y = drawZonaTitle(zona + " (cont.)", y)
                 }
             }
@@ -424,12 +415,25 @@ fun generarPdfCotizacion(
             val rowTop = y; val rowBottom = y + rowH
             paint.style = Paint.Style.FILL; paint.color = Color.WHITE
             canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
-            paint.style = Paint.Style.STROKE; paint.color = Color.BLACK; paint.strokeWidth = 0.5f
+
+            // Bordes punteados gris sutil para la fila
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.parseColor("#9CA3AF")  // Gris sutil
+            paint.strokeWidth = 0.8f
+            paint.pathEffect = DashPathEffect(floatArrayOf(2f, 4f), 0f)
             canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
+            paint.pathEffect = null
 
             var xCol = tableLeft
             fun drawCellBorder(left: Float, width: Float) {
+                paint.style = Paint.Style.STROKE
+                paint.color = Color.parseColor("#9CA3AF")  // Gris sutil
+                paint.pathEffect = DashPathEffect(floatArrayOf(2f, 4f), 0f)  // Puntos más espaciados
                 canvas.drawLine(left + width, rowTop, left + width, rowBottom, paint)
+                paint.pathEffect = null
+                // Restaurar color negro para el texto
+                paint.style = Paint.Style.FILL
+                paint.color = Color.BLACK
             }
 
             paint.style = Paint.Style.FILL
@@ -498,11 +502,10 @@ fun generarPdfCotizacion(
         (subtotalProducto - areaTotal * descM2).coerceAtLeast(0.0)
     }
 
-    // TABLA DE RESUMEN MÁS COMPACTA
-    val labelWidth = 160f  // Reducido
+    val labelWidth = 160f
     val valueColumnWidth = colPriceW
-    val rowHeightResumen = 14f  // Más compacto
-    val resumenTextSize = 7f  // Letra más pequeña
+    val rowHeightResumen = 14f
+    val resumenTextSize = 9f
 
     val footerTop = pageHeight.toFloat() - bottomBarHeight
     val margenSobreFooter = 8f

@@ -416,7 +416,7 @@ fun CotizacionesFormScreen(
                         StitchInputFieldMaterial(
                             "ZONA",
                             actual.zona,
-                            "Ej. Terraza, Sala, RecÁmara",
+                            "Ej. Terraza, Sala, Recámara",
                             {
                                 if (indexActual in ventanas.indices) {
                                     ventanas[indexActual] =

@@ -2,6 +2,7 @@ package com.example.hurricansolutionapp
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -41,15 +42,19 @@ fun AdminEmpleadosScreen(
 
     var isLoading by remember { mutableStateOf(true) }
     var empleados by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
+    var cotizaciones by remember { mutableStateOf<List<CotizacionRemota>>(emptyList()) }
     var cotizacionesPorEmpleado by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var empleadoSeleccionado by remember { mutableStateOf<UserProfile?>(null) }
+
+    // Estado para expandir tarjeta de empleado
+    var expandedUserId by remember { mutableStateOf<String?>(null) }
 
     // Cargar datos
     LaunchedEffect(Unit) {
         isLoading = true
         empleados = AdminRepository.getAllUsers()
-        val cotizaciones = AdminRepository.getAllCotizaciones()
+        cotizaciones = AdminRepository.getAllCotizaciones()
         cotizacionesPorEmpleado = cotizaciones.groupBy { it.userId }.mapValues { it.value.size }
         isLoading = false
     }
@@ -93,7 +98,6 @@ fun AdminEmpleadosScreen(
     Scaffold(
         containerColor = bg,
         topBar = {
-            // StitchTopBar sin separador
             StitchTopBar(
                 title = "Gestionar Especialistas",
                 onBack = onBack,
@@ -138,9 +142,7 @@ fun AdminEmpleadosScreen(
             ) {
                 Spacer(Modifier.height(16.dp))
 
-
                 // STATS CARDS - 3 columnas
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -184,14 +186,11 @@ fun AdminEmpleadosScreen(
 
                 Spacer(Modifier.height(24.dp))
 
-
-                // TITULO DE SECCION - Estilo Stitch con barra lateral
-
+                // TITULO DE SECCION
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    // Barra vertical negra/blanca
                     Box(
                         modifier = Modifier
                             .width(4.dp)
@@ -209,17 +208,27 @@ fun AdminEmpleadosScreen(
                     )
                 }
 
-
                 // LISTA DE EMPLEADOS
-
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(empleados) { empleado ->
-                        StitchEmpleadoCard(
+                        // Calcular estadísticas del empleado
+                        val userCotizaciones = cotizaciones.filter { it.userId == empleado.id }
+                        val totalM2 = userCotizaciones.sumOf { it.areaTotal }
+                        val montoTotal = userCotizaciones.sumOf { calcularMontoEstimado(it) }
+                        val numCotizaciones = userCotizaciones.size
+
+                        StitchEmpleadoCardExpandible(
                             empleado = empleado,
-                            cotizaciones = cotizacionesPorEmpleado[empleado.id] ?: 0,
+                            cotizaciones = numCotizaciones,
+                            totalM2 = totalM2,
+                            montoTotal = montoTotal,
+                            isExpanded = expandedUserId == empleado.id,
+                            onExpandToggle = {
+                                expandedUserId = if (expandedUserId == empleado.id) null else empleado.id
+                            },
                             isDarkMode = isDarkMode,
                             onToggleActive = {
                                 empleadoSeleccionado = empleado
@@ -227,58 +236,46 @@ fun AdminEmpleadosScreen(
                             }
                         )
                     }
+
                     item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
     }
 
-
-    // DIALOG DE CONFIRMACION
-
+    // Diálogo de confirmación
     if (showConfirmDialog && empleadoSeleccionado != null) {
-        val emp = empleadoSeleccionado!!
-        val action = if (emp.isActive) "desactivar" else "activar"
-        val actionColor = if (emp.isActive) redColor else greenColor
-
         AlertDialog(
             onDismissRequest = {
                 showConfirmDialog = false
                 empleadoSeleccionado = null
             },
-            containerColor = surface,
-            shape = RoundedCornerShape(16.dp),
-            icon = {
-                Icon(
-                    if (emp.isActive) Icons.Outlined.Block else Icons.Outlined.CheckCircle,
-                    contentDescription = null,
-                    tint = actionColor,
-                    modifier = Modifier.size(32.dp)
-                )
-            },
+            containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
             title = {
                 Text(
-                    "${action.replaceFirstChar { it.uppercase() }} usuario",
+                    if (empleadoSeleccionado!!.isActive) "Desactivar usuario" else "Activar usuario",
                     color = textPrimary,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    "Estas seguro de que deseas $action a ${emp.name}?",
+                    if (empleadoSeleccionado!!.isActive)
+                        "¿Deseas desactivar a ${empleadoSeleccionado!!.name}?\nNo podrá iniciar sesión."
+                    else
+                        "¿Deseas activar a ${empleadoSeleccionado!!.name}?\nPodrá volver a iniciar sesión.",
                     color = textSecondary
                 )
             },
             confirmButton = {
                 Button(
-                    onClick = { toggleUserActive(emp) },
+                    onClick = { toggleUserActive(empleadoSeleccionado!!) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = actionColor
-                    ),
-                    shape = RoundedCornerShape(8.dp)
+                        containerColor = if (empleadoSeleccionado!!.isActive) redColor else greenColor
+                    )
                 ) {
                     Text(
-                        action.replaceFirstChar { it.uppercase() },
+                        if (empleadoSeleccionado!!.isActive) "Desactivar" else "Activar",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -295,12 +292,29 @@ fun AdminEmpleadosScreen(
     }
 }
 
-
-// COMPONENTES AUXILIARES
-
 /**
- * Tarjeta de estadistica estilo Stitch
+ * Calcula el monto estimado de una cotización
  */
+private fun calcularMontoEstimado(cot: CotizacionRemota): Double {
+    // Precio promedio por sistema (ajusta según tus precios reales)
+    val precioPorSistema = mapOf(
+        "HS875" to 250.0,
+        "HS1250" to 300.0,
+        "HS1500" to 350.0
+    )
+
+    // Usar el primer sistema de la lista o un promedio
+    val precioUsado = cot.productos.firstOrNull()?.let {
+        precioPorSistema[it.uppercase()]
+    } ?: 250.0
+
+    return cot.areaTotal * precioUsado
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// COMPONENTES
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
 @Composable
 private fun StitchStatCard(
     icon: ImageVector,
@@ -353,12 +367,16 @@ private fun StitchStatCard(
 }
 
 /**
- * Tarjeta de empleado estilo Stitch
+ * Tarjeta de empleado expandible con estadísticas
  */
 @Composable
-private fun StitchEmpleadoCard(
+private fun StitchEmpleadoCardExpandible(
     empleado: UserProfile,
     cotizaciones: Int,
+    totalM2: Double,
+    montoTotal: Double,
+    isExpanded: Boolean,
+    onExpandToggle: () -> Unit,
     isDarkMode: Boolean,
     onToggleActive: () -> Unit
 ) {
@@ -369,11 +387,9 @@ private fun StitchEmpleadoCard(
     val primary = StitchColors.primary(isDarkMode)
     val onPrimary = StitchColors.onPrimary(isDarkMode)
 
-    // Colores estandarizados
     val greenColor = StitchColors.greenStandard
     val redColor = StitchColors.redStandard
 
-    // Color del avatar segun rol/estado
     val isAdmin = empleado.role == "ADMIN"
     val avatarBg = if (isAdmin) {
         primary
@@ -383,6 +399,7 @@ private fun StitchEmpleadoCard(
     val avatarTextColor = if (isAdmin) onPrimary else textPrimary
 
     Surface(
+        onClick = onExpandToggle,
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (empleado.isActive) 1f else 0.6f),
@@ -390,116 +407,189 @@ private fun StitchEmpleadoCard(
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, border)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .animateContentSize()
+                .padding(16.dp)
         ) {
-            // Avatar con iniciales
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(avatarBg)
-                    .then(
-                        if (!isAdmin) {
-                            Modifier.border(1.dp, border, CircleShape)
-                        } else Modifier
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    empleado.name.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase()?.toString() }.joinToString(""),
-                    color = avatarTextColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-            }
-
-            Spacer(Modifier.width(16.dp))
-
-            // Info del empleado
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    empleado.name,
-                    color = textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Estado (punto + texto)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(if (empleado.isActive) greenColor else redColor)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            if (empleado.isActive) "ACTIVO" else "INACTIVO",
-                            color = if (empleado.isActive) greenColor else redColor,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-
-                    // Separador
-                    Text(
-                        "*",
-                        color = textSecondary.copy(alpha = 0.5f),
-                        fontSize = 10.sp
-                    )
-
-                    // Cotizaciones
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Description,
-                            contentDescription = null,
-                            tint = textSecondary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            "$cotizaciones cotizaciones",
-                            color = textSecondary,
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-            }
-
-            // Badge ADMIN o boton toggle
-            if (isAdmin) {
-                Surface(
-                    color = primary,
-                    shape = RoundedCornerShape(4.dp)
+                // Avatar con iniciales
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(avatarBg)
+                        .then(
+                            if (!isAdmin) {
+                                Modifier.border(1.dp, border, CircleShape)
+                            } else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "ADMIN",
-                        color = onPrimary,
-                        fontSize = 9.sp,
+                        empleado.name.split(" ").take(2).mapNotNull { it.firstOrNull()?.uppercase()?.toString() }.joinToString(""),
+                        color = avatarTextColor,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        fontSize = 14.sp
                     )
                 }
-            } else {
-                // Icono de bloquear/activar
-                IconButton(
-                    onClick = onToggleActive,
-                    modifier = Modifier.size(32.dp)
+
+                Spacer(Modifier.width(16.dp))
+
+                // Info del empleado
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        empleado.name,
+                        color = textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Estado
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (empleado.isActive) greenColor else redColor)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (empleado.isActive) "ACTIVO" else "INACTIVO",
+                                color = if (empleado.isActive) greenColor else redColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+
+                        Text("*", color = textSecondary.copy(alpha = 0.5f), fontSize = 10.sp)
+
+                        // Cotizaciones
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Description,
+                                contentDescription = null,
+                                tint = textSecondary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "$cotizaciones cotizaciones",
+                                color = textSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+
+                // Badge ADMIN o botón toggle
+                if (isAdmin) {
+                    Surface(
+                        color = primary,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            "ADMIN",
+                            color = onPrimary,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = onToggleActive,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            if (empleado.isActive) Icons.Outlined.Block else Icons.Outlined.CheckCircle,
+                            contentDescription = if (empleado.isActive) "Desactivar" else "Activar",
+                            tint = textSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════════════════════════════
+            // SECCIÓN EXPANDIBLE CON ESTADÍSTICAS
+            // ═══════════════════════════════════════════════════════════════════════════════
+            if (isExpanded) {
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider(color = border.copy(alpha = 0.5f))
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    // M² Cotizados
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "${String.format("%.2f", totalM2)} m²",
+                            color = Color(0xFF10B981), // Verde
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "M² Cotizados",
+                            color = textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    // Monto USD
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$${String.format("%,.2f", montoTotal)}",
+                            color = Color(0xFF3B82F6), // Azul
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Monto USD",
+                            color = textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    // Total Cotizaciones
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$cotizaciones",
+                            color = Color(0xFF8B5CF6), // Morado
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Cotizaciones",
+                            color = textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Indicador de expandido
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        if (empleado.isActive) Icons.Outlined.Block else Icons.Outlined.CheckCircle,
-                        contentDescription = if (empleado.isActive) "Desactivar" else "Activar",
-                        tint = textSecondary,
+                        Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Contraer",
+                        tint = textSecondary.copy(alpha = 0.5f),
                         modifier = Modifier.size(20.dp)
                     )
                 }

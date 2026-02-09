@@ -68,12 +68,12 @@ fun ResumenScreen(
         )
     }
 
-// Precio final deseado por m² (en lugar de descuento)
+// Precio final deseado por m² (permite decimales)
     var precioFinalHS875 by rememberSaveable {
         mutableStateOf(
             if (desdeHistorial && cotizacion.descuentoHS875 > 0) {
                 val precioVenta = TipoProducto.HS875.getPrecioVenta()
-                (precioVenta - cotizacion.descuentoHS875).toInt().toString()
+                String.format(Locale.US, "%.2f", precioVenta - cotizacion.descuentoHS875)
             } else ""
         )
     }
@@ -82,7 +82,7 @@ fun ResumenScreen(
         mutableStateOf(
             if (desdeHistorial && cotizacion.descuentoHS1250 > 0) {
                 val precioVenta = TipoProducto.HS1250.getPrecioVenta()
-                (precioVenta - cotizacion.descuentoHS1250).toInt().toString()
+                String.format(Locale.US, "%.2f", precioVenta - cotizacion.descuentoHS1250)
             } else ""
         )
     }
@@ -91,7 +91,7 @@ fun ResumenScreen(
         mutableStateOf(
             if (desdeHistorial && cotizacion.descuentoHS1500 > 0) {
                 val precioVenta = TipoProducto.HS1500.getPrecioVenta()
-                (precioVenta - cotizacion.descuentoHS1500).toInt().toString()
+                String.format(Locale.US, "%.2f", precioVenta - cotizacion.descuentoHS1500)
             } else ""
         )
     }
@@ -154,41 +154,56 @@ fun ResumenScreen(
         return descuentoCalculado.coerceIn(0.0, maxDescuento)
     }
 
+    // Valida el input permitiendo decimales
     fun validarInputPrecioFinal(input: String, producto: TipoProducto): String {
-        val filtered = input.filter { it.isDigit() }
-        if (filtered.isEmpty()) return ""
+        // Permitir dígitos y un solo punto decimal
+        val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
+            .replace(",", ".")
 
-        val valor = filtered.toIntOrNull() ?: return filtered
+        // Evitar múltiples puntos
+        val parts = filtered.split(".")
+        val cleanInput = if (parts.size > 2) {
+            parts[0] + "." + parts.drop(1).joinToString("")
+        } else {
+            filtered
+        }
 
-        val precioVenta = producto.getPrecioVenta().toInt()
-        val precioBase = producto.getPrecioBase().toInt()
+        // Limitar a 2 decimales
+        val finalInput = if (cleanInput.contains(".")) {
+            val decimalParts = cleanInput.split(".")
+            if (decimalParts.size == 2 && decimalParts[1].length > 2) {
+                decimalParts[0] + "." + decimalParts[1].take(2)
+            } else {
+                cleanInput
+            }
+        } else {
+            cleanInput
+        }
+
+        return finalInput
+    }
+
+    // Valida y advierte si está por debajo del precio mínimo
+    fun validarYAdvertir(input: String, producto: TipoProducto): String {
+        val filtered = validarInputPrecioFinal(input, producto)
+        if (filtered.isEmpty() || filtered == ".") return filtered
+
+        val valor = filtered.toDoubleOrNull() ?: return filtered
+
+        val precioVenta = producto.getPrecioVenta()
+        val precioBase = producto.getPrecioBase()
 
         return when {
             // Si excede el precio de venta, limitar al máximo
-            valor > precioVenta -> precioVenta.toString()
-            // Si es menor al precio base Y ya tiene los dígitos suficientes, limitar al mínimo
-            valor < precioBase && filtered.length >= precioBase.toString().length -> precioBase.toString()
-            // Caso normal: permitir escribir
-            else -> filtered
-        }
-    }
-
-    fun validarYAdvertir(input: String, producto: TipoProducto): String {
-        val filtered = input.filter { it.isDigit() }
-        if (filtered.isEmpty()) return ""
-
-        val valor = filtered.toIntOrNull() ?: return filtered
-
-        val precioVenta = producto.getPrecioVenta().toInt()
-        val precioBase = producto.getPrecioBase().toInt()
-
-        return when {
-            valor > precioVenta -> precioVenta.toString()
-            // Si tiene suficientes dígitos y es menor al base, mostrar advertencia
-            valor < precioBase && filtered.length >= precioBase.toString().length -> {
+            valor > precioVenta -> {
+                mostrarAdvertenciaDescuento = false
+                String.format(Locale.US, "%.2f", precioVenta)
+            }
+            // Si es menor al precio base, mostrar advertencia y corregir
+            valor < precioBase && filtered.length >= 3 && !filtered.endsWith(".") -> {
                 mostrarAdvertenciaDescuento = true
                 productoAdvertencia = producto.etiquetaCorta
-                precioBase.toString()
+                String.format(Locale.US, "%.2f", precioBase)
             }
             else -> {
                 mostrarAdvertenciaDescuento = false
@@ -781,7 +796,7 @@ fun ResumenScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        "DESCUENTOS",
+                                        "PRECIO DE VENTA",
                                         color = if (selectedConfigTab == 1) {
                                             if (isDarkMode) Color.Black else Color.White
                                         } else {
@@ -848,7 +863,7 @@ fun ResumenScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    "Aplicar descuentos",
+                                                    "Aplicar precio personalizado",
                                                     color = textPrimary,
                                                     fontSize = 14.sp,
                                                     fontWeight = FontWeight.Medium
@@ -938,7 +953,7 @@ fun ResumenScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Text(
-                                                        "Sin descuentos aplicados",
+                                                        "Usando precio de venta estándar",
                                                         color = textMuted,
                                                         fontSize = 14.sp
                                                     )
@@ -1334,7 +1349,7 @@ private fun DiscountInputField(
                 focusedTextColor = textPrimary,
                 unfocusedTextColor = textPrimary
             ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true
         )
     }

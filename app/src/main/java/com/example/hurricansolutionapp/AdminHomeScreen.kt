@@ -136,10 +136,39 @@ fun AdminHomeScreen(
         })
     }
 
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.addObserver(LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // Actualizar estado de Google
+                val account = com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(context)
+                isGoogleAuthenticated = account != null
+                googleUserEmail = account?.email ?: ""
+
+                // Recargar estadísticas
+                scope.launch {
+                    isLoadingStats = true
+                    try {
+                        stats = AdminRepository.getDashboardStats()
+                    } catch (e: Exception) {
+                        android.util.Log.e("AdminHome", "Error cargando stats: ${e.message}")
+                    } finally {
+                        isLoadingStats = false
+                    }
+                }
+            }
+        })
+    }
+
+    // Carga inicial
     LaunchedEffect(Unit) {
         isLoadingStats = true
-        stats = AdminRepository.getDashboardStats()
-        isLoadingStats = false
+        try {
+            stats = AdminRepository.getDashboardStats()
+        } catch (e: Exception) {
+            android.util.Log.e("AdminHome", "Error cargando stats: ${e.message}")
+        } finally {
+            isLoadingStats = false
+        }
     }
 
     // Colores

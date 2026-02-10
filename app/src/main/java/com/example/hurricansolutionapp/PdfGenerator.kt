@@ -547,7 +547,7 @@ fun generarPdfCotizacion(
         filaTop = filaBottom
     }
 
-    drawResumenRowSimple("Subtotal USD", { _, p -> "$ " + "%,.2f".format(totalesPorProducto[p] ?: 0.0) }, isBold = false)
+    drawResumenRowSimple("Subtotal USD", { _, p -> "$ " + "%,.2f".format(totalesPorProducto[p] ?: 0.0) }, isBold = false, drawLineAbove = true)
     drawResumenRowSimple("Descuento", { _, p -> String.format("%.2f%%", descuentosPorcentaje[p] ?: 0.0) }, isBold = false)
     drawResumenRowSimple("Subtotal con Descuento USD", { _, p -> "$ " + "%,.2f".format(preciosFinalesPorProducto[p] ?: 0.0) }, isBold = false)
     drawResumenRowSimple("IVA", { _, p -> "$ " + "%,.2f".format((preciosFinalesPorProducto[p] ?: 0.0) * IVA_RATE) }, isBold = false)

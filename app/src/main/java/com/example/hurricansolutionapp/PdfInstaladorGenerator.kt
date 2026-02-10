@@ -194,32 +194,63 @@ object PdfInstaladorGenerator {
 
             // Columna izquierda - Datos del cliente
             var leftY = y
-            leftY = drawInfoRowCentered(canvas, leftX, leftY, "Cliente:", cotizacion.clienteNombre, leftBlockWidth)
 
-            if (cotizacion.clienteTelefono.isNotBlank()) {
-                leftY = drawInfoRowCentered(canvas, leftX, leftY, "Teléfono:", cotizacion.clienteTelefono, leftBlockWidth)
+            // ═══════════════════════════════════════════════════════════════════════════════
+            // PARSEAR DIRECCIÓN CORRECTAMENTE
+            // ═══════════════════════════════════════════════════════════════════════════════
+
+            // Obtener datos de la ciudad (puede incluir estado)
+            val ciudadCompleta = cotizacion.ciudad.trim()
+
+            // La ubicación contiene: "Ciudad, Colonia, Calle y Número" o variaciones
+            val ubicacionRaw = cotizacion.ubicacion.trim()
+
+            // Limpiar la ubicación removiendo la ciudad si está al inicio
+            var ubicacionLimpia = ubicacionRaw
+            if (ciudadCompleta.isNotBlank() && ubicacionRaw.startsWith(ciudadCompleta, ignoreCase = true)) {
+                ubicacionLimpia = ubicacionRaw.removePrefix(ciudadCompleta).trimStart(',', ' ')
+            }
+            // También intentar remover si contiene la ciudad en cualquier parte
+            if (ciudadCompleta.isNotBlank() && ubicacionLimpia.contains(ciudadCompleta, ignoreCase = true)) {
+                ubicacionLimpia = ubicacionLimpia.replace(ciudadCompleta, "", ignoreCase = true).trim()
+                ubicacionLimpia = ubicacionLimpia.trimStart(',', ' ').trimEnd(',', ' ')
             }
 
-            if (cotizacion.ciudad.isNotBlank()) {
-                leftY = drawInfoRowCentered(canvas, leftX, leftY, "Ciudad:", cotizacion.ciudad, leftBlockWidth)
+            // Separar por comas
+            val partesDireccion = ubicacionLimpia.split(",").map { it.trim() }.filter { it.isNotBlank() }
+
+            // Asignar campos según el orden esperado
+            val colonia = partesDireccion.getOrNull(0) ?: ""
+            val calleNumero = partesDireccion.getOrNull(1) ?: ""
+
+            // Calcular número de zonas
+            val zonasUnicas = cotizacion.ventanas.map { it.zona.ifBlank { "General" } }.distinct()
+            val numZonas = zonasUnicas.size
+
+            // ═══════════════════════════════════════════════════════════════════════════════
+            // COLUMNA IZQUIERDA - Datos del cliente y ubicación
+            // ═══════════════════════════════════════════════════════════════════════════════
+
+            // Nombre del Cliente
+            leftY = drawInfoRowCentered(canvas, leftX, leftY, "Nombre del Cliente:", cotizacion.clienteNombre, leftBlockWidth)
+
+            // Dirección (Calle y Número)
+            if (calleNumero.isNotBlank()) {
+                leftY = drawInfoRowCentered(canvas, leftX, leftY, "Dirección:", calleNumero, leftBlockWidth)
             }
 
-            val ubicacionCompleta = cotizacion.ubicacion
-            val ciudadCompleta = cotizacion.ciudad
-            var restoDireccion = ubicacionCompleta
-            if (ciudadCompleta.isNotBlank() && ubicacionCompleta.contains(ciudadCompleta)) {
-                restoDireccion = ubicacionCompleta.replace(ciudadCompleta, "").trim()
-                restoDireccion = restoDireccion.trimStart(',').trim()
+            // Fraccionamiento (Colonia)
+            if (colonia.isNotBlank()) {
+                leftY = drawInfoRowCentered(canvas, leftX, leftY, "Fraccionamiento:", colonia, leftBlockWidth)
             }
-            val partesRestantes = restoDireccion.split(",").map { it.trim() }.filter { it.isNotBlank() }
-            val colonia = partesRestantes.getOrNull(0) ?: ""
-            val calleNumero = partesRestantes.getOrNull(1) ?: ""
 
-            if (colonia.isNotBlank()) leftY = drawInfoRowCentered(canvas, leftX, leftY, "Colonia:", colonia, leftBlockWidth)
-            if (calleNumero.isNotBlank()) leftY = drawInfoRowCentered(canvas, leftX, leftY, "Dirección:", calleNumero, leftBlockWidth)
+            // Municipio (Ciudad con Estado)
+            if (ciudadCompleta.isNotBlank()) {
+                leftY = drawInfoRowCentered(canvas, leftX, leftY, "Municipio:", ciudadCompleta, leftBlockWidth)
+            }
 
-            // Columna derecha - Datos del proyecto
-            var rightY = y
+            // Especialista
+            leftY = drawInfoRowCentered(canvas, leftX, leftY, "Especialista:", cotizacion.especialista, leftBlockWidth)
 
             // Sistema HS
             val sistemaDisplay = when {
@@ -228,30 +259,42 @@ object PdfInstaladorGenerator {
                 sistemaSeleccionado.contains("1500", ignoreCase = true) -> "HS-1500"
                 else -> sistemaSeleccionado
             }
-            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Sistema:", sistemaDisplay, rightBlockWidth)
+            leftY = drawInfoRowCentered(canvas, leftX, leftY, "Sistema HS:", sistemaDisplay, leftBlockWidth)
 
-            // Color de tela
-            val colorTela = colorSeleccionado ?: when {
-                sistemaSeleccionado.contains("875", ignoreCase = true) -> "Negro / Café"
-                sistemaSeleccionado.contains("1250", ignoreCase = true) -> "Blanco / Beige"
-                sistemaSeleccionado.contains("1500", ignoreCase = true) -> "Café"
-                else -> "N/A"
-            }
-            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Color De Tela:", colorTela, rightBlockWidth)
+            // ═══════════════════════════════════════════════════════════════════════════════
+            // COLUMNA DERECHA - Datos del proyecto
+            // ═══════════════════════════════════════════════════════════════════════════════
+            var rightY = y
 
-            // Fecha
+            // Rectificadas (Sí/No)
+            val rectificadasValue = if (medidasRectificadas != null && medidasRectificadas.isNotEmpty()) "Sí" else "No"
+            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Rectificadas:", rectificadasValue, rightBlockWidth)
+
+            // Tipo de Propiedad
+            val tipoPropiedadValue = instaladorDatos?.tipoPropiedad?.ifBlank { "Casa" } ?: "Casa"
+            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Tipo de Propiedad:", tipoPropiedadValue, rightBlockWidth)
+
+            // Zonas (número de zonas)
+            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Zonas:", numZonas.toString(), rightBlockWidth)
+
+            // Requiere Andamios
+            val requiereAndamiosValue = if (instaladorDatos?.requiereAndamios == true) "Sí" else "No"
+            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Requiere Andamios:", requiereAndamiosValue, rightBlockWidth)
+
+            // Fecha Solicitada
             val fechaInstalacion = fechaSolicitadaManual
                 ?: instaladorDatos?.fechaSolicitada
                 ?: cotizacion.fecha
-            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Fecha:", fechaInstalacion, rightBlockWidth)
+            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Fecha Solicitada:", fechaInstalacion, rightBlockWidth)
 
-            // Metraje total
-            val metrajeFinal = if (medidasRectificadas != null && medidasRectificadas.isNotEmpty()) {
-                medidasRectificadas.sumOf { it.alto * it.ancho * it.cantidad }
-            } else {
-                cotizacion.ventanas.sumOf { it.areaM2 }
+            // Color de tela
+            val colorTela = colorSeleccionado ?: when {
+                sistemaSeleccionado.contains("875", ignoreCase = true) -> "Negro"
+                sistemaSeleccionado.contains("1250", ignoreCase = true) -> "Beige"
+                sistemaSeleccionado.contains("1500", ignoreCase = true) -> "Café"
+                else -> "N/A"
             }
-            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Metraje Total:", "%.2f M²".format(metrajeFinal), rightBlockWidth)
+            rightY = drawInfoRowCentered(canvas, rightX, rightY, "Color de Tela:", colorTela, rightBlockWidth)
 
             y = maxOf(leftY, rightY) + 12f
 
@@ -349,7 +392,7 @@ object PdfInstaladorGenerator {
                 }
 
                 drawHeaderCell("#", colNumeroW)
-                drawHeaderCell("Área a proteger", colAreaW)
+                drawHeaderCell("área a proteger", colAreaW)
                 drawHeaderCell("Cant.", colCantidadW)
                 drawHeaderCell("Ancho", colAnchoW)
                 drawHeaderCell("Alto", colAltoW)
@@ -420,7 +463,6 @@ object PdfInstaladorGenerator {
                     canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
                     paint.pathEffect = null
 
-                    // Líneas verticales punteadas gris
                     var xCol = tableLeft
                     fun drawCellBorder(width: Float) {
                         paint.style = Paint.Style.STROKE

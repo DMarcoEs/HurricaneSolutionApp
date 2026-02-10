@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun AdminEmpleadosScreen(
     isDarkMode: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onVerCotizacionesEmpleado: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
 
@@ -214,7 +215,6 @@ fun AdminEmpleadosScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(empleados) { empleado ->
-                        // Calcular estadísticas del empleado
                         val userCotizaciones = cotizaciones.filter { it.userId == empleado.id }
                         val totalM2 = userCotizaciones.sumOf { it.areaTotal }
                         val montoTotal = userCotizaciones.sumOf { calcularMontoEstimado(it) }
@@ -233,6 +233,9 @@ fun AdminEmpleadosScreen(
                             onToggleActive = {
                                 empleadoSeleccionado = empleado
                                 showConfirmDialog = true
+                            },
+                            onVerCotizaciones = {
+                                onVerCotizacionesEmpleado(empleado.id)
                             }
                         )
                     }
@@ -243,7 +246,6 @@ fun AdminEmpleadosScreen(
         }
     }
 
-    // Diálogo de confirmación
     if (showConfirmDialog && empleadoSeleccionado != null) {
         AlertDialog(
             onDismissRequest = {
@@ -292,11 +294,8 @@ fun AdminEmpleadosScreen(
     }
 }
 
-/**
- * Calcula el monto estimado de una cotización
- */
+
 private fun calcularMontoEstimado(cot: CotizacionRemota): Double {
-    // Precio promedio por sistema (ajusta según tus precios reales)
     val precioPorSistema = mapOf(
         "HS875" to 250.0,
         "HS1250" to 300.0,
@@ -310,10 +309,7 @@ private fun calcularMontoEstimado(cot: CotizacionRemota): Double {
 
     return cot.areaTotal * precioUsado
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // COMPONENTES
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun StitchStatCard(
@@ -366,9 +362,7 @@ private fun StitchStatCard(
     }
 }
 
-/**
- * Tarjeta de empleado expandible con estadísticas
- */
+
 @Composable
 private fun StitchEmpleadoCardExpandible(
     empleado: UserProfile,
@@ -378,7 +372,8 @@ private fun StitchEmpleadoCardExpandible(
     isExpanded: Boolean,
     onExpandToggle: () -> Unit,
     isDarkMode: Boolean,
-    onToggleActive: () -> Unit
+    onToggleActive: () -> Unit,
+    onVerCotizaciones: () -> Unit
 ) {
     val surface = StitchColors.surface(isDarkMode)
     val border = StitchColors.border(isDarkMode)
@@ -491,7 +486,6 @@ private fun StitchEmpleadoCardExpandible(
                     }
                 }
 
-                // Badge ADMIN o botón toggle
                 if (isAdmin) {
                     Surface(
                         color = primary,
@@ -521,9 +515,6 @@ private fun StitchEmpleadoCardExpandible(
                 }
             }
 
-            // ═══════════════════════════════════════════════════════════════════════════════
-            // SECCIÓN EXPANDIBLE CON ESTADÍSTICAS
-            // ═══════════════════════════════════════════════════════════════════════════════
             if (isExpanded) {
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider(color = border.copy(alpha = 0.5f))
@@ -533,7 +524,6 @@ private fun StitchEmpleadoCardExpandible(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // M² Cotizados
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "${String.format("%.2f", totalM2)} m²",
@@ -577,6 +567,31 @@ private fun StitchEmpleadoCardExpandible(
                             fontSize = 11.sp
                         )
                     }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Botón Ver Cotizaciones
+                Button(
+                    onClick = onVerCotizaciones,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = primary,
+                        contentColor = onPrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Ver Cotizaciones",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))

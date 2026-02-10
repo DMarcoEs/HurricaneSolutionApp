@@ -100,13 +100,7 @@ fun generarPdfCotizacion(
             val colorMatrix = ColorMatrix().apply { setSaturation(0f) }
             val usaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(colorMatrix) }
             canvas.drawBitmap(usaCropped, null, usaRect, usaPaint)
-
-            paint.color = Color.BLACK
-            paint.textSize = 14f
-            paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-            paint.textAlign = Paint.Align.CENTER
-            paint.letterSpacing = 0f
-            canvas.drawText("Instalación de Protección Contra huracanes", pageWidth / 2f, bandCenterY - (paint.descent() + paint.ascent()) / 2f, paint)
+            // Título eliminado según solicitud
         } catch (e: Exception) { e.printStackTrace() }
     }
 
@@ -160,7 +154,7 @@ fun generarPdfCotizacion(
 
     val zonaGeografica = cotizacion.zonaGeografica
     val tableLeft = margin; val tableRight = pageWidth.toFloat() - margin
-    val headerHeight = 28f; val bodyTextSize = 9f; val cellPadding = 4f; val cellLineHeight = 12f
+    val headerHeight = 20f; val bodyTextSize = 9f; val cellPadding = 4f; val cellLineHeight = 12f
     val colNumeroW = 25f; val colAreaW = 130f; val colAreaTotalW = 50f; val colMontajeW = 65f; val colAdecuacionesW = 65f
     val priceColumnsCount = productosSeleccionados.size.coerceAtLeast(1)
     val colPricesTotalW = tableRight - tableLeft - (colNumeroW + colAreaW + colAreaTotalW + colMontajeW + colAdecuacionesW)
@@ -428,7 +422,7 @@ fun generarPdfCotizacion(
             fun drawCellBorder(left: Float, width: Float) {
                 paint.style = Paint.Style.STROKE
                 paint.color = Color.parseColor("#9CA3AF")  // Gris sutil
-                paint.pathEffect = DashPathEffect(floatArrayOf(2f, 4f), 0f)  // Puntos más espaciados
+                paint.pathEffect = DashPathEffect(floatArrayOf(2f, 4f), 0f)
                 canvas.drawLine(left + width, rowTop, left + width, rowBottom, paint)
                 paint.pathEffect = null
                 // Restaurar color negro para el texto
@@ -537,15 +531,17 @@ fun generarPdfCotizacion(
         paint.textSize = resumenTextSize
         paint.typeface = if (isBold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
         paint.letterSpacing = 0f
-        canvas.drawText(label.uppercase(), resumenLeft + 2f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawText(label, resumenLeft + 2f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
         productosSeleccionados.forEachIndexed { index, producto ->
             val left = resumenLeft + labelWidth + index * valueColumnWidth
+            val rightEdge = left + valueColumnWidth - 8f  // Margen derecho
 
-            paint.textAlign = Paint.Align.CENTER
+            // Formato contabilidad: alineado a la derecha
+            paint.textAlign = Paint.Align.RIGHT
             paint.textSize = resumenTextSize
             paint.typeface = if (isBold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-            canvas.drawText(getTextForCol(index, producto), left + valueColumnWidth / 2f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+            canvas.drawText(getTextForCol(index, producto), rightEdge, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
         }
 
         filaTop = filaBottom
@@ -561,7 +557,8 @@ fun generarPdfCotizacion(
     val condicionesLeft = margin
     val condicionesRight = resumenLeft - 10f
     val condicionesAvailableWidth = condicionesRight - condicionesLeft
-    val condicionesAvailableHeight = resumenBottom - resumenTop
+    // Aumentar altura disponible para condiciones comerciales (15% más)
+    val condicionesAvailableHeight = (resumenBottom - resumenTop) * 1.15f
 
     try {
         val options = BitmapFactory.Options().apply { inScaled = false }
@@ -571,7 +568,8 @@ fun generarPdfCotizacion(
             val imgHeight = condicionesImg.height.toFloat()
             val imgAspectRatio = imgWidth / imgHeight
 
-            var finalWidth = condicionesAvailableWidth
+            // Usar más espacio para que se vea más grande
+            var finalWidth = condicionesAvailableWidth * 1.05f
             var finalHeight = finalWidth / imgAspectRatio
 
             if (finalHeight > condicionesAvailableHeight) {
@@ -581,9 +579,9 @@ fun generarPdfCotizacion(
 
             val destRect = RectF(
                 condicionesLeft,
-                resumenTop,
+                resumenTop - 5f,  // Subir un poco
                 condicionesLeft + finalWidth,
-                resumenTop + finalHeight
+                resumenTop - 5f + finalHeight
             )
             canvas.drawBitmap(condicionesImg, null, destRect, null)
         }

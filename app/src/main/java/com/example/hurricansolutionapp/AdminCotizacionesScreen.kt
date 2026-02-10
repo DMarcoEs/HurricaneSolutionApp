@@ -40,7 +40,8 @@ enum class CotizacionSortOrder {
 fun AdminCotizacionesScreen(
     isDarkMode: Boolean,
     onBack: () -> Unit,
-    onVerDetalle: (CotizacionRemota) -> Unit
+    onVerDetalle: (CotizacionRemota) -> Unit,
+    filtroUsuarioInicial: String? = null
 ) {
     BackHandler { onBack() }
 
@@ -50,7 +51,7 @@ fun AdminCotizacionesScreen(
     var isLoading by remember { mutableStateOf(true) }
     var cotizaciones by remember { mutableStateOf<List<CotizacionRemota>>(emptyList()) }
     var empleados by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
-    var selectedEmpleado by remember { mutableStateOf<String?>(null) }
+    var selectedEmpleado by remember { mutableStateOf<String?>(filtroUsuarioInicial) }
     var searchQuery by remember { mutableStateOf("") }
     var showFilterSheet by remember { mutableStateOf(false) }
     var sortOrder by remember { mutableStateOf(CotizacionSortOrder.RECIENTES_PRIMERO) }
@@ -414,9 +415,7 @@ private fun StitchCotizacionCard(
                 }
             }
 
-            // ═══════════════════════════════════════════════════════════════════
             // SISTEMAS COTIZADOS
-            // ═══════════════════════════════════════════════════════════════════
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Shield, null, tint = textSecondary, modifier = Modifier.size(14.dp))

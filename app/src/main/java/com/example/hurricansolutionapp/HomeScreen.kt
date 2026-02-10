@@ -63,9 +63,7 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
 
-    // ═══════════════════════════════════════════════════════════════════════════════
     // ESTADO DE GOOGLE DRIVE AUTH
-    // ═══════════════════════════════════════════════════════════════════════════════
     var isGoogleAuthenticated by remember {
         mutableStateOf(
             com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(
@@ -129,9 +127,6 @@ fun HomeScreen(
         })
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // VERIFICACIÓN AUTOMÁTICA DE PRECIOS
-    // ═══════════════════════════════════════════════════════════════════════════════
     var lastNotificationTime by remember { mutableStateOf(0L) }
 
     DisposableEffect(lifecycleOwner) {
@@ -321,9 +316,7 @@ fun HomeScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENTES PRIVADOS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun HomeTopBar(
@@ -359,7 +352,6 @@ private fun HomeTopBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Botón de Google Drive
             Box {
                 Box(
                     modifier = Modifier
@@ -468,7 +460,6 @@ private fun HomeTopBar(
                 }
             }
 
-            // Botón de tema
             Box(
                 modifier = Modifier
                     .size(46.dp)
@@ -619,6 +610,7 @@ private fun HomeMenuCard(
 ) {
     val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
+    var isNavigating by remember { mutableStateOf(false) }  // Debounce para evitar clicks múltiples
     val infiniteTransition = rememberInfiniteTransition(label = "menu_anim")
     val rotationAnim by infiniteTransition.animateFloat(
         initialValue = -10f,
@@ -650,9 +642,17 @@ private fun HomeMenuCard(
             .graphicsLayer { scaleX = scale; scaleY = scale },
         color = surface, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, border),
         onClick = {
-            isPressed = true; scope.launch {
-            kotlinx.coroutines.delay(100); isPressed = false; onClick()
-        }
+            if (!isNavigating) {
+                isNavigating = true
+                isPressed = true
+                scope.launch {
+                    kotlinx.coroutines.delay(100)
+                    isPressed = false
+                    onClick()
+                    kotlinx.coroutines.delay(500)  // Debounce de 500ms
+                    isNavigating = false
+                }
+            }
         }
     ) {
         Row(

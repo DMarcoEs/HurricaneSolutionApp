@@ -27,7 +27,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Función para obtener colores disponibles según el sistema HS
 fun getColoresDisponibles(sistema: String): List<String> {
     return when {
         sistema.contains("875", ignoreCase = true) -> listOf("Negro", "Café")
@@ -137,7 +136,41 @@ fun EnviosInstalacionScreen(
                 if (pdfFile != null && pdfFile.exists()) {
                     pdfGenerado = pdfFile
                     pdfsGenerados = pdfsGenerados + (cotizacion.folio to pdfFile)
-                    Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT).show()
+
+                    // Subir a Google Drive automáticamente
+                    try {
+                        val driveResult = InstaladorUploadManager.uploadToDrive(
+                            context = context,
+                            pdfFile = pdfFile,
+                            cotizacion = cotizacion,
+                            sistemaSeleccionado = sistema
+                        )
+
+                        val uploadResult = driveResult.getOrNull()
+                        if (uploadResult?.success == true) {
+                            Toast.makeText(
+                                context,
+                                "PDF generado y subido a Drive",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            // PDF generado pero no subido - mostrar error específico
+                            val errorMsg = uploadResult?.error ?: "Error desconocido"
+                            Toast.makeText(
+                                context,
+                                "PDF generado. Error Drive: $errorMsg",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            android.util.Log.w("OrdenesInstalacion", "Error subiendo a Drive: $errorMsg")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("OrdenesInstalacion", "Error subiendo a Drive: ${e.message}")
+                        Toast.makeText(
+                            context,
+                            "PDF generado. Error al subir a Drive.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 } else {
                     Toast.makeText(context, "Error al generar el PDF", Toast.LENGTH_SHORT).show()
                 }
@@ -442,7 +475,6 @@ fun EnviosInstalacionScreen(
                         }
                     }
 
-                    // NUEVO: Sección de selección de COLOR DE TELA
                     if (sistemaSeleccionado != null) {
                         val coloresDisponibles = getColoresDisponibles(sistemaSeleccionado!!)
 
@@ -478,7 +510,6 @@ fun EnviosInstalacionScreen(
                                             horizontalArrangement = Arrangement.Center,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            // Círculo de color representativo
                                             val colorVisual = when (color.lowercase()) {
                                                 "negro" -> Color.Black
                                                 "café", "cafe" -> Color(0xFF8B4513)
@@ -516,7 +547,7 @@ fun EnviosInstalacionScreen(
                     }
 
                     Text(
-                        "FECHA DE INSTALACIÓN",
+                        "FECHA DE INSTALACIÓ",
                         color = textMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -764,7 +795,7 @@ fun EnviosInstalacionScreen(
         containerColor = bg,
         topBar = {
             StitchTopBar(
-                title = "Órdenes de Instalación",
+                title = "Órdenes de InstalaciÓn",
                 onBack = onBack,
                 isDarkMode = isDarkMode
             )
@@ -1020,5 +1051,3 @@ private fun CotizacionInstalacionCard(
         }
     }
 }
-
-// Las funciones verPdf y compartirPdf están definidas en PdfUtils.kt

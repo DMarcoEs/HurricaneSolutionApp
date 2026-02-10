@@ -467,7 +467,6 @@ object PdfInstaladorGenerator {
                     drawCellBorder(colAltoW)
                     xCol += colAltoW
 
-                    // MÂ²
                     canvas.drawText(String.format("%.2f", fila.m2), xCol + colM2W / 2f, textCenterY, paint)
                     drawCellBorder(colM2W)
                     xCol += colM2W

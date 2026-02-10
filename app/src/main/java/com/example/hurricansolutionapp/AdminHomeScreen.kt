@@ -70,9 +70,7 @@ fun AdminHomeScreen(
     var stats by remember { mutableStateOf(AdminRepository.DashboardStats()) }
     var isLoadingStats by remember { mutableStateOf(true) }
 
-    // ═══════════════════════════════════════════════════════════════════════════════════════
     // ESTADO DE GOOGLE DRIVE AUTH
-    // ═══════════════════════════════════════════════════════════════════════════════════════
     var isGoogleAuthenticated by remember {
         mutableStateOf(
             com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(
@@ -144,7 +142,6 @@ fun AdminHomeScreen(
                 isGoogleAuthenticated = account != null
                 googleUserEmail = account?.email ?: ""
 
-                // Recargar estadísticas
                 scope.launch {
                     isLoadingStats = true
                     try {
@@ -159,16 +156,23 @@ fun AdminHomeScreen(
         })
     }
 
-    // Carga inicial
+    // Carga inicial con retry
     LaunchedEffect(Unit) {
-        isLoadingStats = true
-        try {
-            stats = AdminRepository.getDashboardStats()
-        } catch (e: Exception) {
-            android.util.Log.e("AdminHome", "Error cargando stats: ${e.message}")
-        } finally {
-            isLoadingStats = false
+        repeat(3) { attempt ->
+            isLoadingStats = true
+            try {
+                val loadedStats = AdminRepository.getDashboardStats()
+                if (loadedStats.totalCotizaciones > 0 || loadedStats.empleadosActivos > 0 || attempt == 2) {
+                    stats = loadedStats
+                    isLoadingStats = false
+                    return@LaunchedEffect
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AdminHome", "Intento ${attempt + 1} fallido: ${e.message}")
+            }
+            kotlinx.coroutines.delay(500)
         }
+        isLoadingStats = false
     }
 
     // Colores
@@ -374,7 +378,7 @@ fun AdminHomeScreen(
             },
             text = {
                 Text(
-                    "¿Deseas cerrar sesión de administrador?\nTendrás que volver a iniciar sesión.",
+                    "¿Deseas cerrar sesión de administrador?\nTendras que volver a iniciar sesión.",
                     color = textMuted,
                     fontSize = 15.sp
                 )
@@ -400,9 +404,6 @@ fun AdminHomeScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
-// COMPONENTE: StitchAdminCardResponsive - Card con tipografía responsiva
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun StitchAdminCardResponsive(
     title: String,
@@ -452,7 +453,6 @@ private fun StitchAdminCardResponsive(
                     .background(leftBorderColor)
             )
 
-            // ✅ CAMBIO: Usar BoxWithConstraints para adaptar el tamaño del texto
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
@@ -461,7 +461,6 @@ private fun StitchAdminCardResponsive(
             ) {
                 val availableWidth = maxWidth
 
-                // Calcular tamaño de fuente basado en el ancho disponible
                 val titleFontSize = when {
                     availableWidth < 80.dp -> 7.sp
                     availableWidth < 100.dp -> 8.sp
@@ -512,13 +511,11 @@ private fun StitchAdminCardResponsive(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
-// COMPONENTE: StitchBigActionCardResponsive - Botón principal responsivo
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun StitchBigActionCardResponsive(isDarkMode: Boolean, onClick: () -> Unit) {
     val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
+    var isNavigating by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.98f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -534,12 +531,19 @@ private fun StitchBigActionCardResponsive(isDarkMode: Boolean, onClick: () -> Un
         shape = RoundedCornerShape(12.dp),
         shadowElevation = 8.dp,
         onClick = {
-            isPressed = true; scope.launch {
-            kotlinx.coroutines.delay(100); isPressed = false; onClick()
-        }
+            if (!isNavigating) {
+                isNavigating = true
+                isPressed = true
+                scope.launch {
+                    kotlinx.coroutines.delay(100)
+                    isPressed = false
+                    onClick()
+                    kotlinx.coroutines.delay(500)
+                    isNavigating = false
+                }
+            }
         }) {
 
-        // ✅ CAMBIO: Usar BoxWithConstraints para el texto responsivo
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -547,7 +551,6 @@ private fun StitchBigActionCardResponsive(isDarkMode: Boolean, onClick: () -> Un
         ) {
             val availableWidth = maxWidth
 
-            // Calcular tamaño de fuente basado en el ancho disponible
             val fontSize = when {
                 availableWidth < 250.dp -> 14.sp
                 availableWidth < 300.dp -> 16.sp
@@ -599,9 +602,6 @@ private fun StitchBigActionCardResponsive(isDarkMode: Boolean, onClick: () -> Un
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
-// COMPONENTE: StitchMenuCardResponsive - Card de menú responsiva
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun StitchMenuCardResponsive(
     title: String,
@@ -618,6 +618,7 @@ private fun StitchMenuCardResponsive(
 ) {
     val scope = rememberCoroutineScope()
     var isPressed by remember { mutableStateOf(false) }
+    var isNavigating by remember { mutableStateOf(false) }  // Debounce para evitar clicks múltiples
     val infiniteTransition = rememberInfiniteTransition(label = "menu_anim")
     val rotationAnim by infiniteTransition.animateFloat(
         initialValue = -10f,
@@ -651,12 +652,19 @@ private fun StitchMenuCardResponsive(
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, border),
         onClick = {
-            isPressed = true; scope.launch {
-            kotlinx.coroutines.delay(100); isPressed = false; onClick()
-        }
+            if (!isNavigating) {
+                isNavigating = true
+                isPressed = true
+                scope.launch {
+                    kotlinx.coroutines.delay(100)
+                    isPressed = false
+                    onClick()
+                    kotlinx.coroutines.delay(500)  // Debounce de 500ms
+                    isNavigating = false
+                }
+            }
         }) {
 
-        // ✅ CAMBIO: Usar BoxWithConstraints para texto responsivo
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -664,7 +672,6 @@ private fun StitchMenuCardResponsive(
         ) {
             val availableWidth = maxWidth
 
-            // Calcular tamaños de fuente basados en el ancho disponible
             val titleFontSize = when {
                 availableWidth < 200.dp -> 12.sp
                 availableWidth < 280.dp -> 13.sp
@@ -723,7 +730,7 @@ private fun StitchMenuCardResponsive(
                 }
                 if (badgeCount != null && badgeCount > 0) {
                     Text(
-                        "• $badgeCount",
+                        "$badgeCount",
                         color = textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -734,9 +741,7 @@ private fun StitchMenuCardResponsive(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // COMPONENTE: StitchLogoutButtonResponsive
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun StitchLogoutButtonResponsive(onClick: () -> Unit, isDarkMode: Boolean, enabled: Boolean) {
     val scope = rememberCoroutineScope()
@@ -762,7 +767,6 @@ private fun StitchLogoutButtonResponsive(onClick: () -> Unit, isDarkMode: Boolea
         if (enabled) Color(0xFFDC2626) else Color(0xFF9CA3AF)
     }
 
-    // ✅ CAMBIO: Usar BoxWithConstraints para texto responsivo
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -833,9 +837,7 @@ private fun StitchLogoutButtonResponsive(onClick: () -> Unit, isDarkMode: Boolea
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // COMPONENTES AUXILIARES (sin cambios significativos)
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun AdminWelcomeText(userName: String, textPrimary: Color, textMuted: Color) {
@@ -898,14 +900,11 @@ private fun getSpanishDateAdmin(): String {
     return "${dias[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]}, ${cal.get(java.util.Calendar.DAY_OF_MONTH)} de ${meses[cal.get(java.util.Calendar.MONTH)]}"
 }
 
-// Enum para tipos de animación
 enum class StitchAnimationType {
     NONE, ROTATION, BOUNCE
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // COMPONENTE: AdminTopBarStitch
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun AdminTopBarStitch(
     isDarkMode: Boolean,
@@ -1087,9 +1086,7 @@ private fun AdminTopBarStitch(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 // COMPONENTE: AdminCroppedLogo
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun AdminCroppedLogo(@DrawableRes resId: Int, height: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current

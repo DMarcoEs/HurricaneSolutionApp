@@ -263,7 +263,30 @@ fun AppNavigation(
         ) {
             AdminEmpleadosScreen(
                 isDarkMode = isDarkMode,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onVerCotizacionesEmpleado = { userId ->
+                    navController.navigate("admin_cotizaciones_filtrado/$userId")
+                }
+            )
+        }
+
+        // ADMIN - VER COTIZACIONES FILTRADAS POR EMPLEADO
+        composable(
+            route = "admin_cotizaciones_filtrado/{userId}",
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+            AdminCotizacionesScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onVerDetalle = { cotizacion ->
+                    cotizacionRemotaSeleccionada = cotizacion
+                    navController.navigate(Routes.adminCotizacionDetalle(cotizacion.folio))
+                },
+                filtroUsuarioInicial = userId
             )
         }
 

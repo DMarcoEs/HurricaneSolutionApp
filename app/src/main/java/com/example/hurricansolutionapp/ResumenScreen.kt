@@ -30,8 +30,8 @@ import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.derivedStateOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,13 +54,13 @@ fun ResumenScreen(
 
 
     var hs875Selected by rememberSaveable {
-        mutableStateOf(if (desdeHistorial) cotizacion.productos.contains(TipoProducto.HS875) else true)
+        mutableStateOf(cotizacion.productos.contains(TipoProducto.HS875))
     }
     var hs1250Selected by rememberSaveable {
-        mutableStateOf(if (desdeHistorial) cotizacion.productos.contains(TipoProducto.HS1250) else false)
+        mutableStateOf(cotizacion.productos.contains(TipoProducto.HS1250))
     }
     var hs1500Selected by rememberSaveable {
-        mutableStateOf(if (desdeHistorial) cotizacion.productos.contains(TipoProducto.HS1500) else false)
+        mutableStateOf(cotizacion.productos.contains(TipoProducto.HS1500))
     }
 
     var aplicaDescuento by rememberSaveable {
@@ -98,6 +98,10 @@ fun ResumenScreen(
         )
     }
 
+// Invalidar PDF cuando cambie la selección de productos o descuentos
+    LaunchedEffect(hs875Selected, hs1250Selected, hs1500Selected, aplicaDescuento, precioFinalHS875, precioFinalHS1250, precioFinalHS1500) {
+        pdfFile = null // Forzar regeneración del PDF
+    }
 
     var mostrarAdvertenciaDescuento by remember { mutableStateOf(false) }
     var productoAdvertencia by remember { mutableStateOf("") }
@@ -142,12 +146,14 @@ fun ResumenScreen(
         else -> 10.sp
     }
 
-    val productosSeleccionados = remember(hs875Selected, hs1250Selected, hs1500Selected) {
-        mutableListOf<TipoProducto>().apply {
-            if (hs875Selected) add(TipoProducto.HS875)
-            if (hs1250Selected) add(TipoProducto.HS1250)
-            if (hs1500Selected) add(TipoProducto.HS1500)
-        }.sortedBy { it.getPrecioVenta() }
+    val productosSeleccionados by remember {
+        derivedStateOf {
+            mutableListOf<TipoProducto>().apply {
+                if (hs875Selected) add(TipoProducto.HS875)
+                if (hs1250Selected) add(TipoProducto.HS1250)
+                if (hs1500Selected) add(TipoProducto.HS1500)
+            }.sortedBy { it.getPrecioVenta() }
+        }
     }
 
     fun formatMoney(amount: Double): String {
@@ -268,27 +274,25 @@ fun ResumenScreen(
             return pdfFile
         }
 
-        val cotizacionParaPdf = if (desdeHistorial) {
-            cotizacion.copy(
-                productos = productosSeleccionados.ifEmpty { cotizacion.productos },
-                descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
-                    TipoProducto.HS875,
-                    precioFinalHS875
-                ) else cotizacion.descuentoHS875,
+        // SIEMPRE usar los productos seleccionados actuales
+        val cotizacionParaPdf = cotizacion.copy(
+            productos = productosSeleccionados.ifEmpty { cotizacion.productos },
+            producto = productosSeleccionados.firstOrNull() ?: cotizacion.producto,
+            descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
+                TipoProducto.HS875,
+                precioFinalHS875
+            ) else cotizacion.descuentoHS875,
 
-                descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
-                    TipoProducto.HS1250,
-                    precioFinalHS1250
-                ) else cotizacion.descuentoHS1250,
+            descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
+                TipoProducto.HS1250,
+                precioFinalHS1250
+            ) else cotizacion.descuentoHS1250,
 
-                descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
-                    TipoProducto.HS1500,
-                    precioFinalHS1500
-                ) else cotizacion.descuentoHS1500
-            )
-        } else {
-            cotizacion
-        }
+            descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(
+                TipoProducto.HS1500,
+                precioFinalHS1500
+            ) else cotizacion.descuentoHS1500
+        )
 
         val pdf = generarPdfCotizacion(context, cotizacionParaPdf)
         if (pdf != null) {

@@ -572,6 +572,17 @@ fun ResumenScreen(
                                         if (pdf != null) {
                                             pdfFile = pdf
                                             pdfRegenerado = true
+
+                                            // Guardar los cambios en almacenamiento local
+                                            val cotizacionActualizada = cotizacion.copy(
+                                                productos = productosSeleccionados,
+                                                producto = productosSeleccionados.firstOrNull() ?: cotizacion.producto,
+                                                descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS875, precioFinalHS875) else 0.0,
+                                                descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1250, precioFinalHS1250) else 0.0,
+                                                descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1500, precioFinalHS1500) else 0.0
+                                            )
+                                            guardarCotizacionLocal(context, cotizacionActualizada, esActualizacion = true)
+
                                             Toast.makeText(
                                                 context,
                                                 "PDF regenerado con los cambios",

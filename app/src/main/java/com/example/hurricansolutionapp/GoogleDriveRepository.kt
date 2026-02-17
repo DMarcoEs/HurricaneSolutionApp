@@ -11,11 +11,16 @@ object GoogleDriveRepository {
 
     private const val TAG = ApiConfig.LOG_TAG_DRIVE
 
+    /**
+     * Sube un PDF a la estructura de carpetas en Drive
+     * @param folio Si se proporciona, busca y elimina versiones anteriores con el mismo folio
+     */
     suspend fun uploadPdfToStructuredFolder(
         context: Context,
         localPdfFile: java.io.File,
         userName: String,
-        userRole: String
+        userRole: String,
+        folio: String? = null
     ): Result<DriveUploadResult> {
         return try {
             if (!DriveAuthManager.isAuthenticated(context)) {
@@ -56,12 +61,21 @@ object GoogleDriveRepository {
 
             val folderInfo = folderResult.getOrNull()!!
 
-            // 4. Subir PDF (reemplaza si ya existe uno con el mismo nombre)
-            val uploadResult = GoogleDriveApi.uploadPdfWithReplace(
-                drive = drive,
-                localFile = localPdfFile,
-                folderId = folderInfo.folderId
-            )
+            // 4. Subir PDF - si hay folio, usar búsqueda por folio para reemplazar
+            val uploadResult = if (!folio.isNullOrBlank()) {
+                GoogleDriveApi.uploadPdfWithReplaceByFolio(
+                    drive = drive,
+                    localFile = localPdfFile,
+                    folderId = folderInfo.folderId,
+                    folio = folio
+                )
+            } else {
+                GoogleDriveApi.uploadPdfWithReplace(
+                    drive = drive,
+                    localFile = localPdfFile,
+                    folderId = folderInfo.folderId
+                )
+            }
 
             if (uploadResult.isFailure) {
                 return Result.success(
@@ -76,7 +90,7 @@ object GoogleDriveRepository {
 
             val result = uploadResult.getOrNull()!!
 
-            Log.d(TAG, "[OK] PDF subido exitosamente: $localPdfFile.name Ã¢â‚¬â„¢ ${folderInfo.folderPath}")
+            Log.d(TAG, "[OK] PDF subido exitosamente: $localPdfFile.name${folderInfo.folderPath}")
 
             Result.success(result.copy(folderPath = folderInfo.folderPath))
 
@@ -221,25 +235,12 @@ object GoogleDriveRepository {
         }
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // SUBIDA DE PDFs DE INSTALACIÃ“N
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
-    /**
-     * Sube un PDF de instalaciÃ³n a la carpeta Instalaciones/Usuario/AÃ±o/Mes/
-     *
-     * @param context Contexto de la aplicaciÃ³n
-     * @param localPdfFile Archivo PDF local
-     * @param userName Nombre del usuario que genera el PDF
-     * @return Resultado de la subida
-     */
     suspend fun uploadInstalacionPdf(
         context: Context,
         localPdfFile: java.io.File,
         userName: String
     ): Result<DriveUploadResult> {
         return try {
-            // 1. Verificar autenticaciÃ³n
             if (!DriveAuthManager.isAuthenticated(context)) {
                 return Result.success(
                     DriveUploadResult(
@@ -298,7 +299,7 @@ object GoogleDriveRepository {
 
             val result = uploadResult.getOrNull()!!
 
-            Log.d(TAG, "[OK] PDF de instalaciÃ³n subido: ${localPdfFile.name} â†’ ${folderInfo.folderPath}")
+            Log.d(TAG, "[OK] PDF de instalación subido: ${localPdfFile.name}${folderInfo.folderPath}")
 
             Result.success(result.copy(folderPath = folderInfo.folderPath))
 
@@ -315,21 +316,12 @@ object GoogleDriveRepository {
         }
     }
 
-    /**
-     * Crea la estructura de carpetas para Instalaciones
-     *
-     * [Carpeta Compartida]/Instalaciones/[Usuario]/[AÃ±o]/[Mes]/
-     *
-     * @param drive Servicio de Drive
-     * @param userName Nombre del usuario
-     * @return InformaciÃ³n de la carpeta final
-     */
+
     private suspend fun createInstalacionFolderStructure(
         drive: com.google.api.services.drive.Drive,
         userName: String
     ): Result<DriveFolderInfo> {
         return try {
-            // 1. Usar carpeta compartida como raÃ­z
             val rootId = ApiConfig.DRIVE_SHARED_FOLDER_ID
 
             Log.d(TAG, "Creando estructura para Instalaciones")
@@ -360,7 +352,6 @@ object GoogleDriveRepository {
 
             val userId = userResult.getOrNull()!!
 
-            // 4. Carpeta del aÃ±o
             val now = LocalDateTime.now()
             val year = now.year.toString()
 

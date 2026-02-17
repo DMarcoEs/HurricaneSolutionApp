@@ -109,7 +109,6 @@ fun CotizacionesFormScreen(
     val pillText = if (isDarkMode) Color.Black else Color.White
     val adecuacionesBg = if (isDarkMode) Color(0xFF09090B) else Color(0xFFF9FAFB)
 
-    // ═══ TEXTO RESPONSIVO ═══
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
 
@@ -297,7 +296,8 @@ fun CotizacionesFormScreen(
                                 }
 
                                 val cotizacion = Cotizacion(
-                                    folio = "",
+                                    id = draft.id, // Mantener ID para actualizaciones
+                                    folio = draft.folio, // Mantener folio si existe
                                     clienteNombre = draft.nombre.trim(),
                                     clienteTelefono = draft.telefono.trim(),
                                     ubicacion = listOf(
@@ -308,10 +308,14 @@ fun CotizacionesFormScreen(
                                     ciudad = draft.ciudad.trim(),
                                     especialista = especialista,
                                     fecha = fecha,
-                                    producto = TipoProducto.HS875,
-                                    productos = listOf(TipoProducto.HS875),
+                                    producto = draft.productosSeleccionados.firstOrNull() ?: TipoProducto.HS875,
+                                    productos = draft.productosSeleccionados.ifEmpty { listOf(TipoProducto.HS875) },
                                     tipoMontaje = draft.tipoMontaje,
-                                    ventanas = ventanasValidas
+                                    ventanas = ventanasValidas,
+                                    descuentoHS875 = draft.descuentoHS875,
+                                    descuentoHS1250 = draft.descuentoHS1250,
+                                    descuentoHS1500 = draft.descuentoHS1500,
+                                    zonaGeografica = draft.zonaGeografica
                                 )
                                 onContinuarResumen(cotizacion)
                             },

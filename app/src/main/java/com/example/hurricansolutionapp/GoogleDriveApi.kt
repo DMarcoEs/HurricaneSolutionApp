@@ -16,14 +16,6 @@ object GoogleDriveApi {
 
     private const val TAG = ApiConfig.LOG_TAG_DRIVE
 
-    /**
-     * Crea una carpeta en Google Drive
-     *
-     * @param drive Servicio de Drive autenticado
-     * @param folderName Nombre de la carpeta
-     * @param parentFolderId ID de la carpeta padre (null para raÃ­z)
-     * @return ID de la carpeta creada o existente
-     */
     suspend fun createFolder(
         drive: Drive,
         folderName: String,
@@ -57,14 +49,6 @@ object GoogleDriveApi {
         }
     }
 
-    /**
-     * Busca una carpeta por nombre
-     *
-     * @param drive Servicio de Drive
-     * @param folderName Nombre de la carpeta
-     * @param parentFolderId ID del padre (null para buscar en raÃ­z)
-     * @return File de Drive o null si no existe
-     */
     private suspend fun findFolderByName(
         drive: Drive,
         folderName: String,
@@ -97,25 +81,6 @@ object GoogleDriveApi {
         }
     }
 
-    /**
-     * Sube un archivo PDF a Google Drive
-     *
-     * @param context Contexto de Android
-     * @param drive Servicio de Drive autenticado
-     * @param pdfUrl URL del PDF en Supabase Storage
-     * @param fileName Nombre del archivo
-     * @param folderId ID de la carpeta destino
-     * @return Resultado con informaciÃ³n del archivo subido
-     */
-    /**
-     * Sube un archivo PDF local a Google Drive
-     * [OK] CORREGIDO: Usa archivo local directamente, NO descarga de Supabase
-     *
-     * @param drive Servicio de Drive autenticado
-     * @param localFile Archivo PDF local (ya existe en el dispositivo)
-     * @param folderId ID de la carpeta destino
-     * @return Resultado con informaciÃ³n del archivo subido
-     */
     suspend fun uploadPdfFromLocalFile(
         drive: Drive,
         localFile: java.io.File,
@@ -265,12 +230,134 @@ object GoogleDriveApi {
     }
 
     /**
-     * Sube un archivo PDF a Google Drive, reemplazando si ya existe uno con el mismo nombre
+     * Busca archivos que contengan un FOLIO específico en el nombre
+     * Útil para encontrar versiones anteriores de una cotización
+     *
+     * @param drive Servicio de Drive
+     * @param folio Folio de la cotización (ej: "FL007")
+     * @param folderId ID de la carpeta donde buscar
+     * @return Lista de archivos que contienen el folio
+     */
+    suspend fun findFilesByFolio(
+        drive: Drive,
+        folio: String,
+        folderId: String
+    ): List<File> = withContext(Dispatchers.IO) {
+        try {
+            val query = buildString {
+                append("name contains '$folio'")
+                append(" and '$folderId' in parents")
+                append(" and trashed=false")
+                append(" and mimeType='application/pdf'")
+            }
+
+            val result = drive.files().list()
+                .setQ(query)
+                .setSpaces("drive")
+                .setFields("files(id, name, createdTime)")
+                .execute()
+
+            val files = result.files ?: emptyList()
+            Log.d(TAG, "Archivos encontrados con folio '$folio': ${files.size}")
+            files
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error buscando archivos con folio '$folio': ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Sube un archivo PDF a Google Drive, reemplazando si ya existe uno con el mismo FOLIO
+     * Elimina TODAS las versiones anteriores del mismo folio antes de subir
      *
      * @param drive Servicio de Drive autenticado
      * @param localFile Archivo PDF local
      * @param folderId ID de la carpeta destino
+     * @param folio Folio de la cotización para buscar versiones anteriores
      * @return Resultado con información del archivo subido
+     */
+    suspend fun uploadPdfWithReplaceByFolio(
+        drive: Drive,
+        localFile: java.io.File,
+        folderId: String,
+        folio: String
+    ): Result<DriveUploadResult> = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "Iniciando subida con reemplazo por folio: ${localFile.name} (Folio: $folio)")
+
+            // Verificar que el archivo existe
+            if (!localFile.exists()) {
+                return@withContext Result.success(
+                    DriveUploadResult(
+                        success = false,
+                        fileName = localFile.name,
+                        folderPath = "",
+                        error = "Archivo local no existe"
+                    )
+                )
+            }
+
+            // Buscar y eliminar TODAS las versiones anteriores con el mismo folio
+            if (folio.isNotBlank()) {
+                val existingFiles = findFilesByFolio(drive, folio, folderId)
+                if (existingFiles.isNotEmpty()) {
+                    Log.d(TAG, "Eliminando ${existingFiles.size} versiones anteriores del folio $folio")
+                    existingFiles.forEach { existingFile ->
+                        try {
+                            drive.files().delete(existingFile.id).execute()
+                            Log.d(TAG, "Eliminado: ${existingFile.name}")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "No se pudo eliminar ${existingFile.name}: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+            Log.d(TAG, "Subiendo archivo: ${localFile.length()} bytes")
+
+            // Crear metadata del archivo en Drive
+            val fileMetadata = File().apply {
+                name = localFile.name
+                parents = listOf(folderId)
+                mimeType = "application/pdf"
+            }
+
+            // Subir a Drive
+            val mediaContent = FileContent("application/pdf", localFile)
+
+            val file = drive.files().create(fileMetadata, mediaContent)
+                .setFields("id, name, webViewLink")
+                .execute()
+
+            Log.d(TAG, "[OK] PDF subido/reemplazado en Drive: ${file.name} (${file.id})")
+
+            Result.success(
+                DriveUploadResult(
+                    success = true,
+                    fileId = file.id,
+                    fileName = file.name,
+                    webViewLink = file.webViewLink,
+                    folderPath = "Google Drive"
+                )
+            )
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error subiendo PDF: ${e.message}", e)
+            Result.success(
+                DriveUploadResult(
+                    success = false,
+                    fileName = localFile.name,
+                    folderPath = "",
+                    error = e.message ?: "Error desconocido"
+                )
+            )
+        }
+    }
+
+    /**
+     * Sube un archivo PDF a Google Drive, reemplazando si ya existe uno con el mismo nombre exacto
+     * (Versión legacy - usar uploadPdfWithReplaceByFolio para mejor manejo)
      */
     suspend fun uploadPdfWithReplace(
         drive: Drive,
@@ -278,9 +365,8 @@ object GoogleDriveApi {
         folderId: String
     ): Result<DriveUploadResult> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Iniciando subida con reemplazo: ${localFile.name}")
+            Log.d(TAG, "Iniciando subida con reemplazo por nombre: ${localFile.name}")
 
-            // Verificar que el archivo existe
             if (!localFile.exists()) {
                 return@withContext Result.success(
                     DriveUploadResult(
@@ -301,20 +387,17 @@ object GoogleDriveApi {
                     Log.d(TAG, "[OK] Archivo anterior eliminado")
                 } catch (e: Exception) {
                     Log.w(TAG, "No se pudo eliminar archivo anterior: ${e.message}")
-                    // Continuar de todos modos
                 }
             }
 
             Log.d(TAG, "Subiendo archivo: ${localFile.length()} bytes")
 
-            // Crear metadata del archivo en Drive
             val fileMetadata = File().apply {
                 name = localFile.name
                 parents = listOf(folderId)
                 mimeType = "application/pdf"
             }
 
-            // Subir a Drive
             val mediaContent = FileContent("application/pdf", localFile)
 
             val file = drive.files().create(fileMetadata, mediaContent)

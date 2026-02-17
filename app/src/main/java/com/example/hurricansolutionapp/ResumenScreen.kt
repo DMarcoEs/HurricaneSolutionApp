@@ -52,6 +52,9 @@ fun ResumenScreen(
     var subiendoPdf by remember { mutableStateOf(false) }
     var mensajeSubida by remember { mutableStateOf<String?>(null) }
 
+    // Estados para detectar cambios desde historial
+    var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
+    var subiendoADrive by remember { mutableStateOf(false) }
 
     var hs875Selected by rememberSaveable {
         mutableStateOf(cotizacion.productos.contains(TipoProducto.HS875))
@@ -63,6 +66,12 @@ fun ResumenScreen(
         mutableStateOf(cotizacion.productos.contains(TipoProducto.HS1500))
     }
 
+    // Guardar valores originales para detectar cambios
+    val productosOriginales = remember { cotizacion.productos.toSet() }
+    val descuentoOriginal875 = remember { cotizacion.descuentoHS875 }
+    val descuentoOriginal1250 = remember { cotizacion.descuentoHS1250 }
+    val descuentoOriginal1500 = remember { cotizacion.descuentoHS1500 }
+
     var aplicaDescuento by rememberSaveable {
         mutableStateOf(
             if (desdeHistorial) (cotizacion.descuentoHS875 > 0 || cotizacion.descuentoHS1250 > 0 || cotizacion.descuentoHS1500 > 0)
@@ -70,7 +79,6 @@ fun ResumenScreen(
         )
     }
 
-// Precio final deseado por m² (permite decimales)
     var precioFinalHS875 by rememberSaveable {
         mutableStateOf(
             if (desdeHistorial && cotizacion.descuentoHS875 > 0) {
@@ -98,9 +106,45 @@ fun ResumenScreen(
         )
     }
 
-// Invalidar PDF cuando cambie la selección de productos o descuentos
     LaunchedEffect(hs875Selected, hs1250Selected, hs1500Selected, aplicaDescuento, precioFinalHS875, precioFinalHS1250, precioFinalHS1500) {
-        pdfFile = null // Forzar regeneración del PDF
+        pdfFile = null
+        pdfRegenerado = false // Resetear estado de PDF regenerado
+    }
+
+    val hayCambiosSinGuardar by remember {
+        derivedStateOf {
+            if (!desdeHistorial) return@derivedStateOf false
+
+            val productosActuales = mutableSetOf<TipoProducto>().apply {
+                if (hs875Selected) add(TipoProducto.HS875)
+                if (hs1250Selected) add(TipoProducto.HS1250)
+                if (hs1500Selected) add(TipoProducto.HS1500)
+            }
+
+            // Comparar productos
+            val productosChanged = productosActuales != productosOriginales
+
+            // Comparar descuentos (si aplica descuento)
+            val descuentosChanged = if (aplicaDescuento) {
+                val desc875Actual = precioFinalHS875.toDoubleOrNull()?.let {
+                    TipoProducto.HS875.getPrecioVenta() - it
+                } ?: 0.0
+                val desc1250Actual = precioFinalHS1250.toDoubleOrNull()?.let {
+                    TipoProducto.HS1250.getPrecioVenta() - it
+                } ?: 0.0
+                val desc1500Actual = precioFinalHS1500.toDoubleOrNull()?.let {
+                    TipoProducto.HS1500.getPrecioVenta() - it
+                } ?: 0.0
+
+                kotlin.math.abs(desc875Actual - descuentoOriginal875) > 0.01 ||
+                        kotlin.math.abs(desc1250Actual - descuentoOriginal1250) > 0.01 ||
+                        kotlin.math.abs(desc1500Actual - descuentoOriginal1500) > 0.01
+            } else {
+                descuentoOriginal875 > 0 || descuentoOriginal1250 > 0 || descuentoOriginal1500 > 0
+            }
+
+            productosChanged || descuentosChanged
+        }
     }
 
     var mostrarAdvertenciaDescuento by remember { mutableStateOf(false) }
@@ -117,15 +161,13 @@ fun ResumenScreen(
     val headerBg = if (isDarkMode) Color(0xFF1F1F1F) else Color(0xFFF9FAFB)
     val accentBorder = if (isDarkMode) Color(0xFF6B7280) else Color.Black
 
-    // ═══ TEXTO RESPONSIVO ═══
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
 
-    // Tamaños de texto responsivos basados en el ancho de pantalla
     val titleSize = when {
-        screenWidth < 360 -> 14.sp   // Pantallas pequeñas
-        screenWidth < 400 -> 16.sp   // Pantallas medianas
-        else -> 18.sp                 // Pantallas grandes
+        screenWidth < 360 -> 14.sp
+        screenWidth < 400 -> 16.sp
+        else -> 18.sp
     }
 
     val bodySize = when {
@@ -183,7 +225,6 @@ fun ResumenScreen(
         val precioVenta = producto.getPrecioVenta()
         val precioBase = producto.getPrecioBase()
 
-        // Si el precio ingresado es menor al base, usar el base (máximo descuento posible)
         val precioFinalValidado = precioFinalDeseado.coerceIn(precioBase, precioVenta)
         val descuentoCalculado = precioVenta - precioFinalValidado
 
@@ -191,13 +232,10 @@ fun ResumenScreen(
         return descuentoCalculado.coerceIn(0.0, maxDescuento)
     }
 
-    // Solo filtra caracteres inválidos - NO valida rangos mientras escribe
     fun filtrarInput(input: String): String {
-        // Permitir dígitos y un solo punto decimal
         var filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
             .replace(",", ".")
 
-        // Evitar múltiples puntos - mantener solo el primero
         val firstDotIndex = filtered.indexOf('.')
         if (firstDotIndex != -1) {
             val beforeDot = filtered.substring(0, firstDotIndex + 1)
@@ -260,7 +298,6 @@ fun ResumenScreen(
         val descuento = if (aplicaDescuento) getDescuentoDesdePrecioFinal(producto, precioFinalTexto) else 0.0
 
         val precioFinal = if (aplicaDescuento && precioFinalTexto.isNotBlank()) {
-            // precioVenta - descuento ya queda entre base y venta por la validación
             (producto.getPrecioVenta() - descuento).coerceAtLeast(producto.getPrecioBase())
         } else {
             producto.getPrecioVenta()
@@ -425,7 +462,6 @@ fun ResumenScreen(
                                     }
                                 )
 
-                                // ✅ CREAR REGISTRO DE INSTALADOR (SIEMPRE)
                                 scope.launch {
                                     try {
                                         val sistemaSeleccionado =
@@ -456,6 +492,7 @@ fun ResumenScreen(
                                         android.util.Log.d(
                                             "ResumenScreen",
                                             "════════════════════════════════════════"
+
                                         )
 
                                         val result =
@@ -527,101 +564,247 @@ fun ResumenScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-
-                            // Primera fila: Enviar, PDF, Editar
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        val pdf = obtenerOGenerarPdf()
-                                        if (pdf != null) compartirPdf(context, pdf)
-                                        else Toast.makeText(
-                                            context,
-                                            "Error al generar PDF",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    },
-                                    modifier = Modifier
-                                        .weight(1.2f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(
-                                        1.5.dp,
-                                        if (isDarkMode) Color.White else Color.Black
-                                    )
-                                ) {
-                                    Icon(
-                                        Icons.Default.Share,
-                                        null,
-                                        tint = textPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        "Enviar",
-                                        color = textPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
+                            // Si viene del historial y hay cambios sin guardar
+                            if (desdeHistorial && hayCambiosSinGuardar && !pdfRegenerado) {
                                 Button(
                                     onClick = {
                                         val pdf = obtenerOGenerarPdf()
-                                        if (pdf != null) verPdf(context, pdf)
-                                        else Toast.makeText(
-                                            context,
-                                            "Error al generar PDF",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                        if (pdf != null) {
+                                            pdfFile = pdf
+                                            pdfRegenerado = true
+                                            Toast.makeText(
+                                                context,
+                                                "PDF regenerado con los cambios",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Error al regenerar PDF",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
                                     },
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
+                                        .fillMaxWidth()
+                                        .height(52.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isDarkMode) Color.White else Color.Black
+                                    ),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Icon(
-                                        Icons.Default.PictureAsPdf,
+                                        Icons.Default.Refresh,
                                         null,
                                         tint = if (isDarkMode) Color.Black else Color.White,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(Modifier.width(4.dp))
+                                    Spacer(Modifier.width(8.dp))
                                     Text(
-                                        "PDF",
+                                        "Regenerar PDF",
                                         color = if (isDarkMode) Color.Black else Color.White,
-                                        fontSize = 12.sp,
+                                        fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-
-                                OutlinedButton(
-                                    onClick = onVolverAEditar,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(48.dp),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(
-                                        1.5.dp,
-                                        if (isDarkMode) Color.White else Color.Black
-                                    )
+                            } else {
+                                // Primera fila: Enviar, PDF, Editar
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.Edit,
-                                        null,
-                                        tint = textPrimary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        "Editar",
-                                        color = textPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            val pdf = obtenerOGenerarPdf()
+                                            if (pdf != null) compartirPdf(context, pdf)
+                                            else Toast.makeText(
+                                                context,
+                                                "Error al generar PDF",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        modifier = Modifier
+                                            .weight(1.2f)
+                                            .height(48.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(
+                                            1.5.dp,
+                                            if (isDarkMode) Color.White else Color.Black
+                                        )
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Share,
+                                            null,
+                                            tint = textPrimary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "Enviar",
+                                            color = textPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val pdf = obtenerOGenerarPdf()
+                                            if (pdf != null) verPdf(context, pdf)
+                                            else Toast.makeText(
+                                                context,
+                                                "Error al generar PDF",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.PictureAsPdf,
+                                            null,
+                                            tint = if (isDarkMode) Color.Black else Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "PDF",
+                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = onVolverAEditar,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(
+                                            1.5.dp,
+                                            if (isDarkMode) Color.White else Color.Black
+                                        )
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            null,
+                                            tint = textPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "Editar",
+                                            color = textPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                if (desdeHistorial && pdfRegenerado) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Button(
+                                        onClick = {
+                                            if (pdfFile == null || !pdfFile!!.exists()) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Primero genera el PDF",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@Button
+                                            }
+
+                                            subiendoADrive = true
+                                            scope.launch {
+                                                try {
+                                                    val userName = SessionManager.getNombre(context)
+                                                    val userRole = SessionManager.getRole(context)
+
+                                                    val result = GoogleDriveRepository.uploadPdfToStructuredFolder(
+                                                        context = context,
+                                                        localPdfFile = pdfFile!!,
+                                                        userName = userName,
+                                                        userRole = userRole,
+                                                        folio = cotizacion.folio
+                                                    )
+
+                                                    val uploadResult = result.getOrNull()
+                                                    if (uploadResult?.success == true) {
+                                                        val cotizacionActualizada = cotizacion.copy(
+                                                            productos = productosSeleccionados,
+                                                            producto = productosSeleccionados.firstOrNull() ?: cotizacion.producto,
+                                                            descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS875, precioFinalHS875) else 0.0,
+                                                            descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1250, precioFinalHS1250) else 0.0,
+                                                            descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1500, precioFinalHS1500) else 0.0
+                                                        )
+                                                        guardarCotizacionLocal(context, cotizacionActualizada, esActualizacion = true)
+
+                                                        Toast.makeText(
+                                                            context,
+                                                            "PDF actualizado en Drive",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        pdfRegenerado = false
+                                                    } else {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Error: ${uploadResult?.error ?: "Desconocido"}",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Error al subir: ${e.message}",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                } finally {
+                                                    subiendoADrive = false
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp),
+                                        enabled = !subiendoADrive,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isDarkMode) Color.White else Color.Black
+                                        ),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        if (subiendoADrive) {
+                                            CircularProgressIndicator(
+                                                color = if (isDarkMode) Color.Black else Color.White,
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "Subiendo...",
+                                                color = if (isDarkMode) Color.Black else Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Default.CloudUpload,
+                                                null,
+                                                tint = Color(0xFF22C55E), // Verde para el icono de Drive
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "Actualizar en Drive",
+                                                color = if (isDarkMode) Color.Black else Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -920,7 +1103,6 @@ fun ResumenScreen(
                                                 exit = fadeOut() + shrinkVertically()
                                             ) {
                                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                                    // Advertencia de descuento máximo
                                                     AnimatedVisibility(
                                                         visible = mostrarAdvertenciaDescuento,
                                                         enter = fadeIn() + expandVertically(),
@@ -1399,7 +1581,6 @@ private fun DiscountInputField(
                 .fillMaxWidth()
                 .onFocusChanged { focusState ->
                     if (hasFocus && !focusState.isFocused) {
-                        // Perdió el foco - validar y corregir
                         onFocusLost()
                     }
                     hasFocus = focusState.isFocused

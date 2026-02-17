@@ -73,6 +73,7 @@ fun AppNavigation(
 
     var cotizacionActual by remember { mutableStateOf<Cotizacion?>(null) }
     var desdeHistorial by remember { mutableStateOf(false) }
+    var editandoDesdeHistorial by remember { mutableStateOf(false) }
     var cotizacionRemotaSeleccionada by remember { mutableStateOf<CotizacionRemota?>(null) }
 
     // Cargar precios al iniciar (para todos los usuarios)
@@ -354,11 +355,27 @@ fun AppNavigation(
                 draft = cotizacionDraft,
                 isDarkMode = isDarkMode,
                 onDraftChange = { },
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    if (editandoDesdeHistorial) {
+                        editandoDesdeHistorial = false
+                    }
+                    navController.popBackStack()
+                },
                 onContinuarResumen = { cotizacion ->
                     cotizacionActual = cotizacion
-                    desdeHistorial = false
-                    navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
+
+                    if (editandoDesdeHistorial) {
+                        // Guardar cambios en almacenamiento local
+                        guardarCotizacionLocal(context, cotizacion, esActualizacion = true)
+                        // Mantener desdeHistorial = true
+                        desdeHistorial = true
+                        editandoDesdeHistorial = false
+                        // Volver al RESUMEN que ya está en el stack (popBackStack)
+                        navController.popBackStack()
+                    } else {
+                        desdeHistorial = false
+                        navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
+                    }
                 }
             )
         }
@@ -387,7 +404,17 @@ fun AppNavigation(
                         }
                     },
                     onVolverAEditar = {
-                        navController.popBackStack()
+                        if (desdeHistorial) {
+                            // Cargar datos de la cotización en el draft para edición
+                            cotizacionDraft.cargarDesdeCotizacion(cot)
+                            editandoDesdeHistorial = true
+                            // Navegar al formulario SIN popUpTo para mantener RESUMEN en el stack
+                            // Stack será: HISTORIAL -> RESUMEN -> MEDIDAS
+                            navController.navigate(Routes.MEDIDAS)
+                        } else {
+                            // Si no viene del historial, simplemente volver atrás
+                            navController.popBackStack()
+                        }
                     },
                     onVolverAHistorial = {
                         navController.navigate(Routes.HISTORIAL) {

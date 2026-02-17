@@ -113,7 +113,6 @@ fun generarPdfCotizacion(
                 colorFilter = ColorMatrixColorFilter(colorMatrix)
             }
             canvas.drawBitmap(usaCropped, null, usaRect, usaPaint)
-            // Título eliminado según solicitud
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -537,10 +536,8 @@ fun generarPdfCotizacion(
             paint.style = Paint.Style.FILL; paint.color = Color.WHITE
             canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
 
-            // Variable para posición de columnas
             var xCol = tableLeft
 
-            // Función vacía - sin bordes (solo avanza posición)
             fun drawCellBorder(left: Float, width: Float) {
                 // Sin bordes - solo restaurar estilo para texto
                 paint.style = Paint.Style.FILL
@@ -689,7 +686,6 @@ fun generarPdfCotizacion(
     val condicionesLeft = margin
     val condicionesRight = resumenLeft - 10f
     val condicionesAvailableWidth = condicionesRight - condicionesLeft
-    // Aumentar altura disponible para condiciones comerciales (15% más)
     val condicionesAvailableHeight = (resumenBottom - resumenTop) * 1.15f
 
     try {
@@ -700,7 +696,6 @@ fun generarPdfCotizacion(
             val imgHeight = condicionesImg.height.toFloat()
             val imgAspectRatio = imgWidth / imgHeight
 
-            // Usar más espacio para que se vea más grande
             var finalWidth = condicionesAvailableWidth * 2f
             var finalHeight = finalWidth / imgAspectRatio
 
@@ -728,8 +723,29 @@ fun generarPdfCotizacion(
     if (docsDir == null) { pdfDocument.close(); return null }
     if (!docsDir.exists()) docsDir.mkdirs()
 
-    val timeStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-    val fileName = "Cotizacion_${timeStamp}_${System.currentTimeMillis()}.pdf"
+    // Formatear nombre del cliente (sin acentos, espacios como guiones bajos)
+    fun formatNameForFile(input: String): String {
+        val normalized = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+        return normalized
+            .trim()
+            .split("\\s+".toRegex())
+            .filter { it.isNotBlank() }
+            .joinToString("_") { word ->
+                word.lowercase(java.util.Locale.getDefault())
+                    .replaceFirstChar { it.uppercase() }
+            }
+            .replace("[^A-Za-z0-9_]+".toRegex(), "")
+            .take(30)
+    }
+
+    val clienteFormateado = formatNameForFile(cotizacion.clienteNombre)
+    val folioParaNombre = cotizacion.folio.ifBlank { "SIN_FOLIO" }
+    val fechaParaNombre = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+
+    // Nombre: Cotizacion_NombreCliente_FOLIO_FECHA.pdf
+    // Ejemplo: Cotizacion_Juan_Perez_FL007_20260211.pdf
+    val fileName = "Cotizacion_${clienteFormateado}_${folioParaNombre}_${fechaParaNombre}.pdf"
     val file = File(docsDir, fileName)
 
     return try {

@@ -415,6 +415,50 @@ private fun StitchCotizacionCard(
                 }
             }
 
+            // Mostrar badge de editado si updated_at es posterior a created_at
+            val fueEditada = remember(cotizacion.updatedAt, cotizacion.createdAt) {
+                val updated = cotizacion.updatedAt
+                val created = cotizacion.createdAt
+                if (updated != null && created != null) {
+                    // Comparar timestamps - si difieren por más de 60 segundos, fue editada
+                    try {
+                        val updatedInstant = java.time.Instant.parse(updated)
+                        val createdInstant = java.time.Instant.parse(created)
+                        java.time.Duration.between(createdInstant, updatedInstant).seconds > 60
+                    } catch (e: Exception) {
+                        // Intentar con OffsetDateTime si Instant.parse falla
+                        try {
+                            val updatedOdt = java.time.OffsetDateTime.parse(updated)
+                            val createdOdt = java.time.OffsetDateTime.parse(created)
+                            java.time.Duration.between(createdOdt, updatedOdt).seconds > 60
+                        } catch (e2: Exception) {
+                            false
+                        }
+                    }
+                } else false
+            }
+
+            if (fueEditada) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(12.dp))
+                    val fechaEditado = remember(cotizacion.updatedAt) {
+                        try {
+                            val instant = try {
+                                java.time.Instant.parse(cotizacion.updatedAt)
+                            } catch (e: Exception) {
+                                java.time.OffsetDateTime.parse(cotizacion.updatedAt).toInstant()
+                            }
+                            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                            "Editado ${sdf.format(java.util.Date(instant.toEpochMilli()))}"
+                        } catch (e: Exception) {
+                            "Editado"
+                        }
+                    }
+                    Text(fechaEditado, color = Color(0xFFF59E0B), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
             // SISTEMAS COTIZADOS
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

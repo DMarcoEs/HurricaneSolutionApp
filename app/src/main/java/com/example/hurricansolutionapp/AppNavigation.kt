@@ -368,12 +368,10 @@ fun AppNavigation(
                     if (editandoDesdeHistorial) {
                         // Guardar cambios en almacenamiento local
                         guardarCotizacionLocal(context, cotizacion, esActualizacion = true)
-                        // Marcar que hubo edición de medidas
                         huboEdicionMedidas = true
                         // Mantener desdeHistorial = true
                         desdeHistorial = true
                         editandoDesdeHistorial = false
-                        // Navegar a RESUMEN con la cotización actualizada
                         navController.navigate(Routes.RESUMEN) {
                             popUpTo(Routes.HISTORIAL) { inclusive = false }
                             launchSingleTop = true
@@ -414,13 +412,13 @@ fun AppNavigation(
                     },
                     onVolverAEditar = {
                         if (desdeHistorial) {
-                            // Cargar datos de la cotización en el draft para edición
+                            // Cargar datos de la cotizacion en el draft para edicion
                             cotizacionDraft.cargarDesdeCotizacion(cot)
                             editandoDesdeHistorial = true
                             // Navegar al formulario
                             navController.navigate(Routes.MEDIDAS)
                         } else {
-                            // Si no viene del historial, simplemente volver atrás
+                            // Si no viene del historial, simplemente volver atras
                             navController.popBackStack()
                         }
                     },
@@ -429,6 +427,11 @@ fun AppNavigation(
                         navController.navigate(Routes.HISTORIAL) {
                             popUpTo(Routes.HISTORIAL) { inclusive = true }
                         }
+                    },
+                    onCotizacionActualizada = { cotizacionNueva ->
+                        // Actualizar cotizacionActual para que ediciones
+                        // subsecuentes tengan los datos correctos
+                        cotizacionActual = cotizacionNueva
                     }
                 )
             } else {
@@ -456,7 +459,7 @@ fun AppNavigation(
                 onVerDetalle = { cotizacion ->
                     cotizacionActual = cotizacion
                     desdeHistorial = true
-                    huboEdicionMedidas = false // Resetear al abrir una cotización
+                    huboEdicionMedidas = false
                     navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
                 }
             )

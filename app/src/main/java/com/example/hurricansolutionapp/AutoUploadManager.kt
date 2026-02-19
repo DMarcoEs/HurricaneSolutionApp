@@ -440,10 +440,6 @@ object AutoUploadManager {
         }
     }
 
-    /**
-     * Sincroniza una cotización editada a Supabase
-     * Se usa cuando se edita una cotización desde el historial
-     */
     suspend fun sincronizarCotizacionEditada(
         context: Context,
         cotizacion: Cotizacion,
@@ -487,6 +483,13 @@ object AutoUploadManager {
                     }
                 }
 
+                // Limpiar totales de productos NO seleccionados
+                if (!cotizacion.productos.contains(TipoProducto.HS875)) totalHs875 = 0.0
+                if (!cotizacion.productos.contains(TipoProducto.HS1250)) totalHs1250 = 0.0
+                if (!cotizacion.productos.contains(TipoProducto.HS1500)) totalHs1500 = 0.0
+
+                val zonaStr = cotizacion.zonaGeografica.name.lowercase()
+
                 val cotizacionInsert = CotizacionInsert(
                     folio = cotizacion.folio,
                     userId = userId,
@@ -507,17 +510,31 @@ object AutoUploadManager {
                     totalHs1500 = totalHs1500,
                     ventanas = ventanasInsert,
                     totales = totales,
-                    pdfPath = pdfFile?.absolutePath
+                    pdfPath = pdfFile?.absolutePath,
+                    zonaGeografica = zonaStr
                 )
 
                 val supabase = SupabaseClientProvider.client
-                supabase.from("cotizaciones").upsert(cotizacionInsert) {
+
+                // Usar UPDATE con filtro por folio para asegurar que se actualiza
+                // el registro existente en lugar de crear uno nuevo
+                try {
+                    supabase.from("cotizaciones").update(cotizacionInsert) {
+                        filter {
+                            eq("folio", cotizacion.folio)
+                        }
+                    }
+                    android.util.Log.d("AutoUploadManager", "Cotizacion editada ACTUALIZADA en Supabase: ${cotizacion.folio}")
+                } catch (updateError: Exception) {
+                    // Si falla el update (ej: no existe el registro), intentar upsert como fallback
+                    android.util.Log.w("AutoUploadManager", "Update fallo, intentando upsert: ${updateError.message}")
+                    supabase.from("cotizaciones").upsert(cotizacionInsert) {
+                    }
+                    android.util.Log.d("AutoUploadManager", "Cotizacion editada sincronizada via upsert: ${cotizacion.folio}")
                 }
 
-                android.util.Log.d("AutoUploadManager", "✅ Cotización editada sincronizada a Supabase: ${cotizacion.folio}")
-
             } catch (e: Exception) {
-                android.util.Log.e("AutoUploadManager", "❌ Error sincronizando cotización editada: ${e.message}")
+                android.util.Log.e("AutoUploadManager", "Error sincronizando cotización editada: ${e.message}")
                 throw e
             }
         }

@@ -37,6 +37,16 @@ fun CotizacionRemota.toCotizacionLocal(): Cotizacion {
     val ventanasLocal = parseVentanasFromJson(this.ventanas)
 
     // Crear la cotizacion local
+    // Determinar si fue editada comparando created_at con updated_at
+    val createdMillis = parseTimestamp(this.createdAt)
+    val updatedMillis = parseTimestamp(this.updatedAt)
+    // Solo marcar como editada si la diferencia es mayor a 60 segundos
+    val fueEditadaReal = if (createdMillis > 0L && updatedMillis > 0L) {
+        (updatedMillis - createdMillis) > 60_000L
+    } else {
+        false
+    }
+
     return Cotizacion(
         id = this.id ?: 0L,
         folio = this.folio,
@@ -54,7 +64,7 @@ fun CotizacionRemota.toCotizacionLocal(): Cotizacion {
         descuentoDolaresPorM2 = 0.0, // Campo legacy
         tipoMontaje = this.tipoMontaje ?: "Flush Mount",
         ventanas = ventanasLocal,
-        updatedAt = parseTimestamp(this.updatedAt)
+        updatedAt = if (fueEditadaReal) updatedMillis else 0L
     )
 }
 
@@ -114,18 +124,25 @@ private fun parseVentanaFromJsonObject(jsonElement: JsonElement): Ventana? {
 
 /**
  * Parsea timestamp ISO 8601 a timestamp Long para updatedAt
+ * Maneja ambos formatos: "2024-01-26T18:30:00Z" y "2024-01-26T18:30:00+00:00"
  * Si falla, retorna 0 (indica que no ha sido actualizada)
  */
 private fun parseTimestamp(isoTimestamp: String?): Long {
     if (isoTimestamp == null) return 0L
 
     return try {
-        // Formato ISO 8601: "2024-01-26T18:30:00Z"
+        // Intentar primero con Instant.parse (formato con Z)
         val instant = java.time.Instant.parse(isoTimestamp)
         instant.toEpochMilli()
     } catch (e: Exception) {
-        android.util.Log.w("CotizacionConversion", "No se pudo parsear timestamp: $isoTimestamp")
-        0L
+        try {
+            // Intentar con OffsetDateTime.parse (formato con +00:00)
+            val odt = java.time.OffsetDateTime.parse(isoTimestamp)
+            odt.toInstant().toEpochMilli()
+        } catch (e2: Exception) {
+            android.util.Log.w("CotizacionConversion", "No se pudo parsear timestamp: $isoTimestamp")
+            0L
+        }
     }
 }
 
@@ -136,7 +153,6 @@ private fun parseTimestamp(isoTimestamp: String?): Long {
  * como referencia para futuras conversiones bidireccionales
  */
 fun Cotizacion.toRemoteInsert(userId: String, zonaGeografica: String = "continental"): CotizacionInsert {
-    // Convertir ventanas al modelo de inserción
     val ventanasInsert = this.ventanas.map { v ->
         VentanaInsert(
             zona = v.zona,

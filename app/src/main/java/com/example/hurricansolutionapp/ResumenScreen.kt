@@ -42,7 +42,8 @@ fun ResumenScreen(
     isDarkMode: Boolean = false,
     onVolverAInicio: () -> Unit,
     onVolverAEditar: () -> Unit,
-    onVolverAHistorial: () -> Unit
+    onVolverAHistorial: () -> Unit,
+    onCotizacionActualizada: (Cotizacion) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -57,7 +58,6 @@ fun ResumenScreen(
     var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
     var subiendoADrive by remember { mutableStateOf(false) }
 
-    // Estado para saber si hubo edición de medidas
     var ventanasFueronEditadas by rememberSaveable { mutableStateOf(huboEdicionMedidas) }
 
     // Si viene con huboEdicionMedidas = true, invalidar PDF
@@ -595,9 +595,14 @@ fun ResumenScreen(
                                                 producto = productosSeleccionados.firstOrNull() ?: cotizacion.producto,
                                                 descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS875, precioFinalHS875) else 0.0,
                                                 descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1250, precioFinalHS1250) else 0.0,
-                                                descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1500, precioFinalHS1500) else 0.0
+                                                descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1500, precioFinalHS1500) else 0.0,
+                                                updatedAt = System.currentTimeMillis()
                                             )
                                             guardarCotizacionLocal(context, cotizacionActualizada, esActualizacion = true)
+
+                                            // Propagar la cotizacion actualizada a AppNavigation
+                                            // para que ediciones subsecuentes tengan los datos correctos
+                                            onCotizacionActualizada(cotizacionActualizada)
 
                                             // Sincronizar a Supabase para que el Admin vea los cambios
                                             scope.launch {
@@ -607,7 +612,7 @@ fun ResumenScreen(
                                                         cotizacion = cotizacionActualizada,
                                                         pdfFile = pdf
                                                     )
-                                                    android.util.Log.d("ResumenScreen", "Cotización sincronizada a Supabase")
+                                                    android.util.Log.d("ResumenScreen", "Cotizacion sincronizada a Supabase")
                                                 } catch (e: Exception) {
                                                     android.util.Log.e("ResumenScreen", "Error sincronizando a Supabase: ${e.message}")
                                                 }

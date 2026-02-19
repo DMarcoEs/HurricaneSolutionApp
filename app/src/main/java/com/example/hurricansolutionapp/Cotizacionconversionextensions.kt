@@ -3,7 +3,7 @@ package com.example.hurricansolutionapp
 import kotlinx.serialization.json.*
 
 /**
- * Funciones de extensión para convertir entre modelos de cotización
+ * Funciones de extension para convertir entre modelos de cotizacion
  *
  * Estas funciones permiten:
  * - Convertir CotizacionRemota (de Supabase) a Cotizacion (modelo local)
@@ -13,9 +13,9 @@ import kotlinx.serialization.json.*
 /**
  * Convierte una CotizacionRemota (de Supabase) a Cotizacion (modelo local)
  *
- * Esta conversión es necesaria para:
+ * Esta conversion es necesaria para:
  * - Mostrar cotizaciones de Supabase en HistorialScreen
- * - Mantener compatibilidad con el código existente que usa Cotizacion
+ * - Mantener compatibilidad con el codigo existente que usa Cotizacion
  * - Permitir generar PDFs de cotizaciones sincronizadas
  */
 fun CotizacionRemota.toCotizacionLocal(): Cotizacion {
@@ -36,7 +36,7 @@ fun CotizacionRemota.toCotizacionLocal(): Cotizacion {
     // Convertir ventanas de JsonElement a List<Ventana>
     val ventanasLocal = parseVentanasFromJson(this.ventanas)
 
-    // Crear la cotización local
+    // Crear la cotizacion local
     return Cotizacion(
         id = this.id ?: 0L,
         folio = this.folio,
@@ -74,7 +74,7 @@ private fun parseVentanasFromJson(ventanasJson: JsonElement?): List<Ventana> {
                 }
             }
             is JsonObject -> {
-                // Si es un objeto único, convertirlo a lista de uno
+                // Si es un objeto unico, convertirlo a lista de uno
                 val ventana = parseVentanaFromJsonObject(ventanasJson)
                 if (ventana != null) listOf(ventana) else emptyList()
             }
@@ -132,13 +132,14 @@ private fun parseTimestamp(isoTimestamp: String?): Long {
 /**
  * Convierte una Cotizacion local a CotizacionInsert (para guardar en Supabase)
  *
- * NOTA: Esta función ya existe en AutoUploadManager, pero se incluye aquí
+ * NOTA: Esta funcion ya existe en AutoUploadManager, pero se incluye aqui
  * como referencia para futuras conversiones bidireccionales
  */
 fun Cotizacion.toRemoteInsert(userId: String, zonaGeografica: String = "continental"): CotizacionInsert {
     // Convertir ventanas al modelo de inserción
     val ventanasInsert = this.ventanas.map { v ->
         VentanaInsert(
+            zona = v.zona,
             descripcion = v.descripcion,
             alto = v.alto,
             ancho = v.ancho,

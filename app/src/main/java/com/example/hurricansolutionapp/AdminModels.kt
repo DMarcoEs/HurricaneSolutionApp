@@ -81,33 +81,33 @@ data class AppConfigUpdate(
 @Serializable
 data class PrecioZona(
     val id: Int = 0,
-    
+
     val zona: String = "continental", // 'continental', 'islas', 'foranea'
-    
+
     @SerialName("zona_nombre")
     val zonaNombre: String = "Zona Continental",
-    
+
     @SerialName("hs875_precio_venta")
     val hs875PrecioVenta: Double = 250.0,
-    
+
     @SerialName("hs875_precio_base")
     val hs875PrecioBase: Double = 130.0,
-    
+
     @SerialName("hs1250_precio_venta")
     val hs1250PrecioVenta: Double = 300.0,
-    
+
     @SerialName("hs1250_precio_base")
     val hs1250PrecioBase: Double = 150.0,
-    
+
     @SerialName("hs1500_precio_venta")
     val hs1500PrecioVenta: Double = 350.0,
-    
+
     @SerialName("hs1500_precio_base")
     val hs1500PrecioBase: Double = 170.0,
-    
+
     @SerialName("updated_at")
     val updatedAt: String? = null,
-    
+
     @SerialName("updated_by")
     val updatedBy: String? = null
 ) {
@@ -134,22 +134,22 @@ data class PrecioZona(
 data class PrecioZonaUpdate(
     @SerialName("hs875_precio_venta")
     val hs875PrecioVenta: Double,
-    
+
     @SerialName("hs875_precio_base")
     val hs875PrecioBase: Double,
-    
+
     @SerialName("hs1250_precio_venta")
     val hs1250PrecioVenta: Double,
-    
+
     @SerialName("hs1250_precio_base")
     val hs1250PrecioBase: Double,
-    
+
     @SerialName("hs1500_precio_venta")
     val hs1500PrecioVenta: Double,
-    
+
     @SerialName("hs1500_precio_base")
     val hs1500PrecioBase: Double,
-    
+
     @SerialName("updated_by")
     val updatedBy: String
 )
@@ -170,7 +170,7 @@ data class PreciosTodasZonas(
         ZonaGeografica.ISLAS -> islas
         ZonaGeografica.FORANEA -> foranea
     }
-    
+
     /**
      * Obtiene los precios de una zona por su ID string
      */
@@ -246,21 +246,21 @@ data class CotizacionRemota(
 
     @SerialName("pdf_path")
     val pdfPath: String? = null,
-    
+
     @SerialName("lead_id")
     val leadId: String? = null,
-    
+
     @SerialName("fecha_solicitada")
     val fechaSolicitada: String? = null,
-    
+
     val observaciones: String? = null,
-    
+
     @SerialName("enviado_instalacion")
     val enviadoInstalacion: Boolean? = false,
-    
+
     @SerialName("fecha_envio_instalacion")
     val fechaEnvioInstalacion: String? = null,
-    
+
     // ✅ NUEVO: Zona geográfica
     @SerialName("zona_geografica")
     val zonaGeografica: String? = "continental",
@@ -329,15 +329,15 @@ data class CotizacionInsert(
 
     @SerialName("pdf_path")
     val pdfPath: String? = null,
-    
+
     @SerialName("lead_id")
     val leadId: String? = null,
-    
+
     @SerialName("fecha_solicitada")
     val fechaSolicitada: String? = null,
-    
+
     val observaciones: String? = null,
-    
+
     // ✅ NUEVO: Zona geográfica
     @SerialName("zona_geografica")
     val zonaGeografica: String = "continental"
@@ -348,6 +348,7 @@ data class CotizacionInsert(
  */
 @Serializable
 data class VentanaInsert(
+    val zona: String = "",
     val descripcion: String,
     val alto: Double,
     val ancho: Double,

@@ -155,6 +155,7 @@ object AutoUploadManager {
 
         val ventanasInsert = cotizacion.ventanas.map { v ->
             VentanaInsert(
+                zona = v.zona,
                 descripcion = v.descripcion,
                 alto = v.alto,
                 ancho = v.ancho,
@@ -436,6 +437,89 @@ object AutoUploadManager {
         } catch (e: Exception) {
             android.util.Log.e("AutoUploadManager", "Error llamando webhook: ${e.message}", e)
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * Sincroniza una cotización editada a Supabase
+     * Se usa cuando se edita una cotización desde el historial
+     */
+    suspend fun sincronizarCotizacionEditada(
+        context: Context,
+        cotizacion: Cotizacion,
+        pdfFile: java.io.File?
+    ) {
+        withContext(Dispatchers.IO) {
+            try {
+                val userId = SessionManager.getUserId(context)
+                if (userId.isBlank()) {
+                    android.util.Log.e("AutoUploadManager", "No hay userId para sincronizar")
+                    return@withContext
+                }
+
+                val ventanasInsert = cotizacion.ventanas.map { v ->
+                    VentanaInsert(
+                        zona = v.zona,
+                        descripcion = v.descripcion,
+                        alto = v.alto,
+                        ancho = v.ancho,
+                        precioM2 = v.precioM2,
+                        adecuacion = v.adecuacion,
+                        tipoMontaje = v.tipoMontaje
+                    )
+                }
+
+                // Calcular totales
+                val totales = mutableMapOf<String, Double>()
+                var totalHs875 = 0.0
+                var totalHs1250 = 0.0
+                var totalHs1500 = 0.0
+
+                cotizacion.productos.forEach { producto ->
+                    val total = cotizacion.totalConDescuento(producto)
+                    totales[producto.name] = total
+
+                    when (producto) {
+                        TipoProducto.HS875 -> totalHs875 = total
+                        TipoProducto.HS1250 -> totalHs1250 = total
+                        TipoProducto.HS1500 -> totalHs1500 = total
+                        else -> { }
+                    }
+                }
+
+                val cotizacionInsert = CotizacionInsert(
+                    folio = cotizacion.folio,
+                    userId = userId,
+                    especialistaNombre = cotizacion.especialista,
+                    clienteNombre = cotizacion.clienteNombre,
+                    clienteTelefono = cotizacion.clienteTelefono,
+                    ciudad = cotizacion.ciudad,
+                    ubicacion = cotizacion.ubicacion,
+                    fecha = cotizacion.fecha,
+                    productos = cotizacion.productos.map { it.name },
+                    tipoMontaje = cotizacion.tipoMontaje,
+                    areaTotal = cotizacion.areaTotal,
+                    descuentoHs875 = cotizacion.descuentoHS875,
+                    descuentoHs1250 = cotizacion.descuentoHS1250,
+                    descuentoHs1500 = cotizacion.descuentoHS1500,
+                    totalHs875 = totalHs875,
+                    totalHs1250 = totalHs1250,
+                    totalHs1500 = totalHs1500,
+                    ventanas = ventanasInsert,
+                    totales = totales,
+                    pdfPath = pdfFile?.absolutePath
+                )
+
+                val supabase = SupabaseClientProvider.client
+                supabase.from("cotizaciones").upsert(cotizacionInsert) {
+                }
+
+                android.util.Log.d("AutoUploadManager", "✅ Cotización editada sincronizada a Supabase: ${cotizacion.folio}")
+
+            } catch (e: Exception) {
+                android.util.Log.e("AutoUploadManager", "❌ Error sincronizando cotización editada: ${e.message}")
+                throw e
+            }
         }
     }
 }

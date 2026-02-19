@@ -38,6 +38,7 @@ import androidx.compose.runtime.derivedStateOf
 fun ResumenScreen(
     cotizacion: Cotizacion,
     desdeHistorial: Boolean,
+    huboEdicionMedidas: Boolean = false,
     isDarkMode: Boolean = false,
     onVolverAInicio: () -> Unit,
     onVolverAEditar: () -> Unit,
@@ -56,6 +57,18 @@ fun ResumenScreen(
     var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
     var subiendoADrive by remember { mutableStateOf(false) }
 
+    // Estado para saber si hubo edición de medidas
+    var ventanasFueronEditadas by rememberSaveable { mutableStateOf(huboEdicionMedidas) }
+
+    // Si viene con huboEdicionMedidas = true, invalidar PDF
+    LaunchedEffect(huboEdicionMedidas) {
+        if (huboEdicionMedidas && desdeHistorial) {
+            ventanasFueronEditadas = true
+            pdfFile = null
+            pdfRegenerado = false
+        }
+    }
+
     var hs875Selected by rememberSaveable {
         mutableStateOf(cotizacion.productos.contains(TipoProducto.HS875))
     }
@@ -66,11 +79,11 @@ fun ResumenScreen(
         mutableStateOf(cotizacion.productos.contains(TipoProducto.HS1500))
     }
 
-    // Guardar valores originales para detectar cambios
-    val productosOriginales = remember { cotizacion.productos.toSet() }
-    val descuentoOriginal875 = remember { cotizacion.descuentoHS875 }
-    val descuentoOriginal1250 = remember { cotizacion.descuentoHS1250 }
-    val descuentoOriginal1500 = remember { cotizacion.descuentoHS1500 }
+    // Guardar valores originales para detectar cambios - usar key para actualizar
+    val productosOriginales = remember(cotizacion.id, cotizacion.updatedAt) { cotizacion.productos.toSet() }
+    val descuentoOriginal875 = remember(cotizacion.id, cotizacion.updatedAt) { cotizacion.descuentoHS875 }
+    val descuentoOriginal1250 = remember(cotizacion.id, cotizacion.updatedAt) { cotizacion.descuentoHS1250 }
+    val descuentoOriginal1500 = remember(cotizacion.id, cotizacion.updatedAt) { cotizacion.descuentoHS1500 }
 
     var aplicaDescuento by rememberSaveable {
         mutableStateOf(
@@ -111,7 +124,8 @@ fun ResumenScreen(
         pdfRegenerado = false // Resetear estado de PDF regenerado
     }
 
-    val hayCambiosSinGuardar by remember {
+    // Detectar si hay cambios (productos, descuentos O ventanas editadas)
+    val hayCambiosSinGuardar by remember(ventanasFueronEditadas) {
         derivedStateOf {
             if (!desdeHistorial) return@derivedStateOf false
 
@@ -143,7 +157,8 @@ fun ResumenScreen(
                 descuentoOriginal875 > 0 || descuentoOriginal1250 > 0 || descuentoOriginal1500 > 0
             }
 
-            productosChanged || descuentosChanged
+            // Incluir si las ventanas fueron editadas
+            productosChanged || descuentosChanged || ventanasFueronEditadas
         }
     }
 
@@ -572,6 +587,7 @@ fun ResumenScreen(
                                         if (pdf != null) {
                                             pdfFile = pdf
                                             pdfRegenerado = true
+                                            ventanasFueronEditadas = false // Resetear flag
 
                                             // Guardar los cambios en almacenamiento local
                                             val cotizacionActualizada = cotizacion.copy(
@@ -582,6 +598,20 @@ fun ResumenScreen(
                                                 descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1500, precioFinalHS1500) else 0.0
                                             )
                                             guardarCotizacionLocal(context, cotizacionActualizada, esActualizacion = true)
+
+                                            // Sincronizar a Supabase para que el Admin vea los cambios
+                                            scope.launch {
+                                                try {
+                                                    AutoUploadManager.sincronizarCotizacionEditada(
+                                                        context = context,
+                                                        cotizacion = cotizacionActualizada,
+                                                        pdfFile = pdf
+                                                    )
+                                                    android.util.Log.d("ResumenScreen", "Cotización sincronizada a Supabase")
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("ResumenScreen", "Error sincronizando a Supabase: ${e.message}")
+                                                }
+                                            }
 
                                             Toast.makeText(
                                                 context,
@@ -745,15 +775,6 @@ fun ResumenScreen(
 
                                                     val uploadResult = result.getOrNull()
                                                     if (uploadResult?.success == true) {
-                                                        val cotizacionActualizada = cotizacion.copy(
-                                                            productos = productosSeleccionados,
-                                                            producto = productosSeleccionados.firstOrNull() ?: cotizacion.producto,
-                                                            descuentoHS875 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS875, precioFinalHS875) else 0.0,
-                                                            descuentoHS1250 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1250, precioFinalHS1250) else 0.0,
-                                                            descuentoHS1500 = if (aplicaDescuento) getDescuentoDesdePrecioFinal(TipoProducto.HS1500, precioFinalHS1500) else 0.0
-                                                        )
-                                                        guardarCotizacionLocal(context, cotizacionActualizada, esActualizacion = true)
-
                                                         Toast.makeText(
                                                             context,
                                                             "PDF actualizado en Drive",

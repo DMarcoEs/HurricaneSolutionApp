@@ -2,6 +2,7 @@ package com.example.hurricansolutionapp
 
 import android.content.Context
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -490,6 +491,11 @@ object AutoUploadManager {
 
                 val zonaStr = cotizacion.zonaGeografica.name.lowercase()
 
+                // Calcular la ruta remota correcta del PDF en Supabase Storage
+                val clienteFormateado = formatNameForPath(cotizacion.clienteNombre)
+                val folioParaPath = cotizacion.folio.ifBlank { "SIN_FOLIO" }
+                val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${folioParaPath}.pdf"
+
                 val cotizacionInsert = CotizacionInsert(
                     folio = cotizacion.folio,
                     userId = userId,
@@ -510,14 +516,31 @@ object AutoUploadManager {
                     totalHs1500 = totalHs1500,
                     ventanas = ventanasInsert,
                     totales = totales,
-                    pdfPath = pdfFile?.absolutePath,
+                    pdfPath = pdfRemotePath,  // Guardar ruta REMOTA, no local
                     zonaGeografica = zonaStr
                 )
 
                 val supabase = SupabaseClientProvider.client
 
-                // Usar UPDATE con filtro por folio para asegurar que se actualiza
-                // el registro existente en lugar de crear uno nuevo
+                // 1. Subir el nuevo PDF a Supabase Storage (reemplaza el anterior)
+                if (pdfFile != null && pdfFile.exists()) {
+                    try {
+                        val bytes = pdfFile.readBytes()
+                        supabase.storage
+                            .from("cotizaciones")
+                            .upload(
+                                path = pdfRemotePath,
+                                data = bytes,
+                                upsert = true  // Reemplaza si ya existe
+                            )
+                        android.util.Log.d("AutoUploadManager", "PDF editado subido a Supabase Storage: $pdfRemotePath")
+                    } catch (storageError: Exception) {
+                        android.util.Log.e("AutoUploadManager", "Error subiendo PDF a Storage: ${storageError.message}")
+                        // Continuar con la actualizacion de datos aunque falle el storage
+                    }
+                }
+
+                // 2. Actualizar registro en la base de datos
                 try {
                     supabase.from("cotizaciones").update(cotizacionInsert) {
                         filter {
@@ -526,7 +549,7 @@ object AutoUploadManager {
                     }
                     android.util.Log.d("AutoUploadManager", "Cotizacion editada ACTUALIZADA en Supabase: ${cotizacion.folio}")
                 } catch (updateError: Exception) {
-                    // Si falla el update (ej: no existe el registro), intentar upsert como fallback
+                    // Si falla el update, intentar upsert como fallback
                     android.util.Log.w("AutoUploadManager", "Update fallo, intentando upsert: ${updateError.message}")
                     supabase.from("cotizaciones").upsert(cotizacionInsert) {
                     }

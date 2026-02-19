@@ -58,6 +58,26 @@ fun ResumenScreen(
     var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
     var subiendoADrive by remember { mutableStateOf(false) }
 
+    // Persistencia del estado "pendiente de actualizar en Drive" por folio
+    val drivePrefs = remember { context.getSharedPreferences("drive_pending_prefs", android.content.Context.MODE_PRIVATE) }
+
+    fun hasPendingDriveUpdate(folio: String): Boolean {
+        return drivePrefs.getBoolean("pending_drive_$folio", false)
+    }
+    fun markPendingDriveUpdate(folio: String) {
+        drivePrefs.edit().putBoolean("pending_drive_$folio", true).apply()
+    }
+    fun clearPendingDriveUpdate(folio: String) {
+        drivePrefs.edit().remove("pending_drive_$folio").apply()
+    }
+
+    // Si viene del historial y este folio tiene una actualizacion de Drive pendiente, mostrar boton
+    LaunchedEffect(cotizacion.folio, desdeHistorial) {
+        if (desdeHistorial && cotizacion.folio.isNotBlank() && hasPendingDriveUpdate(cotizacion.folio)) {
+            pdfRegenerado = true
+        }
+    }
+
     var ventanasFueronEditadas by rememberSaveable { mutableStateOf(huboEdicionMedidas) }
 
     // Si viene con huboEdicionMedidas = true, invalidar PDF
@@ -321,7 +341,7 @@ fun ResumenScreen(
         return cotizacion.ventanas.sumOf { it.areaM2 * precioFinal }
     }
 
-    fun obtenerOGenerarPdf(): File? {
+    fun obtenerOGenerarPdf(skipEnqueue: Boolean = false): File? {
         if (pdfFile != null && pdfFile!!.exists()) {
             return pdfFile
         }
@@ -346,7 +366,7 @@ fun ResumenScreen(
             ) else cotizacion.descuentoHS1500
         )
 
-        val pdf = generarPdfCotizacion(context, cotizacionParaPdf)
+        val pdf = generarPdfCotizacion(context, cotizacionParaPdf, skipEnqueue)
         if (pdf != null) {
             pdfFile = pdf
         }
@@ -583,7 +603,8 @@ fun ResumenScreen(
                             if (desdeHistorial && hayCambiosSinGuardar && !pdfRegenerado) {
                                 Button(
                                     onClick = {
-                                        val pdf = obtenerOGenerarPdf()
+                                        // skipEnqueue = true para NO crear PendingUpload en ediciones
+                                        val pdf = obtenerOGenerarPdf(skipEnqueue = true)
                                         if (pdf != null) {
                                             pdfFile = pdf
                                             pdfRegenerado = true
@@ -603,6 +624,11 @@ fun ResumenScreen(
                                             // Propagar la cotizacion actualizada a AppNavigation
                                             // para que ediciones subsecuentes tengan los datos correctos
                                             onCotizacionActualizada(cotizacionActualizada)
+
+                                            // Marcar que este folio tiene una actualizacion de Drive pendiente
+                                            if (cotizacion.folio.isNotBlank()) {
+                                                markPendingDriveUpdate(cotizacion.folio)
+                                            }
 
                                             // Sincronizar a Supabase para que el Admin vea los cambios
                                             scope.launch {
@@ -661,7 +687,7 @@ fun ResumenScreen(
                                 ) {
                                     OutlinedButton(
                                         onClick = {
-                                            val pdf = obtenerOGenerarPdf()
+                                            val pdf = obtenerOGenerarPdf(skipEnqueue = desdeHistorial)
                                             if (pdf != null) compartirPdf(context, pdf)
                                             else Toast.makeText(
                                                 context,
@@ -695,7 +721,7 @@ fun ResumenScreen(
 
                                     Button(
                                         onClick = {
-                                            val pdf = obtenerOGenerarPdf()
+                                            val pdf = obtenerOGenerarPdf(skipEnqueue = desdeHistorial)
                                             if (pdf != null) verPdf(context, pdf)
                                             else Toast.makeText(
                                                 context,
@@ -755,13 +781,18 @@ fun ResumenScreen(
                                     Spacer(Modifier.height(4.dp))
                                     Button(
                                         onClick = {
+                                            // Si el PDF no existe en memoria, regenerarlo
                                             if (pdfFile == null || !pdfFile!!.exists()) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Primero genera el PDF",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                return@Button
+                                                val regenerated = obtenerOGenerarPdf(skipEnqueue = true)
+                                                if (regenerated == null) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Error al generar PDF",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                    return@Button
+                                                }
+                                                pdfFile = regenerated
                                             }
 
                                             subiendoADrive = true
@@ -786,6 +817,10 @@ fun ResumenScreen(
                                                             Toast.LENGTH_SHORT
                                                         ).show()
                                                         pdfRegenerado = false
+                                                        // Limpiar la marca persistente de Drive pendiente
+                                                        if (cotizacion.folio.isNotBlank()) {
+                                                            clearPendingDriveUpdate(cotizacion.folio)
+                                                        }
                                                     } else {
                                                         Toast.makeText(
                                                             context,

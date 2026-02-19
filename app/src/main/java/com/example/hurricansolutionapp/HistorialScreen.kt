@@ -29,15 +29,7 @@ import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 
-/**
- * Historial de Cotizaciones
- *
- * ACTUALIZADO: Ahora carga cotizaciones desde Supabase para ESPECIALISTAS
- * - ESPECIALISTA: Ve solo sus propias cotizaciones (filtradas por user_id)
- * - ADMIN: Continúa viendo todas (sin cambios)
- *
- * Esto permite que el especialista vea sus cotizaciones desde cualquier dispositivo
- */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistorialScreen(
@@ -50,12 +42,10 @@ fun HistorialScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // ✅ NUEVO: Estados para carga desde Supabase
     var isLoading by remember { mutableStateOf(true) }
     var cotizaciones by remember { mutableStateOf<List<Cotizacion>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Estado para el diálogo de confirmación
     var showDeleteDialog by remember { mutableStateOf(false) }
     var cotizacionAEliminar by remember { mutableStateOf<Cotizacion?>(null) }
 
@@ -64,7 +54,6 @@ fun HistorialScreen(
     val userRole = remember { SessionManager.getRole(context) }
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
-    // ✅ NUEVO: Cargar cotizaciones al iniciar
     LaunchedEffect(Unit) {
         scope.launch {
             isLoading = true
@@ -78,7 +67,6 @@ fun HistorialScreen(
                         "Admin: Cargadas ${cotizaciones.size} cotizaciones locales"
                     )
                 } else {
-                    // ✅ ESPECIALISTA: Cargar desde Supabase filtrado por user_id
                     val remotas = AdminRepository.getCotizacionesByUser(userId)
 
                     // Convertir de CotizacionRemota a Cotizacion
@@ -129,7 +117,6 @@ fun HistorialScreen(
         return "$${format.format(amount)}"
     }
 
-    // Diálogo de confirmación para eliminar
     if (showDeleteDialog && cotizacionAEliminar != null) {
         AlertDialog(
             onDismissRequest = {
@@ -187,8 +174,6 @@ fun HistorialScreen(
                 Button(
                     onClick = {
                         cotizacionAEliminar?.let { cot ->
-                            // ⚠️ NOTA: Solo elimina local para Admin
-                            // Para especialistas, las cotizaciones están en Supabase
                             if (isAdmin) {
                                 borrarCotizacionLocal(context, cot.id)
                                 cotizaciones = obtenerCotizacionesLocal(context)
@@ -251,7 +236,6 @@ fun HistorialScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Barra de búsqueda con botón de actualizar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -295,7 +279,6 @@ fun HistorialScreen(
                     singleLine = true
                 )
 
-                // ✅ NUEVO: Botón de actualizar (solo para especialistas)
                 if (!isAdmin) {
                     IconButton(
                         onClick = {
@@ -331,7 +314,6 @@ fun HistorialScreen(
                 }
             }
 
-            // ✅ NUEVO: Indicador de carga
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -350,7 +332,6 @@ fun HistorialScreen(
                     }
                 }
             } else if (cotizacionesFiltradas.isEmpty()) {
-                // Estado vacío
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -398,7 +379,7 @@ fun HistorialScreen(
                             formatMoney = { formatMoney(it) },
                             onClick = { onVerDetalle(c) },
                             onPdf = {
-                                val pdfFile = generarPdfCotizacion(context, c)
+                                val pdfFile = generarPdfCotizacion(context, c, skipEnqueue = true)
                                 if (pdfFile != null) {
                                     verPdf(context, pdfFile)
                                     Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT)
@@ -410,7 +391,7 @@ fun HistorialScreen(
                                 ).show()
                             },
                             onCompartir = {
-                                val pdfFile = generarPdfCotizacion(context, c)
+                                val pdfFile = generarPdfCotizacion(context, c, skipEnqueue = true)
                                 if (pdfFile != null) compartirPdf(context, pdfFile)
                                 else Toast.makeText(
                                     context,
@@ -575,7 +556,7 @@ private fun CotizacionCard(
                         )
                     }
                     Text(
-                        "Total del área del proyecto: ${
+                        "Total del Área del proyecto: ${
                             String.format(
                                 "%.2f",
                                 cotizacion.areaTotal

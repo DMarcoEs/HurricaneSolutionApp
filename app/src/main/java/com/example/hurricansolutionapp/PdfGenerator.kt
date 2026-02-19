@@ -16,7 +16,8 @@ private const val IVA_RATE = 0.16
 
 fun generarPdfCotizacion(
     context: Context,
-    cotizacion: Cotizacion
+    cotizacion: Cotizacion,
+    skipEnqueue: Boolean = false
 ): File? {
 
     val pageWidth = 595
@@ -751,14 +752,17 @@ fun generarPdfCotizacion(
     return try {
         FileOutputStream(file).use { out -> pdfDocument.writeTo(out) }
         pdfDocument.close()
-        UploadQueueStorage.enqueue(context, PendingUpload(
-            id = java.util.UUID.randomUUID().toString(),
-            cotizacionId = cotizacion.folio.ifBlank { cotizacion.id.toString() },
-            clienteNombre = cotizacion.clienteNombre,
-            createdByNombre = cotizacion.especialista,
-            filePath = file.absolutePath,
-            status = "PENDING"
-        ))
+        // Solo encolar PendingUpload para cotizaciones NUEVAS, no para ediciones
+        if (!skipEnqueue) {
+            UploadQueueStorage.enqueue(context, PendingUpload(
+                id = java.util.UUID.randomUUID().toString(),
+                cotizacionId = cotizacion.folio.ifBlank { cotizacion.id.toString() },
+                clienteNombre = cotizacion.clienteNombre,
+                createdByNombre = cotizacion.especialista,
+                filePath = file.absolutePath,
+                status = "PENDING"
+            ))
+        }
         file
     } catch (e: IOException) { e.printStackTrace(); pdfDocument.close(); null }
 }

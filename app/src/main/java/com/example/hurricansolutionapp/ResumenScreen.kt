@@ -388,12 +388,67 @@ fun ResumenScreen(
         return pdf
     }
 
+    // Dialog de confirmacion para salir (solo modo en vivo)
+    var showExitDialog by remember { mutableStateOf(false) }
+
     BackHandler {
         when {
             desdeHistorial -> onVolverAHistorial()
-            guardado -> onVolverAInicio()
-            else -> onVolverAEditar()
+            else -> showExitDialog = true
         }
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            containerColor = surface,
+            title = {
+                Text(
+                    if (guardado) "Salir de la cotización" else "¿Salir sin guardar?",
+                    color = textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    if (guardado)
+                        "Tu cotización ya fue guardada. ¿Deseas volver al inicio?"
+                    else
+                        "Aún no has guardado esta cotización. Si sales, perderás los datos capturados.",
+                    color = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showExitDialog = false
+                        onVolverAInicio()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (guardado) {
+                            if (isDarkMode) Color.White else Color.Black
+                        } else Color(0xFFEF4444)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        if (guardado) "Ir al inicio" else "Salir sin guardar",
+                        color = if (guardado) {
+                            if (isDarkMode) Color.Black else Color.White
+                        } else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showExitDialog = false },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Continuar cotizando", color = textPrimary)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -404,8 +459,7 @@ fun ResumenScreen(
                 onBack = {
                     when {
                         desdeHistorial -> onVolverAHistorial()
-                        guardado -> onVolverAInicio()
-                        else -> onVolverAEditar()
+                        else -> showExitDialog = true
                     }
                 },
                 isDarkMode = isDarkMode

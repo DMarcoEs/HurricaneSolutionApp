@@ -1,11 +1,15 @@
 package com.example.hurricansolutionapp
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -122,14 +126,19 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
                 onNuevaCotizacion = {
-                    cotizacionActual = null
+                    // NO poner cotizacionActual = null — causa bucle por recomposicion de RESUMEN
                     desdeHistorial = false
                     editandoDesdeHistorial = false
                     huboEdicionMedidas = false
                     cotizacionDraft.clear()
-                    navController.navigate(Routes.SELECCION_CLIENTE)
+                    navController.navigate(Routes.SELECCION_CLIENTE) {
+                        popUpTo(Routes.HOME) { inclusive = false }
+                        launchSingleTop = true
+                    }
                 },
-                onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
+                onVerCotizaciones = {
+                    navController.navigate(Routes.HISTORIAL) { launchSingleTop = true }
+                },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
@@ -175,14 +184,19 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
                 onNuevaCotizacion = {
-                    cotizacionActual = null
+                    // NO poner cotizacionActual = null — causa bucle por recomposicion de RESUMEN
                     desdeHistorial = false
                     editandoDesdeHistorial = false
                     huboEdicionMedidas = false
                     cotizacionDraft.clear()
-                    navController.navigate(Routes.SELECCION_CLIENTE)
+                    navController.navigate(Routes.SELECCION_CLIENTE) {
+                        popUpTo(Routes.ADMIN_HOME) { inclusive = false }
+                        launchSingleTop = true
+                    }
                 },
-                onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
+                onVerMisCotizaciones = {
+                    navController.navigate(Routes.HISTORIAL) { launchSingleTop = true }
+                },
                 onPendientes = { navController.navigate(Routes.PENDIENTES) },
 
                 onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
@@ -382,10 +396,9 @@ fun AppNavigation(
                         // Mantener desdeHistorial = true
                         desdeHistorial = true
                         editandoDesdeHistorial = false
-                        navController.navigate(Routes.RESUMEN) {
-                            popUpTo(Routes.HISTORIAL) { inclusive = false }
-                            launchSingleTop = true
-                        }
+                        // popBackStack vuelve a RESUMEN que ya esta en el stack
+                        // RESUMEN se recompone automaticamente porque cotizacionActual cambio
+                        navController.popBackStack()
                     } else {
                         // Modo vivo: si ya tiene folio, es re-edicion
                         huboEdicionMedidas = cotizacion.folio.isNotBlank()
@@ -436,9 +449,17 @@ fun AppNavigation(
                         }
                     },
                     onVolverAHistorial = {
+                        cotizacionActual = null
+                        desdeHistorial = false
+                        editandoDesdeHistorial = false
                         huboEdicionMedidas = false
                         navController.navigate(Routes.HISTORIAL) {
-                            popUpTo(Routes.HISTORIAL) { inclusive = true }
+                            // CRITICO: popUpTo(HOME) en vez de popUpTo(HISTORIAL)
+                            // Esto GARANTIZA que RESUMEN se elimine del backstack
+                            // Si usamos popUpTo(HISTORIAL) y HISTORIAL no existe
+                            // en el stack, RESUMEN queda atrapado = bucle infinito
+                            popUpTo(homeDestination) { inclusive = false }
+                            launchSingleTop = true
                         }
                     },
                     onCotizacionActualizada = { cotizacionNueva ->
@@ -448,9 +469,16 @@ fun AppNavigation(
                     }
                 )
             } else {
-                navController.navigate(homeDestination) {
-                    popUpTo(homeDestination) { inclusive = true }
+                // SEGURIDAD: Si llegamos aqui sin cotizacion, mostrar vacio
+                // NUNCA llamar navigate() durante composicion — causa bucle infinito
+                val currentUserRole2 = SessionManager.getRole(context)
+                val safeHome = if (currentUserRole2 == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+                BackHandler {
+                    navController.navigate(safeHome) {
+                        popUpTo(safeHome) { inclusive = true }
+                    }
                 }
+                Box(modifier = Modifier.fillMaxSize())
             }
         }
 
@@ -468,12 +496,26 @@ fun AppNavigation(
             HistorialScreen(
                 listState = listState,
                 isDarkMode = isDarkMode,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    // Guard: solo si realmente estamos en HISTORIAL
+                    if (navController.currentDestination?.route == Routes.HISTORIAL) {
+                        cotizacionActual = null
+                        desdeHistorial = false
+                        editandoDesdeHistorial = false
+                        huboEdicionMedidas = false
+                        navController.popBackStack()
+                    }
+                },
                 onVerDetalle = { cotizacion ->
-                    cotizacionActual = cotizacion
-                    desdeHistorial = true
-                    huboEdicionMedidas = false
-                    navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
+                    // Previene taps accidentales durante animacion de salida
+                    // que causaban navegar a RESUMEN cuando HISTORIAL ya se estaba cerrando
+                    val currentRoute = navController.currentDestination?.route
+                    if (currentRoute == Routes.HISTORIAL) {
+                        cotizacionActual = cotizacion
+                        desdeHistorial = true
+                        huboEdicionMedidas = false
+                        navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
+                    }
                 }
             )
         }

@@ -373,10 +373,10 @@ fun AdminCotizacionesScreen(
         AlertDialog(
             onDismissRequest = { showHideDialog = false; cotizacionAOcultar = null },
             containerColor = surface,
-            title = { Text("Ocultar cotización", color = textPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("Eliminar la cotización", color = textPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "¿Ocultar la cotización de ${cotizacionAOcultar?.clienteNombre} (#${cotizacionAOcultar?.folio})?\n\nSolo se quita de tu vista. No afecta al especialista ni a las métricas.",
+                    "¿Eliminar la cotización de ${cotizacionAOcultar?.clienteNombre} (#${cotizacionAOcultar?.folio})?\n\nSolo se quita de tu vista, no afecta a la cotización.",
                     color = textSecondary
                 )
             },
@@ -391,7 +391,7 @@ fun AdminCotizacionesScreen(
                             newHidden.add(idToHide)
                             hiddenPrefs.edit().putStringSet("hidden_ids", newHidden).apply()
                             hiddenIds = newHidden
-                            Toast.makeText(context, "Cotización ocultada", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Cotización Eliminada", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))

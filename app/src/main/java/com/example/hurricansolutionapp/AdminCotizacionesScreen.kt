@@ -55,6 +55,14 @@ fun AdminCotizacionesScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showFilterSheet by remember { mutableStateOf(false) }
     var sortOrder by remember { mutableStateOf(CotizacionSortOrder.RECIENTES_PRIMERO) }
+    var showHideDialog by remember { mutableStateOf(false) }
+    var cotizacionAOcultar by remember { mutableStateOf<CotizacionRemota?>(null) }
+
+    // IDs ocultos visualmente (solo local del admin, no afecta Supabase)
+    val hiddenPrefs = remember { context.getSharedPreferences("admin_hidden_cotizaciones", android.content.Context.MODE_PRIVATE) }
+    var hiddenIds by remember {
+        mutableStateOf(hiddenPrefs.getStringSet("hidden_ids", emptySet()) ?: emptySet())
+    }
 
     LaunchedEffect(Unit) {
         isLoading = true
@@ -63,10 +71,12 @@ fun AdminCotizacionesScreen(
         isLoading = false
     }
 
-    val cotizacionesFiltradas = remember(cotizaciones, selectedEmpleado, searchQuery, sortOrder) {
+    val cotizacionesFiltradas = remember(cotizaciones, selectedEmpleado, searchQuery, sortOrder, hiddenIds) {
         var result = cotizaciones
             .filter { cot ->
-                (selectedEmpleado == null || cot.userId == selectedEmpleado) &&
+                val idStr = cot.id?.toString() ?: ""
+                !hiddenIds.contains(idStr) &&
+                        (selectedEmpleado == null || cot.userId == selectedEmpleado) &&
                         (searchQuery.isBlank() ||
                                 cot.clienteNombre.contains(searchQuery, ignoreCase = true) ||
                                 cot.folio.contains(searchQuery, ignoreCase = true) ||
@@ -276,13 +286,28 @@ fun AdminCotizacionesScreen(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(items = cotizacionesFiltradas, key = { it.folio }) { cotizacion ->
+                    items(items = cotizacionesFiltradas, key = { it.id ?: 0L }) { cotizacion ->
+                        // Calcular etiqueta de version
+                        val versionesDelFolio = cotizacionesFiltradas
+                            .filter { it.folio == cotizacion.folio }
+                            .sortedBy { it.createdAt ?: "" }
+                        val versionIndex = versionesDelFolio.indexOf(cotizacion)
+                        val versionLabel = if (versionesDelFolio.size > 1) {
+                            if (versionIndex == 0) "Cotización Original"
+                            else "Edición $versionIndex"
+                        } else null
+
                         StitchCotizacionCard(
                             cotizacion = cotizacion,
                             isDarkMode = isDarkMode,
                             formatMoney = ::formatMoney,
+                            versionLabel = versionLabel,
                             onVerDetalle = { onVerDetalle(cotizacion) },
-                            onDescargarPdf = { descargarPdf(cotizacion) }
+                            onDescargarPdf = { descargarPdf(cotizacion) },
+                            onOcultar = {
+                                cotizacionAOcultar = cotizacion
+                                showHideDialog = true
+                            }
                         )
                     }
                     item { Spacer(Modifier.height(16.dp)) }
@@ -342,6 +367,43 @@ fun AdminCotizacionesScreen(
             }
         }
     }
+
+    // Dialog para ocultar cotizacion (solo visual)
+    if (showHideDialog && cotizacionAOcultar != null) {
+        AlertDialog(
+            onDismissRequest = { showHideDialog = false; cotizacionAOcultar = null },
+            containerColor = surface,
+            title = { Text("Ocultar cotización", color = textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "¿Ocultar la cotización de ${cotizacionAOcultar?.clienteNombre} (#${cotizacionAOcultar?.folio})?\n\nSolo se quita de tu vista. No afecta al especialista ni a las métricas.",
+                    color = textSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val idToHide = cotizacionAOcultar?.id?.toString()
+                        showHideDialog = false
+                        cotizacionAOcultar = null
+                        if (idToHide != null) {
+                            val newHidden = hiddenIds.toMutableSet()
+                            newHidden.add(idToHide)
+                            hiddenPrefs.edit().putStringSet("hidden_ids", newHidden).apply()
+                            hiddenIds = newHidden
+                            Toast.makeText(context, "Cotización ocultada", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) { Text("Ocultar", color = Color.White, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showHideDialog = false; cotizacionAOcultar = null }) {
+                    Text("Cancelar", color = textPrimary)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -374,8 +436,10 @@ private fun StitchCotizacionCard(
     cotizacion: CotizacionRemota,
     isDarkMode: Boolean,
     formatMoney: (Double) -> String,
+    versionLabel: String? = null,
     onVerDetalle: () -> Unit,
-    onDescargarPdf: () -> Unit
+    onDescargarPdf: () -> Unit,
+    onOcultar: () -> Unit = {}
 ) {
     val surface = StitchColors.surface(isDarkMode)
     val border = StitchColors.border(isDarkMode)
@@ -383,7 +447,6 @@ private fun StitchCotizacionCard(
     val textSecondary = StitchColors.textSecondary(isDarkMode)
     val primary = StitchColors.primary(isDarkMode)
     val onPrimary = StitchColors.onPrimary(isDarkMode)
-    val greenColor = StitchColors.greenStandard
 
     Surface(modifier = Modifier.fillMaxWidth(), color = surface, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, border)) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -415,47 +478,14 @@ private fun StitchCotizacionCard(
                 }
             }
 
-            // Mostrar badge de editado si updated_at es posterior a created_at
-            val fueEditada = remember(cotizacion.updatedAt, cotizacion.createdAt) {
-                val updated = cotizacion.updatedAt
-                val created = cotizacion.createdAt
-                if (updated != null && created != null) {
-                    // Comparar timestamps - si difieren por más de 60 segundos, fue editada
-                    try {
-                        val updatedInstant = java.time.Instant.parse(updated)
-                        val createdInstant = java.time.Instant.parse(created)
-                        java.time.Duration.between(createdInstant, updatedInstant).seconds > 60
-                    } catch (e: Exception) {
-                        // Intentar con OffsetDateTime si Instant.parse falla
-                        try {
-                            val updatedOdt = java.time.OffsetDateTime.parse(updated)
-                            val createdOdt = java.time.OffsetDateTime.parse(created)
-                            java.time.Duration.between(createdOdt, updatedOdt).seconds > 60
-                        } catch (e2: Exception) {
-                            false
-                        }
-                    }
-                } else false
-            }
-
-            if (fueEditada) {
+            // Etiqueta de version
+            if (versionLabel != null) {
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(12.dp))
-                    val fechaEditado = remember(cotizacion.updatedAt) {
-                        try {
-                            val instant = try {
-                                java.time.Instant.parse(cotizacion.updatedAt)
-                            } catch (e: Exception) {
-                                java.time.OffsetDateTime.parse(cotizacion.updatedAt).toInstant()
-                            }
-                            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-                            "Editado ${sdf.format(java.util.Date(instant.toEpochMilli()))}"
-                        } catch (e: Exception) {
-                            "Editado"
-                        }
-                    }
-                    Text(fechaEditado, color = Color(0xFFF59E0B), fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    val isOriginal = versionLabel.contains("Original")
+                    val labelColor = if (isOriginal) Color(0xFF3B82F6) else Color(0xFFF59E0B)
+                    Icon(if (isOriginal) Icons.Default.Description else Icons.Default.Edit, null, tint = labelColor, modifier = Modifier.size(12.dp))
+                    Text(versionLabel, color = labelColor, fontSize = 10.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
@@ -497,14 +527,10 @@ private fun StitchCotizacionCard(
                     Spacer(Modifier.height(2.dp))
                     Text("${String.format("%.2f", cotizacion.areaTotal)} m²", color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
-                val maxTotal = maxOf(cotizacion.totalHs875 ?: 0.0, cotizacion.totalHs1250 ?: 0.0, cotizacion.totalHs1500 ?: 0.0)
-                if (maxTotal > 0) {
-                    Text(formatMoney(maxTotal), color = greenColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                }
             }
 
             Spacer(Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = onVerDetalle, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, border)) {
                     Icon(Icons.Outlined.Visibility, null, tint = textPrimary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -514,6 +540,9 @@ private fun StitchCotizacionCard(
                     Icon(Icons.Default.PictureAsPdf, null, tint = onPrimary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("PDF", color = onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.5.sp)
+                }
+                IconButton(onClick = onOcultar, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Default.VisibilityOff, null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
                 }
             }
         }

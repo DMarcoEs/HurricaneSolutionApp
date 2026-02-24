@@ -377,7 +377,8 @@ fun AppNavigation(
                             launchSingleTop = true
                         }
                     } else {
-                        huboEdicionMedidas = false
+                        // Modo vivo: si ya tiene folio, es re-edicion
+                        huboEdicionMedidas = cotizacion.folio.isNotBlank()
                         desdeHistorial = false
                         navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
                     }
@@ -412,13 +413,12 @@ fun AppNavigation(
                     },
                     onVolverAEditar = {
                         if (desdeHistorial) {
-                            // Cargar datos de la cotizacion en el draft para edicion
                             cotizacionDraft.cargarDesdeCotizacion(cot)
                             editandoDesdeHistorial = true
-                            // Navegar al formulario
                             navController.navigate(Routes.MEDIDAS)
                         } else {
-                            // Si no viene del historial, simplemente volver atras
+                            // Modo vivo: cargar cotizacion CON folio al draft
+                            cotizacionDraft.cargarDesdeCotizacion(cot)
                             navController.popBackStack()
                         }
                     },

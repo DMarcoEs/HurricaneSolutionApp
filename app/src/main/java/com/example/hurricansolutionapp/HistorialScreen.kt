@@ -368,6 +368,15 @@ fun HistorialScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     itemsIndexed(cotizacionesFiltradas) { index, c ->
+                        val versionesDelFolio = cotizacionesFiltradas
+                            .filter { it.folio == c.folio && c.folio.isNotBlank() }
+                            .sortedBy { it.id }
+                        val versionIndex = versionesDelFolio.indexOf(c)
+                        val versionLabel = if (versionesDelFolio.size > 1) {
+                            if (versionIndex == 0) "Cotización Original"
+                            else "Edición $versionIndex"
+                        } else null
+
                         CotizacionCard(
                             cotizacion = c,
                             numeroOrden = cotizacionesFiltradas.size - index,
@@ -377,6 +386,7 @@ fun HistorialScreen(
                             textMuted = textMuted,
                             border = border,
                             formatMoney = { formatMoney(it) },
+                            versionLabel = versionLabel,
                             onClick = { onVerDetalle(c) },
                             onPdf = {
                                 val pdfFile = generarPdfCotizacion(context, c, skipEnqueue = true)
@@ -421,6 +431,7 @@ private fun CotizacionCard(
     textMuted: Color,
     border: Color,
     formatMoney: (Double) -> String,
+    versionLabel: String? = null,
     onClick: () -> Unit,
     onPdf: () -> Unit,
     onCompartir: () -> Unit,
@@ -493,22 +504,24 @@ private fun CotizacionCard(
                         Text(cotizacion.fecha, color = textMuted, fontSize = 12.sp)
                     }
 
-                    // Mostrar badge de editado si aplica
-                    if (cotizacion.fueEditada()) {
+                    // Etiqueta de version
+                    if (versionLabel != null) {
                         Spacer(Modifier.height(4.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            val isOriginal = versionLabel.contains("Original")
+                            val labelColor = if (isOriginal) Color(0xFF3B82F6) else Color(0xFFF59E0B)
                             Icon(
-                                Icons.Default.Edit,
+                                if (isOriginal) Icons.Default.Description else Icons.Default.Edit,
                                 contentDescription = null,
-                                tint = Color(0xFFF59E0B),
+                                tint = labelColor,
                                 modifier = Modifier.size(11.dp)
                             )
                             Text(
-                                text = "Editado ${cotizacion.getUpdatedAtFormatted()}",
-                                color = Color(0xFFF59E0B),
+                                text = versionLabel,
+                                color = labelColor,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium
                             )

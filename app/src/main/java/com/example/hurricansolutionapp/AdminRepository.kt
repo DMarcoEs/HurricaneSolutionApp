@@ -30,11 +30,11 @@ object AdminRepository {
                 android.util.Log.d("AdminRepository", "Precios por zona cargados: ${precios.size} zonas")
 
                 // Mapear a las 3 zonas
-                val continental = precios.find { it.zona == "continental" } 
+                val continental = precios.find { it.zona == "continental" }
                     ?: PrecioZona(zona = "continental", zonaNombre = "Zona Continental")
-                val islas = precios.find { it.zona == "islas" } 
+                val islas = precios.find { it.zona == "islas" }
                     ?: PrecioZona(zona = "islas", zonaNombre = "Zona Islas")
-                val foranea = precios.find { it.zona == "foranea" } 
+                val foranea = precios.find { it.zona == "foranea" }
                     ?: PrecioZona(zona = "foranea", zonaNombre = "Zona Foránea")
 
                 PreciosTodasZonas(
@@ -45,7 +45,7 @@ object AdminRepository {
             } catch (e: Exception) {
                 android.util.Log.e("AdminRepository", "Error cargando precios por zona: ${e.message}")
                 e.printStackTrace()
-                
+
                 // Si falla, intentar usar precios legacy de app_config
                 try {
                     val legacyConfig = getAppConfig()
@@ -327,30 +327,39 @@ object AdminRepository {
         val totalMetrosCuadrados: Double = 0.0,
         val empleadosActivos: Int = 0,
         val cotizacionesPorEmpleado: Map<String, Int> = emptyMap(),
-        val cotizacionesPorZona: Map<String, Int> = emptyMap() // NUEVO
+        val cotizacionesPorZona: Map<String, Int> = emptyMap()
     )
 
     /**
-     * Obtiene estadísticas para el dashboard
+     * Filtra solo la ultima version por folio (para metricas)
      */
+    fun getLatestPerFolio(cotizaciones: List<CotizacionRemota>): List<CotizacionRemota> {
+        return cotizaciones
+            .groupBy { it.folio }
+            .map { (_, versions) ->
+                versions.maxByOrNull { it.createdAt ?: "" } ?: versions.first()
+            }
+    }
+
     suspend fun getDashboardStats(): DashboardStats {
         return withContext(Dispatchers.IO) {
             try {
-                val cotizaciones = getAllCotizaciones()
+                val todasCotizaciones = getAllCotizaciones()
                 val usuarios = getEspecialistas()
+                val ultimasPorFolio = getLatestPerFolio(todasCotizaciones)
 
                 val hoy = java.time.LocalDate.now().toString()
                 val mesActual = java.time.YearMonth.now().toString()
 
                 DashboardStats(
-                    totalCotizaciones = cotizaciones.size,
-                    cotizacionesHoy = cotizaciones.count { it.createdAt?.startsWith(hoy) == true },
-                    cotizacionesMes = cotizaciones.count { it.createdAt?.startsWith(mesActual) == true },
-                    totalMetrosCuadrados = cotizaciones.sumOf { it.areaTotal },
+                    totalCotizaciones = ultimasPorFolio.size,
+                    cotizacionesHoy = ultimasPorFolio.count { it.createdAt?.startsWith(hoy) == true },
+                    cotizacionesMes = ultimasPorFolio.count { it.createdAt?.startsWith(mesActual) == true },
+                    totalMetrosCuadrados = ultimasPorFolio.sumOf { it.areaTotal },
                     empleadosActivos = usuarios.count { it.isActive },
-                    cotizacionesPorEmpleado = cotizaciones.groupBy { it.especialistaNombre }
+                    cotizacionesPorEmpleado = ultimasPorFolio.groupBy { it.especialistaNombre }
                         .mapValues { it.value.size },
-                    cotizacionesPorZona = cotizaciones.groupBy { it.zonaGeografica ?: "continental" }
+                    cotizacionesPorZona = ultimasPorFolio.groupBy { it.zonaGeografica ?: "continental" }
                         .mapValues { it.value.size }
                 )
             } catch (e: Exception) {

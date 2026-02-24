@@ -56,7 +56,8 @@ fun AdminEmpleadosScreen(
         isLoading = true
         empleados = AdminRepository.getAllUsers()
         cotizaciones = AdminRepository.getAllCotizaciones()
-        cotizacionesPorEmpleado = cotizaciones.groupBy { it.userId }.mapValues { it.value.size }
+        val ultimasPorFolio = AdminRepository.getLatestPerFolio(cotizaciones)
+        cotizacionesPorEmpleado = ultimasPorFolio.groupBy { it.userId }.mapValues { it.value.size }
         isLoading = false
     }
 
@@ -215,7 +216,9 @@ fun AdminEmpleadosScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(empleados) { empleado ->
-                        val userCotizaciones = cotizaciones.filter { it.userId == empleado.id }
+                        val userCotizaciones = AdminRepository.getLatestPerFolio(
+                            cotizaciones.filter { it.userId == empleado.id }
+                        )
                         val totalM2 = userCotizaciones.sumOf { it.areaTotal }
                         val montoTotal = userCotizaciones.sumOf { calcularMontoEstimado(it) }
                         val numCotizaciones = userCotizaciones.size

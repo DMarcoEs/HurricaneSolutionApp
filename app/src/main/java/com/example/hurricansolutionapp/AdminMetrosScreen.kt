@@ -462,16 +462,19 @@ private fun parseFecha(fecha: String?): Date? {
 
 // Función para calcular estadísticas
 private fun calcularEstadisticas(cotizaciones: List<CotizacionRemota>): MetrosStats {
+    // Solo ultima version por folio
+    val ultimasPorFolio = cotizaciones
+        .groupBy { it.folio }
+        .map { (_, versions) -> versions.maxByOrNull { it.createdAt ?: "" } ?: versions.first() }
+
     var totalMetros = 0.0
     var metrosHS875 = 0.0
     var metrosHS1250 = 0.0
     var metrosHS1500 = 0.0
 
-    cotizaciones.forEach { cot ->
+    ultimasPorFolio.forEach { cot ->
         val area = cot.areaTotal
         totalMetros += area
-
-        // Sumar metros por sistema seleccionado en la cotización
         cot.productos.forEach { prod ->
             when (prod.uppercase()) {
                 "HS875" -> metrosHS875 += area
@@ -483,7 +486,7 @@ private fun calcularEstadisticas(cotizaciones: List<CotizacionRemota>): MetrosSt
 
     return MetrosStats(
         totalMetros = totalMetros,
-        totalCotizaciones = cotizaciones.size,
+        totalCotizaciones = ultimasPorFolio.size,
         metrosHS875 = metrosHS875,
         metrosHS1250 = metrosHS1250,
         metrosHS1500 = metrosHS1500

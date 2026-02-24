@@ -80,9 +80,9 @@ fun ResumenScreen(
 
     var ventanasFueronEditadas by rememberSaveable { mutableStateOf(huboEdicionMedidas) }
 
-    // Si viene con huboEdicionMedidas = true, invalidar PDF
+    // Si viene con huboEdicionMedidas = true, invalidar PDF (AMBOS flujos)
     LaunchedEffect(huboEdicionMedidas) {
-        if (huboEdicionMedidas && desdeHistorial) {
+        if (huboEdicionMedidas) {
             ventanasFueronEditadas = true
             pdfFile = null
             pdfRegenerado = false
@@ -144,10 +144,11 @@ fun ResumenScreen(
         pdfRegenerado = false // Resetear estado de PDF regenerado
     }
 
-    // Detectar si hay cambios (productos, descuentos O ventanas editadas)
+    // Detectar cambios (productos, descuentos, ventanas) - AMBOS flujos
     val hayCambiosSinGuardar by remember(ventanasFueronEditadas) {
         derivedStateOf {
-            if (!desdeHistorial) return@derivedStateOf false
+            if (!guardado) return@derivedStateOf false
+            if (ventanasFueronEditadas) return@derivedStateOf true
 
             val productosActuales = mutableSetOf<TipoProducto>().apply {
                 if (hs875Selected) add(TipoProducto.HS875)
@@ -475,6 +476,8 @@ fun ResumenScreen(
                                 )
 
                                 guardarCotizacionLocal(context, cotizacionFinal)
+                                // Propagar cotizacion con folio a AppNavigation
+                                onCotizacionActualizada(cotizacionFinal)
 
                                 subiendoPdf = true
                                 val pdf = AutoUploadManager.generarYSubirPdf(
@@ -599,18 +602,17 @@ fun ResumenScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Si viene del historial y hay cambios sin guardar
-                            if (desdeHistorial && hayCambiosSinGuardar && !pdfRegenerado) {
+                            // Regenerar PDF: AMBOS flujos cuando hay cambios
+                            if (hayCambiosSinGuardar && !pdfRegenerado) {
                                 Button(
                                     onClick = {
-                                        // skipEnqueue = true para NO crear PendingUpload en ediciones
+                                        // skipEnqueue = true para NO crear PendingUpload
                                         val pdf = obtenerOGenerarPdf(skipEnqueue = true)
                                         if (pdf != null) {
                                             pdfFile = pdf
                                             pdfRegenerado = true
-                                            ventanasFueronEditadas = false // Resetear flag
+                                            ventanasFueronEditadas = false
 
-                                            // Guardar los cambios en almacenamiento local
                                             val cotizacionActualizada = cotizacion.copy(
                                                 productos = productosSeleccionados,
                                                 producto = productosSeleccionados.firstOrNull() ?: cotizacion.producto,
@@ -620,17 +622,9 @@ fun ResumenScreen(
                                                 updatedAt = System.currentTimeMillis()
                                             )
                                             guardarCotizacionLocal(context, cotizacionActualizada, esActualizacion = true)
-
-                                            // Propagar la cotizacion actualizada a AppNavigation
-                                            // para que ediciones subsecuentes tengan los datos correctos
                                             onCotizacionActualizada(cotizacionActualizada)
 
-                                            // Marcar que este folio tiene una actualizacion de Drive pendiente
-                                            if (cotizacion.folio.isNotBlank()) {
-                                                markPendingDriveUpdate(cotizacion.folio)
-                                            }
-
-                                            // Sincronizar a Supabase para que el Admin vea los cambios
+                                            // INSERT nueva version en Supabase
                                             scope.launch {
                                                 try {
                                                     AutoUploadManager.sincronizarCotizacionEditada(
@@ -638,17 +632,37 @@ fun ResumenScreen(
                                                         cotizacion = cotizacionActualizada,
                                                         pdfFile = pdf
                                                     )
-                                                    android.util.Log.d("ResumenScreen", "Cotizacion sincronizada a Supabase")
+                                                    android.util.Log.d("ResumenScreen", "Version sincronizada a Supabase")
+
+                                                    // Drive: auto en vivo, manual en historial
+                                                    if (!desdeHistorial) {
+                                                        try {
+                                                            val userName = SessionManager.getNombre(context)
+                                                            val userRole = SessionManager.getRole(context)
+                                                            if (userName.isNotBlank() && DriveAuthManager.isAuthenticated(context)) {
+                                                                DriveUploadManager.uploadPdfToDriveAuto(
+                                                                    context = context,
+                                                                    pdfFile = pdf,
+                                                                    userName = userName,
+                                                                    userRole = userRole,
+                                                                    folio = cotizacionActualizada.folio
+                                                                )
+                                                                android.util.Log.d("ResumenScreen", "PDF actualizado en Drive")
+                                                            }
+                                                        } catch (driveErr: Exception) {
+                                                            android.util.Log.e("ResumenScreen", "Error Drive: ${driveErr.message}")
+                                                        }
+                                                    } else {
+                                                        if (cotizacionActualizada.folio.isNotBlank()) {
+                                                            markPendingDriveUpdate(cotizacionActualizada.folio)
+                                                        }
+                                                    }
                                                 } catch (e: Exception) {
-                                                    android.util.Log.e("ResumenScreen", "Error sincronizando a Supabase: ${e.message}")
+                                                    android.util.Log.e("ResumenScreen", "Error sincronizando: ${e.message}")
                                                 }
                                             }
 
-                                            Toast.makeText(
-                                                context,
-                                                "PDF regenerado con los cambios",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            Toast.makeText(context, "Nueva versión guardada", Toast.LENGTH_SHORT).show()
                                         } else {
                                             Toast.makeText(
                                                 context,

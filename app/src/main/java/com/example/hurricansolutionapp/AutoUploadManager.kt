@@ -491,10 +491,11 @@ object AutoUploadManager {
 
                 val zonaStr = cotizacion.zonaGeografica.name.lowercase()
 
-                // Calcular la ruta remota correcta del PDF en Supabase Storage
+                // Ruta UNICA por version (timestamp evita colision en Storage)
                 val clienteFormateado = formatNameForPath(cotizacion.clienteNombre)
                 val folioParaPath = cotizacion.folio.ifBlank { "SIN_FOLIO" }
-                val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${folioParaPath}.pdf"
+                val versionTs = System.currentTimeMillis()
+                val pdfRemotePath = "$userId/Cotizacion_${clienteFormateado}_${folioParaPath}_v${versionTs}.pdf"
 
                 val cotizacionInsert = CotizacionInsert(
                     folio = cotizacion.folio,
@@ -516,13 +517,13 @@ object AutoUploadManager {
                     totalHs1500 = totalHs1500,
                     ventanas = ventanasInsert,
                     totales = totales,
-                    pdfPath = pdfRemotePath,  // Guardar ruta REMOTA, no local
+                    pdfPath = pdfRemotePath,
                     zonaGeografica = zonaStr
                 )
 
                 val supabase = SupabaseClientProvider.client
 
-                // 1. Subir el nuevo PDF a Supabase Storage (reemplaza el anterior)
+                // 1. Subir PDF con ruta unica por version
                 if (pdfFile != null && pdfFile.exists()) {
                     try {
                         val bytes = pdfFile.readBytes()
@@ -531,29 +532,31 @@ object AutoUploadManager {
                             .upload(
                                 path = pdfRemotePath,
                                 data = bytes,
-                                upsert = true  // Reemplaza si ya existe
+                                upsert = true
                             )
-                        android.util.Log.d("AutoUploadManager", "PDF editado subido a Supabase Storage: $pdfRemotePath")
+                        android.util.Log.d("AutoUploadManager", "PDF version subido: $pdfRemotePath")
                     } catch (storageError: Exception) {
-                        android.util.Log.e("AutoUploadManager", "Error subiendo PDF a Storage: ${storageError.message}")
-                        // Continuar con la actualizacion de datos aunque falle el storage
+                        android.util.Log.e("AutoUploadManager", "Error subiendo PDF: ${storageError.message}")
                     }
                 }
 
-                // 2. Actualizar registro en la base de datos
+                // 2. INSERT nueva fila (version independiente, mismo folio)
+                // REQUIERE: quitar UNIQUE constraint de 'folio' en Supabase
                 try {
-                    supabase.from("cotizaciones").update(cotizacionInsert) {
-                        filter {
-                            eq("folio", cotizacion.folio)
+                    supabase.from("cotizaciones").insert(cotizacionInsert)
+                    android.util.Log.d("AutoUploadManager", "Nueva version insertada en Supabase: ${cotizacion.folio}")
+                } catch (insertError: Exception) {
+                    android.util.Log.e("AutoUploadManager", "Error INSERT (¿constraint en folio?): ${insertError.message}")
+                    // Fallback: si falla INSERT por unique constraint, hacer UPDATE
+                    try {
+                        supabase.from("cotizaciones").update(cotizacionInsert) {
+                            filter { eq("folio", cotizacion.folio) }
                         }
+                        android.util.Log.w("AutoUploadManager", "Fallback UPDATE usado para: ${cotizacion.folio}")
+                    } catch (updateError: Exception) {
+                        android.util.Log.e("AutoUploadManager", "Fallback UPDATE tambien fallo: ${updateError.message}")
+                        throw updateError
                     }
-                    android.util.Log.d("AutoUploadManager", "Cotizacion editada ACTUALIZADA en Supabase: ${cotizacion.folio}")
-                } catch (updateError: Exception) {
-                    // Si falla el update, intentar upsert como fallback
-                    android.util.Log.w("AutoUploadManager", "Update fallo, intentando upsert: ${updateError.message}")
-                    supabase.from("cotizaciones").upsert(cotizacionInsert) {
-                    }
-                    android.util.Log.d("AutoUploadManager", "Cotizacion editada sincronizada via upsert: ${cotizacion.folio}")
                 }
 
             } catch (e: Exception) {

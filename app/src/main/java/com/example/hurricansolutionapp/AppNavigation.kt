@@ -122,6 +122,11 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
                 onNuevaCotizacion = {
+                    cotizacionActual = null
+                    desdeHistorial = false
+                    editandoDesdeHistorial = false
+                    huboEdicionMedidas = false
+                    cotizacionDraft.clear()
                     navController.navigate(Routes.SELECCION_CLIENTE)
                 },
                 onVerCotizaciones = { navController.navigate(Routes.HISTORIAL) },
@@ -170,6 +175,11 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = { setDarkMode(!isDarkMode) },
                 onNuevaCotizacion = {
+                    cotizacionActual = null
+                    desdeHistorial = false
+                    editandoDesdeHistorial = false
+                    huboEdicionMedidas = false
+                    cotizacionDraft.clear()
                     navController.navigate(Routes.SELECCION_CLIENTE)
                 },
                 onVerMisCotizaciones = { navController.navigate(Routes.HISTORIAL) },
@@ -406,6 +416,9 @@ fun AppNavigation(
                     isDarkMode = isDarkMode,
                     onVolverAInicio = {
                         cotizacionDraft.clear()
+                        cotizacionActual = null
+                        desdeHistorial = false
+                        editandoDesdeHistorial = false
                         huboEdicionMedidas = false
                         navController.navigate(homeDestination) {
                             popUpTo(homeDestination) { inclusive = true }

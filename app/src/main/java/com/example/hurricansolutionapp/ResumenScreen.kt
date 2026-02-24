@@ -58,6 +58,20 @@ fun ResumenScreen(
     var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
     var subiendoADrive by remember { mutableStateOf(false) }
 
+    // CRITICO: Resetear estado stale cuando llega una cotizacion nueva
+    // rememberSaveable persiste entre navegaciones, asi que si el usuario
+    // salio de ResumenScreen (guardado=true) y vuelve con nueva cotizacion,
+    // guardado seguiria en true sin este reset
+    LaunchedEffect(cotizacion.folio, desdeHistorial) {
+        if (!desdeHistorial && cotizacion.folio.isBlank()) {
+            // Cotizacion completamente nueva: resetear todo
+            guardado = false
+            pdfRegenerado = false
+            folioGenerado = ""
+            pdfFile = null
+        }
+    }
+
     // Persistencia del estado "pendiente de actualizar en Drive" por folio
     val drivePrefs = remember { context.getSharedPreferences("drive_pending_prefs", android.content.Context.MODE_PRIVATE) }
 

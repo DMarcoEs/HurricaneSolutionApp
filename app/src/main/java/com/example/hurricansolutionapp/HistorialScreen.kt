@@ -92,7 +92,7 @@ fun HistorialScreen(
     }
 
     val cotizacionesFiltradas = remember(cotizaciones, searchQuery) {
-        if (searchQuery.isBlank()) {
+        val filtered = if (searchQuery.isBlank()) {
             cotizaciones
         } else {
             cotizaciones.filter {
@@ -100,6 +100,8 @@ fun HistorialScreen(
                         it.folio.contains(searchQuery, ignoreCase = true)
             }
         }
+        // Ordenar por mas reciente primero (id mayor = mas reciente)
+        filtered.sortedByDescending { it.id }
     }
 
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)

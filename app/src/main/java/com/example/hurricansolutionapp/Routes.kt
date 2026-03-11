@@ -22,7 +22,7 @@ object Routes {
     const val PENDIENTES = "pendientes"
     const val PENDIENTES_DRIVE = "pendientes_drive"
 
-    // ✅ NUEVO: Envíos a Instalación (Especialista y Admin)
+    // Envíos a Instalación (Especialista y Admin)
     const val ENVIOS_INSTALACION = "envios_instalacion"
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -34,7 +34,6 @@ object Routes {
     const val ADMIN_COTIZACION_DETALLE = "admin_cotizacion_detalle/{folio}"
     const val ADMIN_EMPLEADOS = "admin_empleados"
     const val ADMIN_PRECIOS = "admin_precios"
-
     const val ADMIN_METROS = "admin_metros"
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -47,9 +46,25 @@ object Routes {
     const val INSTALADOR_DRIVE = "instalador_drive"
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // SELECCIÓN DE PRODUCTO
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const val SELECCION_PRODUCTO = "seleccion_producto"
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // RAIN PROTECTION - FLUJO COMPLETO
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const val RAIN_CLIENTE = "rain_cliente"              // Selección de lead o cliente nuevo
+    const val RAIN_DATOS = "rain_datos"                  // Captura de datos del cliente
+    const val RAIN_TIPO_PROPIEDAD = "rain_tipo_propiedad" // Selección tipo propiedad
+    const val RAIN_MEDIDAS = "rain_medidas"              // Captura de medidas
+    const val RAIN_RESUMEN = "rain_resumen"              // Resumen y generación PDF
+
+    // Admin Rain
+    const val ADMIN_RAIN_PRECIOS = "admin_rain_precios"
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // HELPERS PARA RUTAS CON PARÁMETROS
     // ═══════════════════════════════════════════════════════════════════════════════
-
     fun adminCotizacionDetalle(folio: String): String = "admin_cotizacion_detalle/$folio"
     fun instaladorForm(folio: String): String = "instalador_form/$folio"
     fun instaladorResumen(folio: String): String = "instalador_resumen/$folio"

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +28,8 @@ import androidx.compose.ui.unit.sp
 enum class TipoPropiedad(val label: String) {
     CASA("Casa"),
     DEPARTAMENTO("Departamento"),
-    COMERCIAL("Comercial")
+    COMERCIAL("Comercial"),
+    HOTEL("Hotel")
 }
 
 /**
@@ -95,8 +97,8 @@ fun TipoPropiedadScreen(
 
             Spacer(Modifier.height(40.dp))
 
-            // Cards de tipos de propiedad
-            TipoPropiedad.entries.forEach { tipo ->
+            // Cards de tipos de propiedad (sin HOTEL, eso es solo para Rain)
+            TipoPropiedad.entries.filter { it != TipoPropiedad.HOTEL }.forEach { tipo ->
                 val isSelected = selectedTipo == tipo
 
                 TipoPropiedadCard(
@@ -169,6 +171,7 @@ private fun TipoPropiedadCard(
                     TipoPropiedad.CASA -> Icons.Default.Home
                     TipoPropiedad.DEPARTAMENTO -> Icons.Default.Apartment
                     TipoPropiedad.COMERCIAL -> Icons.Default.Store
+                    TipoPropiedad.HOTEL -> Icons.Default.Business
                 }
 
                 Icon(

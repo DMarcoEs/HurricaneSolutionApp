@@ -23,34 +23,79 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import io.github.jan.supabase.storage.storage
 import java.io.File
 import java.text.NumberFormat
 import java.util.Locale
 
 /**
  * Pantalla de Resumen para Rain Protection
- * Diseño idéntico a ResumenScreen de Hurricane pero:
+ * Replica toda la funcionalidad de ResumenScreen de Hurricane:
+ * - Generación de PDF con apertura automática
+ * - Guardar en Supabase + Storage + Drive
+ * - Botones Enviar, PDF, Editar post-guardado
+ * - Soporte desdeHistorial con regeneración y actualización en Drive
  * - Sin tabs de TIPO DE SISTEMA / PRECIO DE VENTA
- * - Sin botones HS-875, HS-1250, HS-1500
- * - Muestra TOTAL ÁREAS (número) en lugar de ÁREA TOTAL (m²)
- * - Cada apertura muestra Tipo de Mecanismo en lugar de Tipo Montaje + Adecuaciones
- * - Sección de totales con Subtotal, Descuento, Total
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RainResumenScreen(
     rainDraft: CotizacionRainDraft,
     isDarkMode: Boolean,
+    desdeHistorial: Boolean = false,
+    cotizacionRainExistente: CotizacionRain? = null,
     onBack: () -> Unit,
-    onGuardarYGenerarPdf: () -> Unit,
-    onCotizarOtroProducto: (TipoCotizacion) -> Unit
+    onVolverAInicio: () -> Unit,
+    onVolverAEditar: () -> Unit = {},
+    onVolverAHistorial: () -> Unit = {},
+    onCotizarOtroProducto: (TipoCotizacion) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var guardado by rememberSaveable { mutableStateOf(false) }
+    var guardado by rememberSaveable { mutableStateOf(desdeHistorial) }
+    var pdfFile by remember { mutableStateOf<File?>(null) }
+    var folioGenerado by rememberSaveable { mutableStateOf(rainDraft.folio) }
     var subiendoPdf by remember { mutableStateOf(false) }
+    var mensajeSubida by remember { mutableStateOf<String?>(null) }
+
+    // Estados para detectar cambios desde historial
+    var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
+    var subiendoADrive by remember { mutableStateOf(false) }
+
+    // Resetear estado cuando llega una cotizacion nueva
+    LaunchedEffect(rainDraft.folio, desdeHistorial) {
+        if (!desdeHistorial && rainDraft.folio.isBlank()) {
+            guardado = false
+            pdfRegenerado = false
+            folioGenerado = ""
+            pdfFile = null
+        }
+    }
+
+    // Drive pending state persistence
+    val drivePrefs = remember {
+        context.getSharedPreferences("drive_pending_prefs", android.content.Context.MODE_PRIVATE)
+    }
+
+    fun hasPendingDriveUpdate(folio: String): Boolean {
+        return drivePrefs.getBoolean("pending_drive_rain_$folio", false)
+    }
+    fun markPendingDriveUpdate(folio: String) {
+        drivePrefs.edit().putBoolean("pending_drive_rain_$folio", true).apply()
+    }
+    fun clearPendingDriveUpdate(folio: String) {
+        drivePrefs.edit().remove("pending_drive_rain_$folio").apply()
+    }
+
+    LaunchedEffect(rainDraft.folio, desdeHistorial) {
+        if (desdeHistorial && rainDraft.folio.isNotBlank() && hasPendingDriveUpdate(rainDraft.folio)) {
+            pdfRegenerado = true
+        }
+    }
 
     // Colores Stitch
     val bg = if (isDarkMode) Color(0xFF000000) else Color(0xFFF3F4F6)
@@ -74,14 +119,64 @@ fun RainResumenScreen(
         return format.format(amount)
     }
 
-    // Dialog de confirmación para salir
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GENERACIÓN Y CACHÉ DE PDF
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Cotización Rain usada para el PDF (construida desde draft o existente)
+    var cotizacionRainId by rememberSaveable { mutableStateOf(cotizacionRainExistente?.id ?: 0L) }
+
+    fun buildCotizacionRain(): CotizacionRain {
+        val ubicacionParts = listOfNotNull(
+            rainDraft.ciudad.ifBlank { null },
+            rainDraft.colonia.ifBlank { null },
+            rainDraft.direccionDetalle.ifBlank { null }
+        )
+        return CotizacionRain(
+            id = cotizacionRainId,
+            folio = folioGenerado.ifBlank { rainDraft.folio },
+            clienteNombre = rainDraft.nombre,
+            clienteTelefono = rainDraft.telefono,
+            ubicacion = ubicacionParts.joinToString(", "),
+            ciudad = rainDraft.ciudad,
+            especialista = SessionManager.getNombre(context),
+            fecha = rainDraft.fecha.ifBlank {
+                java.text.SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(java.util.Date())
+            },
+            medidas = medidas,
+            zonaGeografica = rainDraft.zonaGeografica,
+            tipoPropiedad = rainDraft.tipoPropiedad,
+            subtotal = subtotal,
+            descuentoPorcentaje = descuentoPorcentaje,
+            descuentoMonto = descuentoMonto,
+            total = total,
+            totalAreas = totalAreas,
+            areasElectricas = rainDraft.getAreasElectricas(),
+            areasManuales = rainDraft.getAreasManuales(),
+            observaciones = rainDraft.observaciones
+        )
+    }
+
+    fun obtenerOGenerarPdf(skipEnqueue: Boolean = false): File? {
+        if (pdfFile != null && pdfFile!!.exists()) return pdfFile
+
+        val cotizacionRain = buildCotizacionRain()
+        val pdf = generarPdfRainCotizacion(context, cotizacionRain, skipEnqueue)
+        if (pdf != null) pdfFile = pdf
+        return pdf
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DIALOG DE CONFIRMACIÓN PARA SALIR
+    // ═══════════════════════════════════════════════════════════════════════════
+
     var showExitDialog by remember { mutableStateOf(false) }
 
     BackHandler {
-        if (guardado) {
-            onBack()
-        } else {
-            showExitDialog = true
+        when {
+            desdeHistorial -> onVolverAHistorial()
+            guardado -> onVolverAInicio()
+            else -> showExitDialog = true
         }
     }
 
@@ -109,7 +204,7 @@ fun RainResumenScreen(
                 Button(
                     onClick = {
                         showExitDialog = false
-                        onBack()
+                        onVolverAInicio()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (guardado) {
@@ -138,13 +233,21 @@ fun RainResumenScreen(
         )
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UI PRINCIPAL
+    // ═══════════════════════════════════════════════════════════════════════════
+
     Scaffold(
         containerColor = bg,
         topBar = {
             StitchTopBar(
                 title = "Resumen de Cotización",
                 onBack = {
-                    if (guardado) onBack() else showExitDialog = true
+                    when {
+                        desdeHistorial -> onVolverAHistorial()
+                        guardado -> showExitDialog = true
+                        else -> showExitDialog = true
+                    }
                 },
                 isDarkMode = isDarkMode
             )
@@ -184,21 +287,160 @@ fun RainResumenScreen(
 
                     Spacer(Modifier.height(8.dp))
 
+                    // Mensaje de subida
+                    mensajeSubida?.let { msg ->
+                        Text(
+                            msg,
+                            color = textMuted,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     if (!guardado) {
-                        // Botón principal: Guardar y Generar PDF
+                        // ═══════════════════════════════════════════════════
+                        // BOTÓN: GUARDAR Y GENERAR PDF
+                        // ═══════════════════════════════════════════════════
                         Button(
                             onClick = {
                                 if (medidas.isEmpty()) {
-                                    Toast.makeText(
-                                        context,
-                                        "No hay áreas válidas para guardar",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    Toast.makeText(context, "No hay áreas válidas para guardar", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
 
                                 subiendoPdf = true
-                                onGuardarYGenerarPdf()
+
+                                scope.launch {
+                                    try {
+                                        // 1. Generar folio
+                                        val especialista = SessionManager.getNombre(context)
+                                        val folio = RainFolioManager.nextFolioForEspecialista(context, especialista)
+                                        rainDraft.folio = folio
+                                        folioGenerado = folio
+
+                                        // 2. Fecha actual
+                                        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                                        rainDraft.fecha = sdf.format(java.util.Date())
+
+                                        // 3. Construir ubicación
+                                        val ubicacionParts = listOfNotNull(
+                                            rainDraft.ciudad.ifBlank { null },
+                                            rainDraft.colonia.ifBlank { null },
+                                            rainDraft.direccionDetalle.ifBlank { null }
+                                        )
+                                        val ubicacionCompleta = ubicacionParts.joinToString(", ")
+
+                                        // 4. Guardar en Supabase
+                                        val userId = SessionManager.getUserId(context)
+                                        val insertData = CotizacionRainInsert(
+                                            folio = folio,
+                                            userId = userId,
+                                            especialistaNombre = especialista,
+                                            clienteNombre = rainDraft.nombre,
+                                            clienteTelefono = rainDraft.telefono.ifBlank { null },
+                                            ubicacion = ubicacionCompleta,
+                                            ciudad = rainDraft.ciudad.ifBlank { null },
+                                            colonia = rainDraft.colonia.ifBlank { null },
+                                            calle = rainDraft.direccionDetalle.ifBlank { null },
+                                            fecha = rainDraft.fecha,
+                                            zonaGeografica = rainDraft.zonaGeografica.id,
+                                            tipoPropiedad = rainDraft.tipoPropiedad.ifBlank { null },
+                                            medidas = rainDraft.getMedidasJson(),
+                                            subtotal = subtotal,
+                                            descuentoPorcentaje = descuentoPorcentaje,
+                                            descuentoMonto = descuentoMonto,
+                                            total = total,
+                                            totalAreas = totalAreas,
+                                            areasElectricas = rainDraft.getAreasElectricas(),
+                                            areasManuales = rainDraft.getAreasManuales(),
+                                            leadId = rainDraft.leadId,
+                                            observaciones = rainDraft.observaciones.ifBlank { null }
+                                        )
+
+                                        val saveResult = withContext(Dispatchers.IO) {
+                                            RainRepository.saveCotizacion(insertData)
+                                        }
+                                        val savedId = saveResult.getOrThrow()
+                                        cotizacionRainId = savedId
+
+                                        // 5. Generar PDF
+                                        val cotizacionRain = buildCotizacionRain()
+                                        val pdf = withContext(Dispatchers.IO) {
+                                            generarPdfRainCotizacion(context, cotizacionRain)
+                                        }
+
+                                        if (pdf != null) {
+                                            pdfFile = pdf
+                                            guardado = true
+
+                                            // 6. Actualizar pdf_path en Supabase
+                                            withContext(Dispatchers.IO) {
+                                                RainRepository.updatePdfPath(savedId, pdf.absolutePath)
+                                            }
+
+                                            // 7. Subir PDF a Supabase Storage
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    val clienteFormateado = rainDraft.nombre.trim()
+                                                        .split("\\s+".toRegex())
+                                                        .joinToString("_") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
+                                                        .take(30)
+                                                    val pdfRemotePath = "$userId/Rain_${clienteFormateado}_${folio}.pdf"
+                                                    val supabase = SupabaseClientProvider.client
+                                                    val bytes = pdf.readBytes()
+                                                    supabase.storage
+                                                        .from("cotizaciones")
+                                                        .upload(
+                                                            path = pdfRemotePath,
+                                                            data = bytes,
+                                                            upsert = true
+                                                        )
+                                                    android.util.Log.d("RainResumen", "PDF subido a Storage: $pdfRemotePath")
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("RainResumen", "Error subiendo a Storage: ${e.message}")
+                                                }
+                                            }
+
+                                            // 8. Subir a Google Drive
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    val userName = SessionManager.getNombre(context)
+                                                    val userRole = SessionManager.getRole(context)
+                                                    if (userName.isNotBlank() && DriveAuthManager.isAuthenticated(context)) {
+                                                        val driveSuccess = DriveUploadManager.uploadPdfToDriveAuto(
+                                                            context = context,
+                                                            pdfFile = pdf,
+                                                            userName = userName,
+                                                            userRole = userRole,
+                                                            folio = folio
+                                                        )
+                                                        if (driveSuccess) {
+                                                            android.util.Log.d("RainResumen", "PDF subido a Drive")
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("RainResumen", "Error Drive: ${e.message}")
+                                                }
+                                            }
+
+                                            subiendoPdf = false
+                                            mensajeSubida = "PDF generado correctamente"
+
+                                            // Abrir el PDF automáticamente
+                                            verPdf(context, pdf)
+
+                                        } else {
+                                            subiendoPdf = false
+                                            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                        }
+
+                                    } catch (e: Exception) {
+                                        subiendoPdf = false
+                                        android.util.Log.e("RainResumen", "Error: ${e.message}")
+                                        Toast.makeText(context, "Error al guardar: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             },
                             enabled = !subiendoPdf && medidas.isNotEmpty(),
                             modifier = Modifier
@@ -241,86 +483,186 @@ fun RainResumenScreen(
                             }
                         }
                     } else {
-                        // Después de guardar: botones de acciones
-                        Row(
+                        // ═══════════════════════════════════════════════════
+                        // POST-GUARDADO: Botones de acciones
+                        // ═══════════════════════════════════════════════════
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    // TODO: Compartir PDF
-                                    Toast.makeText(context, "Función próximamente", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier
-                                    .weight(1.2f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                            // Primera fila: Enviar, PDF, Editar
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Share,
-                                    null,
-                                    tint = textPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "Enviar",
-                                    color = textPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                // ENVIAR (Compartir)
+                                OutlinedButton(
+                                    onClick = {
+                                        val pdf = obtenerOGenerarPdf(skipEnqueue = desdeHistorial)
+                                        if (pdf != null) compartirPdf(context, pdf)
+                                        else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1.2f)
+                                        .height(48.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Share,
+                                        null,
+                                        tint = textPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "Enviar",
+                                        color = textPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // VER PDF
+                                Button(
+                                    onClick = {
+                                        val pdf = obtenerOGenerarPdf(skipEnqueue = desdeHistorial)
+                                        if (pdf != null) verPdf(context, pdf)
+                                        else Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isDarkMode) Color.White else Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.PictureAsPdf,
+                                        null,
+                                        tint = if (isDarkMode) Color.Black else Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "PDF",
+                                        color = if (isDarkMode) Color.Black else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // EDITAR
+                                OutlinedButton(
+                                    onClick = {
+                                        if (desdeHistorial) onVolverAEditar()
+                                        else onBack()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        null,
+                                        tint = textPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "Editar",
+                                        color = textPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
-                            Button(
-                                onClick = {
-                                    // TODO: Ver PDF
-                                    Toast.makeText(context, "Función próximamente", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isDarkMode) Color.White else Color.Black
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.PictureAsPdf,
-                                    null,
-                                    tint = if (isDarkMode) Color.Black else Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "PDF",
-                                    color = if (isDarkMode) Color.Black else Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            // Botón "Actualizar en Drive" (cuando hay PDF regenerado desde historial)
+                            if (desdeHistorial && pdfRegenerado) {
+                                Spacer(Modifier.height(4.dp))
+                                Button(
+                                    onClick = {
+                                        if (pdfFile == null || !pdfFile!!.exists()) {
+                                            val regenerated = obtenerOGenerarPdf(skipEnqueue = true)
+                                            if (regenerated == null) {
+                                                Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            pdfFile = regenerated
+                                        }
 
-                            OutlinedButton(
-                                onClick = onBack,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
-                            ) {
-                                Icon(
-                                    Icons.Default.Edit,
-                                    null,
-                                    tint = textPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "Editar",
-                                    color = textPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                        subiendoADrive = true
+                                        scope.launch {
+                                            try {
+                                                val userName = SessionManager.getNombre(context)
+                                                val userRole = SessionManager.getRole(context)
+
+                                                val result = GoogleDriveRepository.uploadPdfToStructuredFolder(
+                                                    context = context,
+                                                    localPdfFile = pdfFile!!,
+                                                    userName = userName,
+                                                    userRole = userRole,
+                                                    folio = folioGenerado.ifBlank { rainDraft.folio }
+                                                )
+
+                                                val uploadResult = result.getOrNull()
+                                                if (uploadResult?.success == true) {
+                                                    Toast.makeText(context, "PDF actualizado en Drive", Toast.LENGTH_SHORT).show()
+                                                    pdfRegenerado = false
+                                                    val folio = folioGenerado.ifBlank { rainDraft.folio }
+                                                    if (folio.isNotBlank()) clearPendingDriveUpdate(folio)
+                                                } else {
+                                                    Toast.makeText(context, "Error: ${uploadResult?.error ?: "Desconocido"}", Toast.LENGTH_LONG).show()
+                                                }
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Error al subir: ${e.message}", Toast.LENGTH_LONG).show()
+                                            } finally {
+                                                subiendoADrive = false
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp),
+                                    enabled = !subiendoADrive,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isDarkMode) Color.White else Color.Black
+                                    ),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    if (subiendoADrive) {
+                                        CircularProgressIndicator(
+                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            "Subiendo...",
+                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Default.CloudUpload,
+                                            null,
+                                            tint = Color(0xFF22C55E),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            "Actualizar en Drive",
+                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -352,20 +694,8 @@ fun RainResumenScreen(
                     textMuted = textMuted
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        RainClienteDataRow(
-                            "Nombre",
-                            rainDraft.nombre,
-                            textMuted,
-                            textPrimary,
-                            border
-                        )
-                        RainClienteDataRow(
-                            "Teléfono",
-                            rainDraft.telefono,
-                            textMuted,
-                            textPrimary,
-                            border
-                        )
+                        RainClienteDataRow("Nombre", rainDraft.nombre, textMuted, textPrimary, border)
+                        RainClienteDataRow("Teléfono", rainDraft.telefono, textMuted, textPrimary, border)
                         RainClienteDataRow(
                             "Ciudad",
                             rainDraft.ciudad,
@@ -394,7 +724,7 @@ fun RainResumenScreen(
                     textMuted = textMuted
                 ) {
                     Column {
-                        // Box negro con TOTAL ÁREAS (número)
+                        // Box negro con TOTAL ÁREAS
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -420,7 +750,6 @@ fun RainResumenScreen(
                             }
                         }
 
-                        // Header de lista
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -438,7 +767,6 @@ fun RainResumenScreen(
                             )
                         }
 
-                        // Lista de aperturas
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -465,7 +793,7 @@ fun RainResumenScreen(
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // CARD: TOTALES (Subtotal, Descuento, Total)
+            // CARD: RESUMEN DE PRECIOS
             // ═══════════════════════════════════════════════════════════════
             item {
                 RainStitchCard(
@@ -480,28 +808,16 @@ fun RainResumenScreen(
                     textMuted = textMuted
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        // Subtotal
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                "Subtotal:",
-                                color = textMuted,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                formatMoney(subtotal),
-                                color = textPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Text("Subtotal:", color = textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(formatMoney(subtotal), color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
 
-                        // Descuento
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -522,12 +838,8 @@ fun RainResumenScreen(
                             )
                         }
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 8.dp),
-                            color = border
-                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = border)
 
-                        // Total
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -561,9 +873,9 @@ fun RainResumenScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // COMPONENTES PRIVADOS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun RainAperturaItem(
@@ -580,7 +892,6 @@ private fun RainAperturaItem(
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Número de apertura
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -597,7 +908,6 @@ private fun RainAperturaItem(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            // Primera fila: Descripción y dimensiones
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -622,12 +932,10 @@ private fun RainAperturaItem(
 
             Spacer(Modifier.height(6.dp))
 
-            // Segunda fila: Tipo de mecanismo (badge)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Badge del tipo de mecanismo
                 val isElectrico = medida.tipoMecanismo == TipoMecanismo.ELECTRICO
                 Box(
                     modifier = Modifier
@@ -648,6 +956,13 @@ private fun RainAperturaItem(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+
+                Text("|", color = textMuted.copy(0.5f), fontSize = 10.sp)
+                Text(
+                    String.format("%.2f m²", medida.areaM2),
+                    color = textMuted,
+                    fontSize = 10.sp
+                )
             }
         }
     }
@@ -674,7 +989,6 @@ private fun RainStitchCard(
         shadowElevation = 2.dp
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            // Borde lateral de acento
             Box(
                 modifier = Modifier
                     .width(4.dp)
@@ -682,7 +996,6 @@ private fun RainStitchCard(
                     .background(accentBorder)
             )
             Column(modifier = Modifier.weight(1f)) {
-                // Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -748,12 +1061,7 @@ private fun RainClienteDataRow(
                 .padding(vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                label,
-                color = textMuted,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text(label, color = textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(
                 value,
                 color = textPrimary,
@@ -763,8 +1071,6 @@ private fun RainClienteDataRow(
                 modifier = Modifier.weight(1f, false)
             )
         }
-        if (showDivider) {
-            HorizontalDivider(color = border.copy(0.3f))
-        }
+        if (showDivider) HorizontalDivider(color = border.copy(0.3f))
     }
 }

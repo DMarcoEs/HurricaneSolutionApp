@@ -400,6 +400,7 @@ data class MedidaRainJson(
     val nombre: String,
     val alto: Double,
     val ancho: Double,
+    val piezas: Int = 1,
     @SerialName("tipo_mecanismo") val tipoMecanismo: String,
     val subtotal: Double
 ) {
@@ -408,6 +409,7 @@ data class MedidaRainJson(
             descripcion = nombre,
             alto = alto,
             ancho = ancho,
+            piezas = piezas,
             tipoMecanismo = TipoMecanismo.fromId(tipoMecanismo),
             subtotal = subtotal
         )

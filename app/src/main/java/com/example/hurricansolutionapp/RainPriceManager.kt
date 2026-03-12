@@ -148,15 +148,18 @@ object RainPriceManager {
     /**
      * Calcula el subtotal de un área (sin descuento de zona)
      *
-     * Fórmula:
+     * Fórmula por pieza:
      * - Tela: alto × ancho × precio_tela
      * - Perfil: ancho × precio_perfil
      * - Contrapeso: ancho × precio_contrapeso
      * - Inserto: ancho × 2 × precio_inserto
      * - Tensor: alto × 2 × precio_tensor
      * - Kit: según tipo (manual o eléctrico)
+     *
+     * Total = subtotal_por_pieza × piezas
+     * Cada pieza lleva su propio mecanismo (kit)
      */
-    fun calcularSubtotalArea(alto: Double, ancho: Double, tipoMecanismo: TipoMecanismo): Double {
+    fun calcularSubtotalArea(alto: Double, ancho: Double, tipoMecanismo: TipoMecanismo, piezas: Int = 1): Double {
         val m2 = alto * ancho
 
         // Tela
@@ -180,7 +183,8 @@ object RainPriceManager {
             TipoMecanismo.ELECTRICO -> getPrecio("kit_electrico") + getPrecio("kit_adaptador")
         }
 
-        return costoTela + costoPerfil + costoContrapeso + costoInserto + costoTensor + costoKit
+        val subtotalPorPieza = costoTela + costoPerfil + costoContrapeso + costoInserto + costoTensor + costoKit
+        return subtotalPorPieza * piezas.coerceAtLeast(1)
     }
 
     /**

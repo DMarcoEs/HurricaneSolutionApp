@@ -36,71 +36,88 @@ fun HistorialScreen(
     listState: LazyListState,
     isDarkMode: Boolean = false,
     onBack: () -> Unit,
-    onVerDetalle: (Cotizacion) -> Unit
+    onVerDetalle: (Cotizacion) -> Unit,
+    onVerDetalleRain: (CotizacionRain) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var isLoading by remember { mutableStateOf(true) }
-    var cotizaciones by remember { mutableStateOf<List<Cotizacion>>(emptyList()) }
+    var cotizacionesUnificadas by remember { mutableStateOf<List<CotizacionUnificada>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Dialogs de eliminación
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var cotizacionAEliminar by remember { mutableStateOf<Cotizacion?>(null) }
+    var cotizacionAEliminar by remember { mutableStateOf<CotizacionUnificada?>(null) }
 
     // Obtener datos del usuario
     val userId = remember { SessionManager.getUserId(context) }
     val userRole = remember { SessionManager.getRole(context) }
     val isAdmin = userRole.equals("ADMIN", ignoreCase = true)
 
-    LaunchedEffect(Unit) {
-        scope.launch {
-            isLoading = true
-            try {
-                if (isAdmin) {
-                    // Admin ve todas (sin cambios)
-                    val localCotizaciones = obtenerCotizacionesLocal(context)
-                    cotizaciones = localCotizaciones
-                    android.util.Log.d(
-                        "HistorialScreen",
-                        "Admin: Cargadas ${cotizaciones.size} cotizaciones locales"
-                    )
-                } else {
-                    val remotas = AdminRepository.getCotizacionesByUser(userId)
+    // Función para cargar cotizaciones
+    suspend fun cargarCotizaciones() {
+        isLoading = true
+        try {
+            val listaUnificada = mutableListOf<CotizacionUnificada>()
 
-                    // Convertir de CotizacionRemota a Cotizacion
-                    cotizaciones = remotas.map { it.toCotizacionLocal() }
-
-                    android.util.Log.d(
-                        "HistorialScreen",
-                        "Especialista: Cargadas ${cotizaciones.size} cotizaciones desde Supabase"
-                    )
+            if (isAdmin) {
+                // Admin: cargar locales Hurricane + todas las Rain de Supabase
+                val localCotizaciones = obtenerCotizacionesLocal(context)
+                localCotizaciones.forEach { cot ->
+                    listaUnificada.add(CotizacionUnificada.Hurricane(cot))
                 }
-            } catch (e: Exception) {
-                android.util.Log.e(
-                    "HistorialScreen",
-                    "Error cargando cotizaciones: ${e.message}",
-                    e
-                )
-                Toast.makeText(context, "Error al cargar cotizaciones", Toast.LENGTH_SHORT).show()
-                cotizaciones = emptyList()
-            } finally {
-                isLoading = false
+                android.util.Log.d("HistorialScreen", "Admin: ${localCotizaciones.size} cotizaciones Hurricane locales")
+
+                // Rain desde Supabase (admin ve todas)
+                val remotasRainAdmin = RainRepository.getAllCotizaciones()
+                remotasRainAdmin.forEach { remota ->
+                    listaUnificada.add(CotizacionUnificada.Rain(remota.toCotizacionRainLocal()))
+                }
+                android.util.Log.d("HistorialScreen", "Admin: ${remotasRainAdmin.size} cotizaciones Rain")
+            } else {
+                // Especialista: cargar de Supabase
+                // Hurricane
+                val remotasHurricane = AdminRepository.getCotizacionesByUser(userId)
+                remotasHurricane.forEach { remota ->
+                    listaUnificada.add(CotizacionUnificada.Hurricane(remota.toCotizacionLocal()))
+                }
+                android.util.Log.d("HistorialScreen", "Hurricane: ${remotasHurricane.size} cotizaciones")
+
+                // Rain
+                val remotasRain = RainRepository.getCotizacionesByUser(userId)
+                remotasRain.forEach { remota ->
+                    listaUnificada.add(CotizacionUnificada.Rain(remota.toCotizacionRainLocal()))
+                }
+                android.util.Log.d("HistorialScreen", "Rain: ${remotasRain.size} cotizaciones")
             }
+
+            // Ordenar por ID descendente (más reciente primero)
+            cotizacionesUnificadas = listaUnificada.sortedByDescending { it.id }
+
+        } catch (e: Exception) {
+            android.util.Log.e("HistorialScreen", "Error cargando cotizaciones: ${e.message}", e)
+            Toast.makeText(context, "Error al cargar cotizaciones", Toast.LENGTH_SHORT).show()
+            cotizacionesUnificadas = emptyList()
+        } finally {
+            isLoading = false
         }
     }
 
-    val cotizacionesFiltradas = remember(cotizaciones, searchQuery) {
+    LaunchedEffect(Unit) {
+        cargarCotizaciones()
+    }
+
+    val cotizacionesFiltradas = remember(cotizacionesUnificadas, searchQuery) {
         val filtered = if (searchQuery.isBlank()) {
-            cotizaciones
+            cotizacionesUnificadas
         } else {
-            cotizaciones.filter {
+            cotizacionesUnificadas.filter {
                 it.clienteNombre.contains(searchQuery, ignoreCase = true) ||
                         it.folio.contains(searchQuery, ignoreCase = true)
             }
         }
-        // Ordenar por mas reciente primero (id mayor = mas reciente)
         filtered.sortedByDescending { it.id }
     }
 
@@ -119,82 +136,43 @@ fun HistorialScreen(
         return "$${format.format(amount)}"
     }
 
+    // Dialog de eliminación
     if (showDeleteDialog && cotizacionAEliminar != null) {
         AlertDialog(
             onDismissRequest = {
                 showDeleteDialog = false
                 cotizacionAEliminar = null
             },
-            containerColor = if (isDarkMode) Color(0xFF18181B) else Color.White,
-            icon = {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFEF4444),
-                    modifier = Modifier.size(32.dp)
-                )
-            },
+            containerColor = cardBg,
             title = {
                 Text(
                     "Eliminar cotización",
                     color = textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "¿Estás seguro de que deseas eliminar esta cotización?",
-                        color = textMuted,
-                        fontSize = 14.sp
-                    )
-                    if (cotizacionAEliminar?.folio?.isNotBlank() == true) {
-                        Text(
-                            "Folio: #${cotizacionAEliminar?.folio}",
-                            color = textPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Text(
-                        "Cliente: ${cotizacionAEliminar?.clienteNombre}",
-                        color = textPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Esta acción no se puede deshacer.",
-                        color = Color(0xFFEF4444),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Text(
+                    "¿Estás seguro de eliminar la cotización de ${cotizacionAEliminar?.clienteNombre}? Esta acción no se puede deshacer.",
+                    color = textMuted
+                )
             },
             confirmButton = {
                 Button(
                     onClick = {
                         cotizacionAEliminar?.let { cot ->
-                            if (isAdmin) {
-                                borrarCotizacionLocal(context, cot.id)
-                                cotizaciones = obtenerCotizacionesLocal(context)
-                            } else {
-                                // Para especialistas, solo recargar desde Supabase
-                                scope.launch {
-                                    try {
-                                        val remotas = AdminRepository.getCotizacionesByUser(userId)
-                                        cotizaciones = remotas.map { it.toCotizacionLocal() }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e(
-                                            "HistorialScreen",
-                                            "Error recargando: ${e.message}"
-                                        )
+                            when (cot) {
+                                is CotizacionUnificada.Hurricane -> {
+                                    eliminarCotizacionLocal(context, cot.id)
+                                }
+                                is CotizacionUnificada.Rain -> {
+                                    scope.launch {
+                                        RainRepository.deleteCotizacion(cot.id)
                                     }
                                 }
                             }
-                            Toast.makeText(context, "Cotización eliminada", Toast.LENGTH_SHORT)
-                                .show()
+                            scope.launch { cargarCotizaciones() }
+                            Toast.makeText(context, "Cotización eliminada", Toast.LENGTH_SHORT).show()
                         }
                         showDeleteDialog = false
                         cotizacionAEliminar = null
@@ -285,21 +263,8 @@ fun HistorialScreen(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                isLoading = true
-                                try {
-                                    val remotas = AdminRepository.getCotizacionesByUser(userId)
-                                    cotizaciones = remotas.map { it.toCotizacionLocal() }
-                                    Toast.makeText(context, "Actualizado", Toast.LENGTH_SHORT)
-                                        .show()
-                                } catch (e: Exception) {
-                                    Toast.makeText(
-                                        context,
-                                        "Error al actualizar",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                } finally {
-                                    isLoading = false
-                                }
+                                cargarCotizaciones()
+                                Toast.makeText(context, "Actualizado", Toast.LENGTH_SHORT).show()
                             }
                         },
                         modifier = Modifier
@@ -369,53 +334,91 @@ fun HistorialScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    itemsIndexed(cotizacionesFiltradas) { index, c ->
+                    itemsIndexed(cotizacionesFiltradas) { index, cotUnificada ->
+                        // Calcular versiones por folio
                         val versionesDelFolio = cotizacionesFiltradas
-                            .filter { it.folio == c.folio && c.folio.isNotBlank() }
+                            .filter { it.folio == cotUnificada.folio && cotUnificada.folio.isNotBlank() }
                             .sortedBy { it.id }
-                        val versionIndex = versionesDelFolio.indexOf(c)
+                        val versionIndex = versionesDelFolio.indexOf(cotUnificada)
                         val versionLabel = if (versionesDelFolio.size > 1) {
                             if (versionIndex == 0) "Cotización Original"
                             else "Edición $versionIndex"
                         } else null
 
-                        CotizacionCard(
-                            cotizacion = c,
-                            numeroOrden = cotizacionesFiltradas.size - index,
-                            isDarkMode = isDarkMode,
-                            cardBg = cardBg,
-                            textPrimary = textPrimary,
-                            textMuted = textMuted,
-                            border = border,
-                            formatMoney = { formatMoney(it) },
-                            versionLabel = versionLabel,
-                            onClick = { onVerDetalle(c) },
-                            onPdf = {
-                                val pdfFile = generarPdfCotizacion(context, c, skipEnqueue = true)
-                                if (pdfFile != null) {
-                                    verPdf(context, pdfFile)
-                                    Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT)
-                                        .show()
-                                } else Toast.makeText(
-                                    context,
-                                    "Error al generar PDF",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            onCompartir = {
-                                val pdfFile = generarPdfCotizacion(context, c, skipEnqueue = true)
-                                if (pdfFile != null) compartirPdf(context, pdfFile)
-                                else Toast.makeText(
-                                    context,
-                                    "Error al generar PDF",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            onEliminar = {
-                                cotizacionAEliminar = c
-                                showDeleteDialog = true
+                        val numeroOrden = cotizacionesFiltradas.size - index
+
+                        when (cotUnificada) {
+                            is CotizacionUnificada.Hurricane -> {
+                                CotizacionHurricaneCard(
+                                    cotizacion = cotUnificada.cotizacion,
+                                    numeroOrden = numeroOrden,
+                                    isDarkMode = isDarkMode,
+                                    cardBg = cardBg,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    border = border,
+                                    formatMoney = { formatMoney(it) },
+                                    versionLabel = versionLabel,
+                                    onClick = { onVerDetalle(cotUnificada.cotizacion) },
+                                    onPdf = {
+                                        val pdfFile = generarPdfCotizacion(context, cotUnificada.cotizacion, skipEnqueue = true)
+                                        if (pdfFile != null) {
+                                            verPdf(context, pdfFile)
+                                            Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onCompartir = {
+                                        val pdfFile = generarPdfCotizacion(context, cotUnificada.cotizacion, skipEnqueue = true)
+                                        if (pdfFile != null) {
+                                            compartirPdf(context, pdfFile)
+                                        } else {
+                                            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onEliminar = {
+                                        cotizacionAEliminar = cotUnificada
+                                        showDeleteDialog = true
+                                    }
+                                )
                             }
-                        )
+                            is CotizacionUnificada.Rain -> {
+                                CotizacionRainCard(
+                                    cotizacion = cotUnificada.cotizacion,
+                                    numeroOrden = numeroOrden,
+                                    isDarkMode = isDarkMode,
+                                    cardBg = cardBg,
+                                    textPrimary = textPrimary,
+                                    textMuted = textMuted,
+                                    border = border,
+                                    formatMoney = { formatMoney(it) },
+                                    versionLabel = versionLabel,
+                                    onClick = { onVerDetalleRain(cotUnificada.cotizacion) },
+                                    onPdf = {
+                                        val pdfFile = generarPdfRainCotizacion(context, cotUnificada.cotizacion, skipEnqueue = true)
+                                        if (pdfFile != null) {
+                                            verPdf(context, pdfFile)
+                                            Toast.makeText(context, "PDF generado", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onCompartir = {
+                                        val pdfFile = generarPdfRainCotizacion(context, cotUnificada.cotizacion, skipEnqueue = true)
+                                        if (pdfFile != null) {
+                                            compartirPdf(context, pdfFile)
+                                        } else {
+                                            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onEliminar = {
+                                        cotizacionAEliminar = cotUnificada
+                                        showDeleteDialog = true
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -423,8 +426,12 @@ fun HistorialScreen(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CARD PARA COTIZACIÓN HURRICANE
+// ═══════════════════════════════════════════════════════════════════════════════
+
 @Composable
-private fun CotizacionCard(
+private fun CotizacionHurricaneCard(
     cotizacion: Cotizacion,
     numeroOrden: Int,
     isDarkMode: Boolean,
@@ -506,7 +513,7 @@ private fun CotizacionCard(
                         Text(cotizacion.fecha, color = textMuted, fontSize = 12.sp)
                     }
 
-                    // Etiqueta de version
+                    // Etiqueta de versión
                     if (versionLabel != null) {
                         Spacer(Modifier.height(4.dp))
                         Row(
@@ -571,12 +578,9 @@ private fun CotizacionCard(
                         )
                     }
                     Text(
-                        "Total del Área del proyecto: ${
-                            String.format(
-                                "%.2f",
-                                cotizacion.areaTotal
-                            )
-                        } m²", color = textMuted, fontSize = 12.sp
+                        "Total del Área del proyecto: ${String.format("%.2f", cotizacion.areaTotal)} m²",
+                        color = textMuted,
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -618,6 +622,7 @@ private fun CotizacionCard(
             HorizontalDivider(color = border.copy(0.5f))
             Spacer(Modifier.height(16.dp))
 
+            // Botones
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -652,9 +657,7 @@ private fun CotizacionCard(
                         .height(44.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isDarkMode) Color(
-                            0xFF27272A
-                        ) else Color(0xFFF3F4F6)
+                        containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
                     ),
                     border = BorderStroke(0.dp, Color.Transparent)
                 ) {
@@ -680,9 +683,316 @@ private fun CotizacionCard(
                         .height(44.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isDarkMode) Color(
-                            0xFF450A0A
-                        ).copy(0.3f) else Color(0xFFFEF2F2)
+                        containerColor = if (isDarkMode) Color(0xFF450A0A).copy(0.3f) else Color(0xFFFEF2F2)
+                    ),
+                    border = BorderStroke(0.dp, Color.Transparent)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Eliminar",
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CARD PARA COTIZACIÓN RAIN PROTECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun CotizacionRainCard(
+    cotizacion: CotizacionRain,
+    numeroOrden: Int,
+    isDarkMode: Boolean,
+    cardBg: Color,
+    textPrimary: Color,
+    textMuted: Color,
+    border: Color,
+    formatMoney: (Double) -> String,
+    versionLabel: String? = null,
+    onClick: () -> Unit,
+    onPdf: () -> Unit,
+    onCompartir: () -> Unit,
+    onEliminar: () -> Unit
+) {
+    // Color distintivo para Rain Protection
+    val rainAccent = Color(0xFF3B82F6) // Azul
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        color = cardBg,
+        shape = RoundedCornerShape(16.dp),
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, border.copy(0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    // Badge con identificador HS - Rain Protection
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (cotizacion.folio.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isDarkMode) Color(0xFF3F3F46) else Color(0xFFE5E7EB),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    "#${cotizacion.folio}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = textMuted
+                                )
+                            }
+                        }
+
+                        // Badge "HS - Rain Protection"
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = rainAccent.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                                .border(
+                                    1.dp,
+                                    rainAccent.copy(alpha = 0.3f),
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                "HS - Rain Protection",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = rainAccent
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = cotizacion.clienteNombre,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = textMuted,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(cotizacion.fecha, color = textMuted, fontSize = 12.sp)
+                    }
+
+                    // Etiqueta de versión
+                    if (versionLabel != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val isOriginal = versionLabel.contains("Original")
+                            val labelColor = if (isOriginal) Color(0xFF3B82F6) else Color(0xFFF59E0B)
+                            Icon(
+                                if (isOriginal) Icons.Default.Description else Icons.Default.Edit,
+                                contentDescription = null,
+                                tint = labelColor,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = versionLabel,
+                                color = labelColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // Número de orden
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "#$numeroOrden",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Info de medidas / telas
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Straighten,
+                    contentDescription = null,
+                    tint = textMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+                Column {
+                    Row {
+                        Text("No. de Medidas: ", color = textMuted, fontSize = 13.sp)
+                        Text(
+                            "${cotizacion.totalAreas}",
+                            color = textPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        "Número de Tela: ${cotizacion.totalAreas}",
+                        color = textMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Tipo de mecanismo
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = textMuted,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        cotizacion.getTipoMecanismoDisplay(),
+                        color = textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Text(
+                    formatMoney(cotizacion.total),
+                    color = textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = border.copy(0.5f))
+            Spacer(Modifier.height(16.dp))
+
+            // Botones
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onPdf,
+                    modifier = Modifier
+                        .weight(2f)
+                        .height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PictureAsPdf,
+                        contentDescription = null,
+                        tint = if (isDarkMode) Color.Black else Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "PDF",
+                        color = if (isDarkMode) Color.Black else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onCompartir,
+                    modifier = Modifier
+                        .weight(2f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+                    ),
+                    border = BorderStroke(0.dp, Color.Transparent)
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = null,
+                        tint = textPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Enviar",
+                        color = textPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onEliminar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isDarkMode) Color(0xFF450A0A).copy(0.3f) else Color(0xFFFEF2F2)
                     ),
                     border = BorderStroke(0.dp, Color.Transparent)
                 ) {

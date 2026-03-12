@@ -127,6 +127,7 @@ fun RainMedidasScreen(
         val desc = actual.descripcion.trim()
         val altoNum = getNumericValue(actual.alto).toDoubleOrNull()
         val anchoNum = getNumericValue(actual.ancho).toDoubleOrNull()
+        val piezasNum = actual.piezas.toIntOrNull()
         if (desc.isBlank()) {
             Toast.makeText(context, "Falta descripción", Toast.LENGTH_SHORT).show()
             return false
@@ -137,6 +138,14 @@ fun RainMedidasScreen(
         }
         if (anchoNum == null || anchoNum <= 0.0) {
             Toast.makeText(context, "Ingresa un ancho válido", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        if (anchoNum > 5.80) {
+            Toast.makeText(context, "El ancho máximo por pieza es 5.80m", Toast.LENGTH_LONG).show()
+            return false
+        }
+        if (piezasNum == null || piezasNum < 1) {
+            Toast.makeText(context, "El número de piezas debe ser al menos 1", Toast.LENGTH_SHORT).show()
             return false
         }
         return true
@@ -237,6 +246,7 @@ fun RainMedidasScreen(
                                     val desc = a.descripcion.trim()
                                     val alto = getNumericValue(a.alto).toDoubleOrNull()
                                     val ancho = getNumericValue(a.ancho).toDoubleOrNull()
+                                    val piezasVal = a.piezas.toIntOrNull() ?: 1
                                     if (desc.isBlank() && (alto == null || alto <= 0.0) && (ancho == null || ancho <= 0.0)) {
                                         return@mapIndexedNotNull null
                                     }
@@ -252,11 +262,20 @@ fun RainMedidasScreen(
                                         Toast.makeText(context, "Ancho inválido en Área #${idx + 1}", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
+                                    if (ancho > 5.80) {
+                                        Toast.makeText(context, "Ancho máx. 5.80m en Área #${idx + 1}", Toast.LENGTH_LONG).show()
+                                        return@Button
+                                    }
+                                    if (piezasVal < 1) {
+                                        Toast.makeText(context, "Piezas debe ser al menos 1 en Área #${idx + 1}", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
                                     // Área válida - copiar datos limpios
                                     a.copy(
                                         descripcion = desc,
                                         alto = alto.toString(),
-                                        ancho = ancho.toString()
+                                        ancho = ancho.toString(),
+                                        piezas = piezasVal.toString()
                                     )
                                 }
 
@@ -484,6 +503,29 @@ fun RainMedidasScreen(
                                 )
                             }
                         }
+
+                        // ═══════════════════════════════════════════════════════════════
+                        // NÚMERO DE PIEZAS
+                        // ═══════════════════════════════════════════════════════════════
+                        RainInputField(
+                            "NÚMERO DE PIEZAS",
+                            actual.piezas,
+                            "1",
+                            {
+                                if (indexActual in areas.indices) {
+                                    val filtered = it.filter { c -> c.isDigit() }.take(2)
+                                    areas[indexActual] = areas[indexActual].copy(piezas = filtered)
+                                    syncDraft()
+                                }
+                            },
+                            Icons.Default.ContentCopy,
+                            isDarkMode,
+                            textPrimary,
+                            textLabel,
+                            inputBg,
+                            inputBorder,
+                            keyboardType = KeyboardType.Number
+                        )
 
                         // ═══════════════════════════════════════════════════════════════
                         // TIPO DE MECANISMO (en lugar de Tipo de Montaje)

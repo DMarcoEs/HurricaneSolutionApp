@@ -35,26 +35,30 @@ data class MedidaRainFormState(
     var descripcion: String = "",    // Área a proteger (ej: Ventana principal)
     var alto: String = "",
     var ancho: String = "",
+    var piezas: String = "1",        // Número de piezas (cada pieza lleva su propio mecanismo)
     var tipoMecanismo: TipoMecanismo = TipoMecanismo.MANUAL
 ) {
     fun isValid(): Boolean {
         val altoNum = alto.toDoubleOrNull() ?: return false
         val anchoNum = ancho.toDoubleOrNull() ?: return false
-        return zona.isNotBlank() && altoNum > 0 && anchoNum > 0
+        val piezasNum = piezas.toIntOrNull() ?: return false
+        return zona.isNotBlank() && altoNum > 0 && anchoNum > 0 && piezasNum >= 1
     }
 
     fun toMedidaRain(): MedidaRain? {
         if (!isValid()) return null
         val altoNum = alto.toDoubleOrNull() ?: return null
         val anchoNum = ancho.toDoubleOrNull() ?: return null
+        val piezasNum = piezas.toIntOrNull() ?: 1
 
-        // Calcular subtotal usando RainPriceManager
-        val subtotal = RainPriceManager.calcularSubtotalArea(altoNum, anchoNum, tipoMecanismo)
+        // Calcular subtotal usando RainPriceManager (piezas multiplica todo)
+        val subtotal = RainPriceManager.calcularSubtotalArea(altoNum, anchoNum, tipoMecanismo, piezasNum)
 
         return MedidaRain(
             descripcion = if (descripcion.isNotBlank()) "$zona - $descripcion" else zona,
             alto = altoNum,
             ancho = anchoNum,
+            piezas = piezasNum,
             tipoMecanismo = tipoMecanismo,
             subtotal = subtotal
         )
@@ -74,10 +78,11 @@ data class MedidaRain(
     val descripcion: String,
     val alto: Double,
     val ancho: Double,
+    val piezas: Int = 1,
     val tipoMecanismo: TipoMecanismo = TipoMecanismo.MANUAL,
     val subtotal: Double = 0.0
 ) {
-    val areaM2: Double get() = alto * ancho
+    val areaM2: Double get() = alto * ancho * piezas
 
     /**
      * Convierte a JSON para guardar en Supabase
@@ -87,6 +92,7 @@ data class MedidaRain(
             nombre = descripcion,
             alto = alto,
             ancho = ancho,
+            piezas = piezas,
             tipoMecanismo = tipoMecanismo.id,
             subtotal = subtotal
         )
@@ -176,6 +182,7 @@ data class CotizacionRainDraft(
                 descripcion = partesMedida.getOrNull(1) ?: "",
                 alto = String.format("%.2f", m.alto),
                 ancho = String.format("%.2f", m.ancho),
+                piezas = m.piezas.toString(),
                 tipoMecanismo = m.tipoMecanismo
             )
         }.toMutableList()

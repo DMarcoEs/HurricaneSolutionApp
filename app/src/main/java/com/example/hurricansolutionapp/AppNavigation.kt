@@ -75,6 +75,7 @@ fun AppNavigation(
         else -> Routes.HOME
     }
 
+    // Estados Hurricane
     var cotizacionActual by remember { mutableStateOf<Cotizacion?>(null) }
     var desdeHistorial by remember { mutableStateOf(false) }
     var editandoDesdeHistorial by remember { mutableStateOf(false) }
@@ -82,10 +83,12 @@ fun AppNavigation(
     var cotizacionRemotaSeleccionada by remember { mutableStateOf<CotizacionRemota?>(null) }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // RAIN PROTECTION - DRAFT
+    // RAIN PROTECTION - DRAFT Y ESTADOS
     // ═══════════════════════════════════════════════════════════════════════════
     var rainDraft by remember { mutableStateOf(CotizacionRainDraft()) }
     var cotizacionRainActual by remember { mutableStateOf<CotizacionRain?>(null) }
+    var desdeHistorialRain by remember { mutableStateOf(false) }
+    var editandoDesdeHistorialRain by remember { mutableStateOf(false) }
 
     // Mover historialListState aquí (fuera del NavHost)
     val historialListState = rememberLazyListState()
@@ -143,13 +146,11 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() },
                 onSelectHurricane = {
-                    // Flujo Hurricane: va a selección de cliente
                     navController.navigate(Routes.SELECCION_CLIENTE) {
                         launchSingleTop = true
                     }
                 },
                 onSelectRain = {
-                    // Flujo Rain: va a selección de cliente Rain
                     rainDraft = CotizacionRainDraft()
                     navController.navigate(Routes.RAIN_CLIENTE) {
                         launchSingleTop = true
@@ -173,6 +174,8 @@ fun AppNavigation(
                     desdeHistorial = false
                     editandoDesdeHistorial = false
                     huboEdicionMedidas = false
+                    desdeHistorialRain = false
+                    editandoDesdeHistorialRain = false
                     cotizacionDraft.clear()
                     rainDraft = CotizacionRainDraft()
                     navController.navigate(Routes.SELECCION_PRODUCTO) {
@@ -233,6 +236,8 @@ fun AppNavigation(
                     desdeHistorial = false
                     editandoDesdeHistorial = false
                     huboEdicionMedidas = false
+                    desdeHistorialRain = false
+                    editandoDesdeHistorialRain = false
                     cotizacionDraft.clear()
                     rainDraft = CotizacionRainDraft()
                     navController.navigate(Routes.SELECCION_PRODUCTO) {
@@ -351,7 +356,7 @@ fun AppNavigation(
             popEnterTransition = { popEnterTransition() },
             popExitTransition = { popExitTransition() }
         ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId")
+            val odayUserId = backStackEntry.arguments?.getString("userId")
             AdminCotizacionesScreen(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() },
@@ -359,7 +364,7 @@ fun AppNavigation(
                     cotizacionRemotaSeleccionada = cotizacion
                     navController.navigate(Routes.adminCotizacionDetalle(cotizacion.folio))
                 },
-                filtroUsuarioInicial = userId
+                filtroUsuarioInicial = odayUserId
             )
         }
 
@@ -566,7 +571,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // HISTORIAL
+        // HISTORIAL - HURRICANE + RAIN
         // ═══════════════════════════════════════════════════════════════════════════
 
         composable(
@@ -581,10 +586,15 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onBack = {
                     if (navController.currentDestination?.route == Routes.HISTORIAL) {
+                        // Limpiar estados Hurricane
                         cotizacionActual = null
                         desdeHistorial = false
                         editandoDesdeHistorial = false
                         huboEdicionMedidas = false
+                        // Limpiar estados Rain
+                        cotizacionRainActual = null
+                        desdeHistorialRain = false
+                        editandoDesdeHistorialRain = false
                         navController.popBackStack()
                     }
                 },
@@ -595,6 +605,17 @@ fun AppNavigation(
                         desdeHistorial = true
                         huboEdicionMedidas = false
                         navController.navigate(Routes.RESUMEN) { launchSingleTop = true }
+                    }
+                },
+                onVerDetalleRain = { cotizacionRain ->
+                    val currentRoute = navController.currentDestination?.route
+                    if (currentRoute == Routes.HISTORIAL) {
+                        cotizacionRainActual = cotizacionRain
+                        desdeHistorialRain = true
+                        // Cargar al draft para edición
+                        rainDraft = CotizacionRainDraft()
+                        rainDraft.cargarDesdeCotizacionRain(cotizacionRain)
+                        navController.navigate(Routes.RAIN_RESUMEN) { launchSingleTop = true }
                     }
                 }
             )
@@ -644,7 +665,7 @@ fun AppNavigation(
         // RAIN PROTECTION - FLUJO COMPLETO
         // ═══════════════════════════════════════════════════════════════════════════
 
-        // RAIN - SELECCIÓN DE CLIENTE (leads CRM o nuevo)
+        // RAIN - SELECCIÓN DE CLIENTE
         composable(
             route = Routes.RAIN_CLIENTE,
             enterTransition = { enterTransition() },
@@ -659,14 +680,12 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() },
                 onClienteNuevo = {
-                    // Cliente nuevo: limpiar y ir a captura de datos
                     rainDraft = CotizacionRainDraft()
                     rainDraft.esClienteActual = false
                     rainDraft.leadId = null
                     navController.navigate(Routes.RAIN_DATOS)
                 },
                 onClienteActualSeleccionado = { lead ->
-                    // Cliente del CRM: pre-llenar datos y ir a captura de datos
                     rainDraft = CotizacionRainDraft()
                     rainDraft.nombre = lead.nombreCompleto
                     rainDraft.telefono = lead.telefono
@@ -675,7 +694,6 @@ fun AppNavigation(
                     rainDraft.direccionDetalle = "${lead.calle ?: ""} ${lead.numero ?: ""}".trim()
                     rainDraft.esClienteActual = true
                     rainDraft.leadId = lead.id
-                    // Detectar zona geográfica
                     rainDraft.zonaGeografica = ZonasData.detectarZona(rainDraft.ciudad)
                     navController.navigate(Routes.RAIN_DATOS)
                 }
@@ -730,9 +748,19 @@ fun AppNavigation(
             RainMedidasScreen(
                 rainDraft = rainDraft,
                 isDarkMode = isDarkMode,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    if (editandoDesdeHistorialRain) {
+                        editandoDesdeHistorialRain = false
+                    }
+                    navController.popBackStack()
+                },
                 onContinue = {
-                    navController.navigate(Routes.RAIN_RESUMEN)
+                    if (editandoDesdeHistorialRain) {
+                        editandoDesdeHistorialRain = false
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(Routes.RAIN_RESUMEN)
+                    }
                 }
             )
         }
@@ -745,53 +773,42 @@ fun AppNavigation(
             popEnterTransition = { popEnterTransition() },
             popExitTransition = { popExitTransition() }
         ) {
+            val currentUserRole = SessionManager.getRole(context)
+            val homeDestination = if (currentUserRole == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+
             RainResumenScreen(
                 rainDraft = rainDraft,
                 isDarkMode = isDarkMode,
+                desdeHistorial = desdeHistorialRain,
+                cotizacionRainExistente = cotizacionRainActual,
                 onBack = { navController.popBackStack() },
-                onGuardarYGenerarPdf = {
-                    scope.launch {
-                        try {
-                            // Generar folio
-                            val especialista = SessionManager.getNombre(context)
-                            val folio = RainFolioManager.nextFolioForEspecialista(context, especialista)
-                            rainDraft.folio = folio
-
-                            // Fecha actual
-                            val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
-                            rainDraft.fecha = sdf.format(java.util.Date())
-
-                            // TODO: Guardar en Supabase cuando el PDF esté listo
-
-                            android.widget.Toast.makeText(
-                                context,
-                                "Cotización ${folio} generada (PDF pendiente)",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-
-                            // Volver al inicio
-                            rainDraft = CotizacionRainDraft()
-                            if (isAdmin) {
-                                navController.navigate(Routes.ADMIN_HOME) {
-                                    popUpTo(Routes.ADMIN_HOME) { inclusive = true }
-                                }
-                            } else {
-                                navController.navigate(Routes.HOME) {
-                                    popUpTo(Routes.HOME) { inclusive = true }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.e("RainResumen", "Error: ${e.message}")
-                            android.widget.Toast.makeText(
-                                context,
-                                "Error al guardar: ${e.message}",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                onVolverAInicio = {
+                    rainDraft = CotizacionRainDraft()
+                    cotizacionRainActual = null
+                    desdeHistorialRain = false
+                    editandoDesdeHistorialRain = false
+                    navController.navigate(homeDestination) {
+                        popUpTo(homeDestination) { inclusive = true }
+                    }
+                },
+                onVolverAEditar = {
+                    if (desdeHistorialRain) {
+                        editandoDesdeHistorialRain = true
+                        navController.navigate(Routes.RAIN_MEDIDAS)
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onVolverAHistorial = {
+                    cotizacionRainActual = null
+                    desdeHistorialRain = false
+                    editandoDesdeHistorialRain = false
+                    navController.navigate(Routes.HISTORIAL) {
+                        popUpTo(homeDestination) { inclusive = false }
+                        launchSingleTop = true
                     }
                 },
                 onCotizarOtroProducto = { tipo ->
-                    // Copiar datos del cliente a cotizacionDraft de huracanes
                     cotizacionDraft.clear()
                     cotizacionDraft.nombre = rainDraft.nombre
                     cotizacionDraft.telefono = rainDraft.telefono

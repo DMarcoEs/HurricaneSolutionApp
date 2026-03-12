@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -160,6 +161,7 @@ private fun RainTipoPropiedadCard(
                     TipoPropiedad.CASA -> Icons.Default.Home
                     TipoPropiedad.DEPARTAMENTO -> Icons.Default.Apartment
                     TipoPropiedad.COMERCIAL -> Icons.Default.Store
+                    TipoPropiedad.HOTEL -> Icons.Default.Business
                 }
 
                 Icon(

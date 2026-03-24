@@ -5,13 +5,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +66,14 @@ fun RainResumenScreen(
     var pdfRegenerado by rememberSaveable { mutableStateOf(false) }
     var subiendoADrive by remember { mutableStateOf(false) }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ESTADOS DE ACCESORIOS
+    // ═══════════════════════════════════════════════════════════════════════════
+    var quiereControles by rememberSaveable { mutableStateOf(rainDraft.quiereControles) }
+    var cantidadControles by rememberSaveable { mutableIntStateOf(rainDraft.cantidadControles.coerceAtLeast(1)) }
+    var quiereManivelas by rememberSaveable { mutableStateOf(rainDraft.quiereManivelas) }
+    var cantidadManivelas by rememberSaveable { mutableIntStateOf(rainDraft.cantidadManivelas.coerceAtLeast(1)) }
+
     // Resetear estado cuando llega una cotizacion nueva
     LaunchedEffect(rainDraft.folio, desdeHistorial) {
         if (!desdeHistorial && rainDraft.folio.isBlank()) {
@@ -112,7 +120,24 @@ fun RainResumenScreen(
     val subtotal = rainDraft.getSubtotal()
     val descuentoPorcentaje = rainDraft.getDescuentoPorcentaje()
     val descuentoMonto = rainDraft.getDescuentoMonto()
-    val total = rainDraft.getTotal()
+
+    // Costo de accesorios (reactivo a switches/cantidades)
+    val costoAccesorios = remember(quiereControles, cantidadControles, quiereManivelas, cantidadManivelas) {
+        val ctrlCount = if (quiereControles) cantidadControles else 0
+        val manCount = if (quiereManivelas) cantidadManivelas else 0
+        RainPriceManager.calcularCostoAccesorios(ctrlCount, manCount)
+    }
+
+    // Total = (Subtotal - Descuento) + Accesorios
+    val total = (subtotal - descuentoMonto) + costoAccesorios
+
+    // Sincronizar con el draft
+    LaunchedEffect(quiereControles, cantidadControles, quiereManivelas, cantidadManivelas) {
+        rainDraft.quiereControles = quiereControles
+        rainDraft.cantidadControles = if (quiereControles) cantidadControles else 0
+        rainDraft.quiereManivelas = quiereManivelas
+        rainDraft.cantidadManivelas = if (quiereManivelas) cantidadManivelas else 0
+    }
 
     fun formatMoney(amount: Double): String {
         val format = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
@@ -153,7 +178,10 @@ fun RainResumenScreen(
             totalAreas = totalAreas,
             areasElectricas = rainDraft.getAreasElectricas(),
             areasManuales = rainDraft.getAreasManuales(),
-            observaciones = rainDraft.observaciones
+            observaciones = rainDraft.observaciones,
+            controlesAdicionales = if (quiereControles) cantidadControles else 0,
+            manivelasAdicionales = if (quiereManivelas) cantidadManivelas else 0,
+            costoAccesorios = costoAccesorios
         )
     }
 
@@ -262,9 +290,50 @@ fun RainResumenScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Mostrar total
+                    // Desglose de precios minimalista
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Subtotal", color = textMuted, fontSize = 11.sp)
+                        Text(formatMoney(subtotal), color = textMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Descuento (${String.format("%.1f", descuentoPorcentaje)}%)",
+                            color = Color(0xFF22C55E),
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            "-${formatMoney(descuentoMonto)}",
+                            color = Color(0xFF22C55E),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    if (costoAccesorios > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Accesorios", color = textMuted, fontSize = 11.sp)
+                            Text(
+                                "+${formatMoney(costoAccesorios)}",
+                                color = textMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = border.copy(0.3f), modifier = Modifier.padding(vertical = 4.dp))
+
+                    // Total
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -355,7 +424,10 @@ fun RainResumenScreen(
                                             areasElectricas = rainDraft.getAreasElectricas(),
                                             areasManuales = rainDraft.getAreasManuales(),
                                             leadId = rainDraft.leadId,
-                                            observaciones = rainDraft.observaciones.ifBlank { null }
+                                            observaciones = rainDraft.observaciones.ifBlank { null },
+                                            controlesAdicionales = if (quiereControles) cantidadControles else 0,
+                                            manivelasAdicionales = if (quiereManivelas) cantidadManivelas else 0,
+                                            costoAccesorios = costoAccesorios
                                         )
 
                                         val saveResult = withContext(Dispatchers.IO) {
@@ -793,12 +865,12 @@ fun RainResumenScreen(
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // CARD: RESUMEN DE PRECIOS
+            // CARD: ACCESORIOS ADICIONALES
             // ═══════════════════════════════════════════════════════════════
             item {
                 RainStitchCard(
-                    title = "RESUMEN DE PRECIOS",
-                    icon = Icons.Default.Receipt,
+                    title = "ACCESORIOS",
+                    icon = Icons.Default.Settings,
                     isDarkMode = isDarkMode,
                     surface = surface,
                     headerBg = headerBg,
@@ -808,58 +880,176 @@ fun RainResumenScreen(
                     textMuted = textMuted
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        // ── Controles adicionales ──
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Subtotal:", color = textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Text(formatMoney(subtotal), color = textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "Descuento (${String.format("%.1f", descuentoPorcentaje)}%):",
-                                color = Color(0xFF22C55E),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                "-${formatMoney(descuentoMonto)}",
-                                color = Color(0xFF22C55E),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = border)
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                "TOTAL RAIN PROTECTION",
-                                color = textPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Controles adicionales",
+                                    color = textPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    formatMoney(RainPriceManager.getPrecio("control_adicional")) + " c/u",
+                                    color = textMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            // Toggle No/Sí estilo Hurricane
+                            RainToggleButton(
+                                isActive = quiereControles,
+                                onToggle = { quiereControles = !quiereControles },
+                                isDarkMode = isDarkMode,
+                                textMuted = textMuted
                             )
-                            Text(
-                                formatMoney(total),
-                                color = textPrimary,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Black
+                        }
+
+                        // Selector de cantidad controles
+                        AnimatedVisibility(visible = quiereControles) {
+                            Column {
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Cantidad:", color = textMuted, fontSize = 13.sp)
+                                    // Botones +/- rectangulares estilo Hurricane
+                                    RainQuantitySelector(
+                                        value = cantidadControles,
+                                        onDecrement = { if (cantidadControles > 1) cantidadControles-- },
+                                        onIncrement = { if (cantidadControles < 10) cantidadControles++ },
+                                        isDarkMode = isDarkMode,
+                                        textPrimary = textPrimary
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(color = border.copy(0.3f))
+                        Spacer(Modifier.height(12.dp))
+
+                        // ── Manivelas adicionales ──
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Manivelas adicionales",
+                                    color = textPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    formatMoney(RainPriceManager.getPrecio("manivela")) + " c/u",
+                                    color = textMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            // Toggle No/Sí estilo Hurricane
+                            RainToggleButton(
+                                isActive = quiereManivelas,
+                                onToggle = { quiereManivelas = !quiereManivelas },
+                                isDarkMode = isDarkMode,
+                                textMuted = textMuted
                             )
+                        }
+
+                        // Selector de cantidad manivelas
+                        AnimatedVisibility(visible = quiereManivelas) {
+                            Column {
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Cantidad:", color = textMuted, fontSize = 13.sp)
+                                    // Botones +/- rectangulares estilo Hurricane
+                                    RainQuantitySelector(
+                                        value = cantidadManivelas,
+                                        onDecrement = { if (cantidadManivelas > 1) cantidadManivelas-- },
+                                        onIncrement = { if (cantidadManivelas < 10) cantidadManivelas++ },
+                                        isDarkMode = isDarkMode,
+                                        textPrimary = textPrimary
+                                    )
+                                }
+                            }
+                        }
+
+                        // Mostrar subtotal de accesorios si hay alguno seleccionado
+                        if (quiereControles || quiereManivelas) {
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(color = border.copy(0.3f))
+                            Spacer(Modifier.height(8.dp))
+
+                            if (quiereControles) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Controles × $cantidadControles",
+                                        color = textMuted,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        formatMoney(cantidadControles * RainPriceManager.getPrecio("control_adicional")),
+                                        color = textPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                            if (quiereManivelas) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Manivelas × $cantidadManivelas",
+                                        color = textMuted,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        formatMoney(cantidadManivelas * RainPriceManager.getPrecio("manivela")),
+                                        color = textPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "Total accesorios:",
+                                    color = textPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    formatMoney(costoAccesorios),
+                                    color = textPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -1072,5 +1262,130 @@ private fun RainClienteDataRow(
             )
         }
         if (showDivider) HorizontalDivider(color = border.copy(0.3f))
+    }
+}
+
+/**
+ * Toggle No/Sí estilo Hurricane (rectangular, blanco/negro)
+ */
+@Composable
+private fun RainToggleButton(
+    isActive: Boolean,
+    onToggle: () -> Unit,
+    isDarkMode: Boolean,
+    textMuted: Color
+) {
+    Surface(
+        onClick = onToggle,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)),
+        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB),
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Row(modifier = Modifier.padding(2.dp)) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (!isActive) (if (isDarkMode) Color.White else Color.Black)
+                        else Color.Transparent
+                    )
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    "No",
+                    color = if (!isActive) (if (isDarkMode) Color.Black else Color.White) else textMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (isActive) (if (isDarkMode) Color.White else Color.Black)
+                        else Color.Transparent
+                    )
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    "Si",
+                    color = if (isActive) (if (isDarkMode) Color.Black else Color.White) else textMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Selector de cantidad +/- rectangular estilo Hurricane (negro/blanco, bordes rectos)
+ */
+@Composable
+private fun RainQuantitySelector(
+    value: Int,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    isDarkMode: Boolean,
+    textPrimary: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(2.dp)
+        ) {
+            // Botón -
+            Surface(
+                onClick = onDecrement,
+                shape = RoundedCornerShape(4.dp),
+                color = if (isDarkMode) Color(0xFF374151) else Color.White
+            ) {
+                Box(
+                    modifier = Modifier.size(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Remove,
+                        contentDescription = "Menos",
+                        tint = textPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            // Valor
+            Text(
+                "$value",
+                color = textPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .widthIn(min = 36.dp)
+                    .padding(horizontal = 8.dp),
+                textAlign = TextAlign.Center
+            )
+
+            // Botón +
+            Surface(
+                onClick = onIncrement,
+                shape = RoundedCornerShape(4.dp),
+                color = if (isDarkMode) Color.White else Color.Black
+            ) {
+                Box(
+                    modifier = Modifier.size(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Más",
+                        tint = if (isDarkMode) Color.Black else Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
     }
 }

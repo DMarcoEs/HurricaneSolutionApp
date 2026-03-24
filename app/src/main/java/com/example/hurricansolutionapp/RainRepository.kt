@@ -301,6 +301,9 @@ data class CotizacionRainRemota(
     @SerialName("pdf_path") val pdfPath: String? = null,
     @SerialName("lead_id") val leadId: String? = null,
     val observaciones: String? = null,
+    @SerialName("controles_adicionales") val controlesAdicionales: Int = 0,
+    @SerialName("manivelas_adicionales") val manivelasAdicionales: Int = 0,
+    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null
 ) {
@@ -340,6 +343,9 @@ data class CotizacionRainRemota(
             areasManuales = areasManuales,
             pdfPath = pdfPath,
             observaciones = observaciones ?: "",
+            controlesAdicionales = controlesAdicionales,
+            manivelasAdicionales = manivelasAdicionales,
+            costoAccesorios = costoAccesorios,
             updatedAt = try {
                 if (updatedAt != null && updatedAt != createdAt) {
                     java.time.Instant.parse(updatedAt).toEpochMilli()
@@ -374,7 +380,10 @@ data class CotizacionRainInsert(
     @SerialName("areas_manuales") val areasManuales: Int = 0,
     @SerialName("pdf_path") val pdfPath: String? = null,
     @SerialName("lead_id") val leadId: String? = null,
-    val observaciones: String? = null
+    val observaciones: String? = null,
+    @SerialName("controles_adicionales") val controlesAdicionales: Int = 0,
+    @SerialName("manivelas_adicionales") val manivelasAdicionales: Int = 0,
+    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0
 )
 
 @Serializable
@@ -392,7 +401,10 @@ data class CotizacionRainUpdate(
     @SerialName("total_areas") val totalAreas: Int = 0,
     @SerialName("areas_electricas") val areasElectricas: Int = 0,
     @SerialName("areas_manuales") val areasManuales: Int = 0,
-    val observaciones: String? = null
+    val observaciones: String? = null,
+    @SerialName("controles_adicionales") val controlesAdicionales: Int = 0,
+    @SerialName("manivelas_adicionales") val manivelasAdicionales: Int = 0,
+    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0
 )
 
 @Serializable

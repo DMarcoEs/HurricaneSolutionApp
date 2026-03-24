@@ -117,7 +117,12 @@ data class CotizacionRainDraft(
     var zonaGeografica: ZonaGeografica = ZonaGeografica.CONTINENTAL,
     var tipoPropiedad: String = "",
     var medidasForm: MutableList<MedidaRainFormState> = mutableListOf(MedidaRainFormState()),
-    var observaciones: String = ""
+    var observaciones: String = "",
+    // Accesorios adicionales
+    var quiereControles: Boolean = false,
+    var cantidadControles: Int = 0,
+    var quiereManivelas: Boolean = false,
+    var cantidadManivelas: Int = 0
 ) {
     // Alias para compatibilidad con RainMedidasScreen
     var areas: MutableList<RainAreaFormState>
@@ -139,6 +144,10 @@ data class CotizacionRainDraft(
         tipoPropiedad = ""
         medidasForm = mutableListOf(MedidaRainFormState())
         observaciones = ""
+        quiereControles = false
+        cantidadControles = 0
+        quiereManivelas = false
+        cantidadManivelas = 0
     }
 
     /**
@@ -175,6 +184,12 @@ data class CotizacionRainDraft(
         fecha = cotizacion.fecha
         observaciones = cotizacion.observaciones
 
+        // Accesorios
+        quiereControles = cotizacion.controlesAdicionales > 0
+        cantidadControles = cotizacion.controlesAdicionales
+        quiereManivelas = cotizacion.manivelasAdicionales > 0
+        cantidadManivelas = cotizacion.manivelasAdicionales
+
         medidasForm = cotizacion.medidas.map { m ->
             val partesMedida = m.descripcion.split(" - ")
             MedidaRainFormState(
@@ -202,13 +217,28 @@ data class CotizacionRainDraft(
 
     fun getDescuentoMonto(): Double = getSubtotal() * (getDescuentoPorcentaje() / 100)
 
-    fun getTotal(): Double = getSubtotal() - getDescuentoMonto()
+    /**
+     * Calcula costo de accesorios adicionales (SIN descuento de zona)
+     */
+    fun getCostoAccesorios(): Double {
+        val ctrlCount = if (quiereControles) cantidadControles else 0
+        val manCount = if (quiereManivelas) cantidadManivelas else 0
+        return RainPriceManager.calcularCostoAccesorios(ctrlCount, manCount)
+    }
+
+    /**
+     * Total = (Subtotal - Descuento) + Accesorios
+     * Los accesorios NO llevan descuento de zona
+     */
+    fun getTotal(): Double = (getSubtotal() - getDescuentoMonto()) + getCostoAccesorios()
 
     fun getTotalAreas(): Int = getMedidas().size
 
-    fun getAreasElectricas(): Int = getMedidas().count { it.tipoMecanismo == TipoMecanismo.ELECTRICO }
+    fun getAreasElectricas(): Int = getMedidas().filter { it.tipoMecanismo == TipoMecanismo.ELECTRICO }.sumOf { it.piezas }
 
-    fun getAreasManuales(): Int = getMedidas().count { it.tipoMecanismo == TipoMecanismo.MANUAL }
+    fun getAreasManuales(): Int = getMedidas().filter { it.tipoMecanismo == TipoMecanismo.MANUAL }.sumOf { it.piezas }
+
+    fun getTotalTelas(): Int = getMedidas().sumOf { it.piezas }
 
     /**
      * Convierte las medidas a JSON string para Supabase
@@ -244,7 +274,11 @@ data class CotizacionRain(
     val areasManuales: Int = 0,
     val pdfPath: String? = null,
     val observaciones: String = "",
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    // Accesorios adicionales
+    val controlesAdicionales: Int = 0,
+    val manivelasAdicionales: Int = 0,
+    val costoAccesorios: Double = 0.0
 ) {
     fun fueEditada(): Boolean = updatedAt > 0L
 

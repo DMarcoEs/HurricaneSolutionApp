@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Pantalla de selección de producto (Hurricane o Rain)
- * Diseño minimalista en blanco y negro
+ * Diseño minimalista — ambas cards con el mismo estilo del tema
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,7 +34,6 @@ fun SeleccionProductoScreen(
 ) {
     BackHandler { onBack() }
 
-    // Colores usando StitchColors
     val bg = StitchColors.background(isDarkMode)
     val textPrimary = StitchColors.textPrimary(isDarkMode)
     val textSecondary = StitchColors.textSecondary(isDarkMode)
@@ -82,9 +81,8 @@ fun SeleccionProductoScreen(
                 titulo = "HURRICANE PROTECTION",
                 subtitulo = "Protección contra huracanes",
                 descripcion = "Sistemas HS-875 • HS-1250 • HS-1500",
-                iconResId = R.drawable.ic_hurricane_logo, // Logo de Hurricane
+                iconResId = R.drawable.ic_hurricane_tornado,
                 isDarkMode = isDarkMode,
-                invertColors = false, // En dark mode: fondo negro, logo blanco
                 onClick = onSelectHurricane
             )
 
@@ -95,9 +93,8 @@ fun SeleccionProductoScreen(
                 titulo = "RAIN PROTECTION",
                 subtitulo = "Toldo vertical enrollable",
                 descripcion = "Protección contra lluvia y sol",
-                iconResId = R.drawable.ic_hurricane_logo, // Logo de Rain (necesitas agregarlo)
+                iconResId = R.drawable.ic_rain_cloud,
                 isDarkMode = isDarkMode,
-                invertColors = true, // En dark mode: fondo blanco, logo negro
                 onClick = onSelectRain
             )
 
@@ -121,10 +118,9 @@ private fun ProductoCardMinimal(
     descripcion: String,
     iconResId: Int,
     isDarkMode: Boolean,
-    invertColors: Boolean, // Si true, invierte colores (para Rain)
     onClick: () -> Unit
 ) {
-    // Colores según el modo y si se invierten
+    // Mismos colores para ambas cards — siguen el tema
     val cardBg: Color
     val iconBg: Color
     val iconTint: Color
@@ -132,40 +128,20 @@ private fun ProductoCardMinimal(
     val textAccent: Color
     val border: Color
 
-    if (invertColors) {
-        // Rain Protection: fondo blanco/negro invertido
-        if (isDarkMode) {
-            cardBg = Color.White
-            iconBg = Color.White
-            iconTint = Color.Black
-            textPrimary = Color.Black
-            textAccent = Color(0xFF333333)
-            border = Color(0xFFE5E7EB)
-        } else {
-            cardBg = Color.Black
-            iconBg = Color.Black
-            iconTint = Color.White
-            textPrimary = Color.White
-            textAccent = Color(0xFFCCCCCC)
-            border = Color(0xFF333333)
-        }
+    if (isDarkMode) {
+        cardBg = Color(0xFF18181B)
+        iconBg = Color.Black
+        iconTint = Color.White
+        textPrimary = Color.White
+        textAccent = Color(0xFF9CA3AF)
+        border = Color(0xFF27272A)
     } else {
-        // Hurricane Protection: colores normales del tema
-        if (isDarkMode) {
-            cardBg = Color(0xFF18181B)
-            iconBg = Color.Black
-            iconTint = Color.White
-            textPrimary = Color.White
-            textAccent = Color(0xFF9CA3AF)
-            border = Color(0xFF27272A)
-        } else {
-            cardBg = Color.White
-            iconBg = Color.White
-            iconTint = Color.Black
-            textPrimary = Color(0xFF111418)
-            textAccent = Color(0xFF6B7280)
-            border = Color(0xFFE5E7EB)
-        }
+        cardBg = Color.White
+        iconBg = Color.White
+        iconTint = Color.Black
+        textPrimary = Color(0xFF111418)
+        textAccent = Color(0xFF6B7280)
+        border = Color(0xFFE5E7EB)
     }
 
     Card(
@@ -183,7 +159,7 @@ private fun ProductoCardMinimal(
                 .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono/Logo
+            // Icono
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -192,7 +168,6 @@ private fun ProductoCardMinimal(
                     .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Usa el logo si existe, si no usa un placeholder
                 Icon(
                     painter = painterResource(id = iconResId),
                     contentDescription = null,

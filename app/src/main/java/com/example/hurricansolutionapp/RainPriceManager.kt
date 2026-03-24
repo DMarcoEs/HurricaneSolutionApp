@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * - Contrapeso: $412.96 × ancho
  * - Inserto: $17.80 × ancho × 2
  * - Tensor: $16.65 × alto × 2
+ * - Control adicional: $1,500.00 unidad
  *
  * Descuentos por zona:
  * - Continental: 23.50%
@@ -57,7 +58,8 @@ object RainPriceManager {
         "inserto" to 17.80,
         "tensor" to 16.65,
         "manivela" to 495.93,
-        "kit_adaptador" to 1120.95
+        "kit_adaptador" to 1120.95,
+        "control_adicional" to 600.00
     )
 
     private fun getDefaultDescuentos(): Map<String, Double> = mapOf(
@@ -194,6 +196,17 @@ object RainPriceManager {
         val descuentoPorcentaje = getDescuentoPorZona(zona)
         val descuentoMonto = subtotal * (descuentoPorcentaje / 100)
         return subtotal - descuentoMonto
+    }
+
+    /**
+     * Calcula el costo de accesorios adicionales (SIN descuento de zona)
+     * - Controles adicionales: cantidad × precio_control_adicional
+     * - Manivelas adicionales: cantidad × precio_manivela
+     */
+    fun calcularCostoAccesorios(cantidadControles: Int, cantidadManivelas: Int): Double {
+        val costoControles = cantidadControles * getPrecio("control_adicional")
+        val costoManivelas = cantidadManivelas * getPrecio("manivela")
+        return costoControles + costoManivelas
     }
 
     /**

@@ -910,23 +910,38 @@ fun RainResumenScreen(
 
                         // Selector de cantidad controles
                         AnimatedVisibility(visible = quiereControles) {
-                            Column {
-                                Spacer(Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Cantidad:", color = textMuted, fontSize = 13.sp)
-                                    // Botones +/- rectangulares estilo Hurricane
-                                    RainQuantitySelector(
-                                        value = cantidadControles,
-                                        onDecrement = { if (cantidadControles > 1) cantidadControles-- },
-                                        onIncrement = { if (cantidadControles < 10) cantidadControles++ },
-                                        isDarkMode = isDarkMode,
-                                        textPrimary = textPrimary
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Cantidad:", color = textMuted, fontSize = 13.sp)
+                                OutlinedTextField(
+                                    value = if (cantidadControles > 0) cantidadControles.toString() else "",
+                                    onValueChange = { input ->
+                                        val num = input.filter { it.isDigit() }.take(2).toIntOrNull()
+                                        cantidadControles = (num ?: 0).coerceIn(0, 99)
+                                    },
+                                    modifier = Modifier.width(72.dp).height(48.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        color = textPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                    ),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(6.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                                        unfocusedBorderColor = border,
+                                        cursorColor = textPrimary
                                     )
-                                }
+                                )
                             }
                         }
 
@@ -964,23 +979,38 @@ fun RainResumenScreen(
 
                         // Selector de cantidad manivelas
                         AnimatedVisibility(visible = quiereManivelas) {
-                            Column {
-                                Spacer(Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Cantidad:", color = textMuted, fontSize = 13.sp)
-                                    // Botones +/- rectangulares estilo Hurricane
-                                    RainQuantitySelector(
-                                        value = cantidadManivelas,
-                                        onDecrement = { if (cantidadManivelas > 1) cantidadManivelas-- },
-                                        onIncrement = { if (cantidadManivelas < 10) cantidadManivelas++ },
-                                        isDarkMode = isDarkMode,
-                                        textPrimary = textPrimary
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Cantidad:", color = textMuted, fontSize = 13.sp)
+                                OutlinedTextField(
+                                    value = if (cantidadManivelas > 0) cantidadManivelas.toString() else "",
+                                    onValueChange = { input ->
+                                        val num = input.filter { it.isDigit() }.take(2).toIntOrNull()
+                                        cantidadManivelas = (num ?: 0).coerceIn(0, 99)
+                                    },
+                                    modifier = Modifier.width(72.dp).height(48.dp),
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        color = textPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                    ),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(6.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                                        unfocusedBorderColor = border,
+                                        cursorColor = textPrimary
                                     )
-                                }
+                                )
                             }
                         }
 
@@ -1313,78 +1343,6 @@ private fun RainToggleButton(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
-            }
-        }
-    }
-}
-
-/**
- * Selector de cantidad +/- rectangular estilo Hurricane (negro/blanco, bordes rectos)
- */
-@Composable
-private fun RainQuantitySelector(
-    value: Int,
-    onDecrement: () -> Unit,
-    onIncrement: () -> Unit,
-    isDarkMode: Boolean,
-    textPrimary: Color
-) {
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(2.dp)
-        ) {
-            // Botón -
-            Surface(
-                onClick = onDecrement,
-                shape = RoundedCornerShape(4.dp),
-                color = if (isDarkMode) Color(0xFF374151) else Color.White
-            ) {
-                Box(
-                    modifier = Modifier.size(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Remove,
-                        contentDescription = "Menos",
-                        tint = textPrimary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            // Valor
-            Text(
-                "$value",
-                color = textPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .widthIn(min = 36.dp)
-                    .padding(horizontal = 8.dp),
-                textAlign = TextAlign.Center
-            )
-
-            // Botón +
-            Surface(
-                onClick = onIncrement,
-                shape = RoundedCornerShape(4.dp),
-                color = if (isDarkMode) Color.White else Color.Black
-            ) {
-                Box(
-                    modifier = Modifier.size(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Más",
-                        tint = if (isDarkMode) Color.Black else Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
             }
         }
     }

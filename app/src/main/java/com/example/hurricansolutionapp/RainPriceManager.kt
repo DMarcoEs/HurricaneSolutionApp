@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * Calcula precios para Rain Protection basado en:
  * - Tela: $173.50/m²
- * - Kit Manual: $7,195.70 + Manivela $495.93
+ * - Kit Manual: $7,195.70 (manivela se agrega como accesorio)
  * - Kit Eléctrico: $7,865.63 + Adaptador $1,120.95
  * - Perfil: $749.39 × ancho
  * - Contrapeso: $412.96 × ancho
@@ -180,8 +180,9 @@ object RainPriceManager {
         val costoTensor = alto * 2 * getPrecio("tensor")
 
         // Kit según mecanismo
+        // NOTA: La manivela ya NO se incluye aquí — se agrega como accesorio
         val costoKit = when (tipoMecanismo) {
-            TipoMecanismo.MANUAL -> getPrecio("kit_manual") + getPrecio("manivela")
+            TipoMecanismo.MANUAL -> getPrecio("kit_manual")
             TipoMecanismo.ELECTRICO -> getPrecio("kit_electrico") + getPrecio("kit_adaptador")
         }
 
@@ -215,17 +216,26 @@ object RainPriceManager {
     fun getDesgloseArea(alto: Double, ancho: Double, tipoMecanismo: TipoMecanismo): Map<String, Double> {
         val m2 = alto * ancho
 
-        return mapOf(
+        val base = mutableMapOf(
             "Tela (${String.format("%.2f", m2)} m²)" to (m2 * getPrecio("tela")),
             "Perfil (${String.format("%.2f", ancho)} m)" to (ancho * getPrecio("perfil")),
             "Contrapeso (${String.format("%.2f", ancho)} m)" to (ancho * getPrecio("contrapeso")),
             "Inserto (${String.format("%.2f", ancho)} m × 2)" to (ancho * 2 * getPrecio("inserto")),
-            "Tensor (${String.format("%.2f", alto)} m × 2)" to (alto * 2 * getPrecio("tensor")),
-            if (tipoMecanismo == TipoMecanismo.MANUAL) "Kit Manual" to getPrecio("kit_manual")
-            else "Kit Eléctrico" to getPrecio("kit_electrico"),
-            if (tipoMecanismo == TipoMecanismo.MANUAL) "Manivela" to getPrecio("manivela")
-            else "Kit Adaptador" to getPrecio("kit_adaptador")
+            "Tensor (${String.format("%.2f", alto)} m × 2)" to (alto * 2 * getPrecio("tensor"))
         )
+
+        when (tipoMecanismo) {
+            TipoMecanismo.MANUAL -> {
+                base["Kit Manual"] = getPrecio("kit_manual")
+                // Manivela ya no se incluye — se maneja como accesorio
+            }
+            TipoMecanismo.ELECTRICO -> {
+                base["Kit Eléctrico"] = getPrecio("kit_electrico")
+                base["Kit Adaptador"] = getPrecio("kit_adaptador")
+            }
+        }
+
+        return base
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

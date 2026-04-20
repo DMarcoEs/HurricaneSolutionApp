@@ -40,6 +40,10 @@ import java.util.Locale
  * - Soporte desdeHistorial con regeneración y actualización en Drive
  * - Sin tabs de TIPO DE SISTEMA / PRECIO DE VENTA
  */
+
+// Color Rain Protection
+private val RainBlue = Color(0xFF2346AF)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RainResumenScreen(
@@ -112,14 +116,18 @@ fun RainResumenScreen(
     val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
     val headerBg = if (isDarkMode) Color(0xFF111111) else Color(0xFFF9FAFB)
-    val accentBorder = if (isDarkMode) Color.White else Color.Black
+    val accentBorder = RainBlue  // Azul Rain
 
     // Obtener medidas válidas
     val medidas = rainDraft.getMedidas()
     val totalAreas = medidas.size
     val subtotal = rainDraft.getSubtotal()
+    val subtotalManual = rainDraft.getSubtotalManual()
+    val subtotalElectrico = rainDraft.getSubtotalElectrico()
     val descuentoPorcentaje = rainDraft.getDescuentoPorcentaje()
     val descuentoMonto = rainDraft.getDescuentoMonto()
+    val descuentoMontoManual = rainDraft.getDescuentoMontoManual()
+    val descuentoMontoElectrico = rainDraft.getDescuentoMontoElectrico()
 
     // Costo de accesorios (reactivo a switches/cantidades)
     val costoAccesorios = remember(quiereControles, cantidadControles, quiereManivelas, cantidadManivelas) {
@@ -128,8 +136,14 @@ fun RainResumenScreen(
         RainPriceManager.calcularCostoAccesorios(ctrlCount, manCount)
     }
 
-    // Total = (Subtotal - Descuento) + Accesorios
+    // Totales = (Subtotal - Descuento) + Accesorios
     val total = (subtotal - descuentoMonto) + costoAccesorios
+    val totalManual = (subtotalManual - descuentoMontoManual) + costoAccesorios
+    val totalElectrico = (subtotalElectrico - descuentoMontoElectrico) + costoAccesorios
+
+    // Verificar si tiene cada tipo de mecanismo
+    val tieneManual = rainDraft.tieneManual()
+    val tieneElectrico = rainDraft.tieneElectrico()
 
     // Sincronizar con el draft
     LaunchedEffect(quiereControles, cantidadControles, quiereManivelas, cantidadManivelas) {
@@ -172,9 +186,13 @@ fun RainResumenScreen(
             zonaGeografica = rainDraft.zonaGeografica,
             tipoPropiedad = rainDraft.tipoPropiedad,
             subtotal = subtotal,
+            subtotalManual = subtotalManual,
+            subtotalElectrico = subtotalElectrico,
             descuentoPorcentaje = descuentoPorcentaje,
             descuentoMonto = descuentoMonto,
             total = total,
+            totalManual = totalManual,
+            totalElectrico = totalElectrico,
             totalAreas = totalAreas,
             areasElectricas = rainDraft.getAreasElectricas(),
             areasManuales = rainDraft.getAreasManuales(),
@@ -236,16 +254,14 @@ fun RainResumenScreen(
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (guardado) {
-                            if (isDarkMode) Color.White else Color.Black
+                            if (isDarkMode) Color.White else RainBlue
                         } else Color(0xFFEF4444)
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         if (guardado) "Ir al inicio" else "Salir sin guardar",
-                        color = if (guardado) {
-                            if (isDarkMode) Color.Black else Color.White
-                        } else Color.White,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -519,7 +535,7 @@ fun RainResumenScreen(
                                 .fillMaxWidth()
                                 .height(56.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDarkMode) Color.White else Color.Black,
+                                containerColor = RainBlue,  // 👈 Azul Rain
                                 disabledContainerColor = textMuted.copy(alpha = 0.3f)
                             ),
                             shape = RoundedCornerShape(12.dp)
@@ -527,13 +543,13 @@ fun RainResumenScreen(
                             if (subiendoPdf) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
-                                    color = if (isDarkMode) Color.Black else Color.White,
+                                    color = Color.White,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     "Guardando...",
-                                    color = if (isDarkMode) Color.Black else Color.White,
+                                    color = Color.White,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -541,13 +557,13 @@ fun RainResumenScreen(
                                 Icon(
                                     Icons.Default.PictureAsPdf,
                                     null,
-                                    tint = if (isDarkMode) Color.Black else Color.White,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     "GUARDAR Y GENERAR PDF",
-                                    color = if (isDarkMode) Color.Black else Color.White,
+                                    color = Color.White,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp
@@ -578,7 +594,7 @@ fun RainResumenScreen(
                                         .weight(1.2f)
                                         .height(48.dp),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else RainBlue)
                                 ) {
                                     Icon(
                                         Icons.Default.Share,
@@ -606,20 +622,20 @@ fun RainResumenScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isDarkMode) Color.White else Color.Black
+                                        containerColor = RainBlue  // 👈 Azul Rain
                                     ),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.PictureAsPdf,
                                         null,
-                                        tint = if (isDarkMode) Color.Black else Color.White,
+                                        tint = Color.White,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
                                         "PDF",
-                                        color = if (isDarkMode) Color.Black else Color.White,
+                                        color = Color.White,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -635,7 +651,7 @@ fun RainResumenScreen(
                                         .weight(1f)
                                         .height(48.dp),
                                     shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                                    border = BorderStroke(1.5.dp, RainBlue)  // 👈 Borde azul
                                 ) {
                                     Icon(
                                         Icons.Default.Edit,
@@ -702,20 +718,20 @@ fun RainResumenScreen(
                                         .height(48.dp),
                                     enabled = !subiendoADrive,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isDarkMode) Color.White else Color.Black
+                                        containerColor = if (isDarkMode) Color.White else RainBlue
                                     ),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     if (subiendoADrive) {
                                         CircularProgressIndicator(
-                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            color = Color.White,
                                             modifier = Modifier.size(20.dp),
                                             strokeWidth = 2.dp
                                         )
                                         Spacer(Modifier.width(8.dp))
                                         Text(
                                             "Subiendo...",
-                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            color = Color.White,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -729,7 +745,7 @@ fun RainResumenScreen(
                                         Spacer(Modifier.width(8.dp))
                                         Text(
                                             "Actualizar en Drive",
-                                            color = if (isDarkMode) Color.Black else Color.White,
+                                            color = Color.White,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -937,7 +953,7 @@ fun RainResumenScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(6.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                                        focusedBorderColor = if (isDarkMode) Color.White else RainBlue,
                                         unfocusedBorderColor = border,
                                         cursorColor = textPrimary
                                     )
@@ -1006,7 +1022,7 @@ fun RainResumenScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(6.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                                        focusedBorderColor = if (isDarkMode) Color.White else RainBlue,
                                         unfocusedBorderColor = border,
                                         cursorColor = textPrimary
                                     )
@@ -1156,25 +1172,40 @@ private fun RainAperturaItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val isElectrico = medida.tipoMecanismo == TipoMecanismo.ELECTRICO
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (isElectrico) {
-                                if (isDarkMode) Color(0xFF3B82F6) else Color(0xFF2563EB)
-                            } else {
-                                if (isDarkMode) Color(0xFF374151) else Color(0xFFF3F4F6)
-                            },
-                            RoundedCornerShape(4.dp)
+                // Badge(s) de tipo de mecanismo - puede mostrar uno o ambos
+                if (medida.incluyeManual) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (isDarkMode) Color(0xFF374151) else Color(0xFFF3F4F6),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            "Manual",
+                            color = textMuted,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        medida.tipoMecanismo.etiqueta,
-                        color = if (isElectrico) Color.White else textMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    }
+                }
+                if (medida.incluyeElectrico) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (isDarkMode) Color(0xFF3B82F6) else Color(0xFF2563EB),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            "Eléctrico",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 Text("|", color = textMuted.copy(0.5f), fontSize = 10.sp)
@@ -1316,14 +1347,14 @@ private fun RainToggleButton(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
                     .background(
-                        if (!isActive) (if (isDarkMode) Color.White else Color.Black)
+                        if (!isActive) (if (isDarkMode) Color.White else RainBlue)
                         else Color.Transparent
                     )
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text(
                     "No",
-                    color = if (!isActive) (if (isDarkMode) Color.Black else Color.White) else textMuted,
+                    color = if (!isActive) Color.White else textMuted,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1332,14 +1363,14 @@ private fun RainToggleButton(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
                     .background(
-                        if (isActive) (if (isDarkMode) Color.White else Color.Black)
+                        if (isActive) (if (isDarkMode) Color.White else RainBlue)
                         else Color.Transparent
                     )
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text(
                     "Si",
-                    color = if (isActive) (if (isDarkMode) Color.Black else Color.White) else textMuted,
+                    color = if (isActive) Color.White else textMuted,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )

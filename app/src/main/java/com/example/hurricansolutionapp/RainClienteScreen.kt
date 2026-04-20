@@ -30,6 +30,10 @@ import androidx.compose.ui.window.PopupProperties
  * Pantalla de captura de datos del cliente para Rain Protection
  * Copia exacta de ClienteScreen pero usando CotizacionRainDraft
  */
+
+// Color Rain Protection
+private val RainBlue = Color(0xFF2346AF)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RainClienteScreen(
@@ -124,7 +128,7 @@ fun RainClienteScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isDarkMode) Color.White else Color.Black,
+                        containerColor = if (isDarkMode) Color.White else RainBlue,
                         disabledContainerColor = textMuted.copy(alpha = 0.3f)
                     ),
                     shape = RoundedCornerShape(12.dp)
@@ -132,7 +136,7 @@ fun RainClienteScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "Siguiente",
-                            color = if (isDarkMode) Color.Black else Color.White,
+                            color = Color.White,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -140,7 +144,7 @@ fun RainClienteScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowForward,
                             null,
-                            tint = if (isDarkMode) Color.Black else Color.White,
+                            tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
                     }

@@ -65,14 +65,16 @@ fun AppNavigation(
 ) {
     // Determinar pantalla inicial basada en rol
     val userRole = SessionManager.getRole(context)
-    val isAdmin = userRole == "ADMIN"
     val isInstaller = userRole == "INSTALLER"
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CAMBIO: Admin y Specialist ahora van al selector de producto
+    // Solo Installer va directo a su home
+    // ═══════════════════════════════════════════════════════════════════════════
     val start = when {
         !SessionManager.isLoggedIn(context) -> Routes.LOGIN
         isInstaller -> Routes.INSTALADOR_HOME
-        isAdmin -> Routes.ADMIN_HOME
-        else -> Routes.HOME
+        else -> Routes.PRODUCT_SELECTOR  // Admin y Specialist van al selector
     }
 
     // Estados Hurricane
@@ -81,6 +83,7 @@ fun AppNavigation(
     var editandoDesdeHistorial by remember { mutableStateOf(false) }
     var huboEdicionMedidas by remember { mutableStateOf(false) }
     var cotizacionRemotaSeleccionada by remember { mutableStateOf<CotizacionRemota?>(null) }
+    var cotizacionRainRemotaSeleccionada by remember { mutableStateOf<CotizacionRainRemota?>(null) }  // 👈 NUEVO
 
     // ═══════════════════════════════════════════════════════════════════════════
     // RAIN PROTECTION - DRAFT Y ESTADOS
@@ -118,10 +121,12 @@ fun AppNavigation(
                         RainPriceManager.loadPrecios()
                     }
                     val role = SessionManager.getRole(context)
+                    // ═══════════════════════════════════════════════════════════════
+                    // CAMBIO: Admin y Specialist van al selector de producto
+                    // ═══════════════════════════════════════════════════════════════
                     val destination = when (role) {
-                        "ADMIN" -> Routes.ADMIN_HOME
                         "INSTALLER" -> Routes.INSTALADOR_HOME
-                        else -> Routes.HOME
+                        else -> Routes.PRODUCT_SELECTOR  // Admin y Specialist
                     }
                     navController.navigate(destination) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
@@ -132,7 +137,60 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // SELECCIÓN DE PRODUCTO
+        // NUEVO: SELECTOR DE PRODUCTO (Primera pantalla después del login)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        composable(Routes.PRODUCT_SELECTOR) {
+            val currentRole = SessionManager.getRole(context)
+            val isAdmin = currentRole == "ADMIN"
+
+            ProductSelectorHomeScreen(
+                userName = SessionManager.getNombre(context),
+                isDarkMode = isDarkMode,
+                onToggleDarkMode = { setDarkMode(!isDarkMode) },
+                onSelectHurricane = {
+                    // Limpiar drafts
+                    cotizacionDraft.clear()
+                    rainDraft = CotizacionRainDraft()
+                    // Navegar al Home de Hurricane según el rol
+                    val destination = if (isAdmin) Routes.ADMIN_HOME else Routes.HOME
+                    navController.navigate(destination) {
+                        popUpTo(Routes.PRODUCT_SELECTOR) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+                onSelectRain = {
+                    // Limpiar drafts
+                    cotizacionDraft.clear()
+                    rainDraft = CotizacionRainDraft()
+                    // Navegar al Home de Rain según el rol
+                    val destination = if (isAdmin) Routes.ADMIN_HOME_RAIN else Routes.HOME_RAIN
+                    navController.navigate(destination) {
+                        popUpTo(Routes.PRODUCT_SELECTOR) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+                onLogout = {
+                    scope.launch {
+                        if (!isOnline(context)) return@launch
+                        try {
+                            AuthRepository.logout()
+                        } catch (_: Exception) {
+                            return@launch
+                        }
+                        SessionManager.logout(context)
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.PRODUCT_SELECTOR) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                },
+                logoutEnabled = online
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // SELECCIÓN DE PRODUCTO (para cotización dentro del flujo - sin cambios)
         // ═══════════════════════════════════════════════════════════════════════════
 
         composable(
@@ -160,7 +218,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // HOME (ESPECIALISTA)
+        // HOME (ESPECIALISTA) - Ahora es el Home de Hurricane para especialistas
         // ═══════════════════════════════════════════════════════════════════════════
 
         composable(Routes.HOME) {
@@ -191,18 +249,10 @@ fun AppNavigation(
                 onEnviosInstalacion = { navController.navigate(Routes.ENVIOS_INSTALACION) },
                 logoutEnabled = online,
                 onCerrarSesion = {
-                    scope.launch {
-                        if (!isOnline(context)) return@launch
-                        try {
-                            AuthRepository.logout()
-                        } catch (_: Exception) {
-                            return@launch
-                        }
-                        SessionManager.logout(context)
-                        navController.navigate(Routes.LOGIN) {
-                            popUpTo(Routes.HOME) { inclusive = true }
-                            launchSingleTop = true
-                        }
+                    // CAMBIO: Volver al selector de producto
+                    navController.navigate(Routes.PRODUCT_SELECTOR) {
+                        popUpTo(Routes.HOME) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
@@ -222,7 +272,43 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // ADMIN HOME
+        // HOME RAIN (ESPECIALISTA) - Rain Protection
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        composable(Routes.HOME_RAIN) {
+            HomeRainScreen(
+                userFirstName = SessionManager.getNombre(context),
+                pendingCount = 0, // TODO: Contador de pendientes Rain
+                isDarkMode = isDarkMode,
+                onToggleDarkMode = { setDarkMode(!isDarkMode) },
+                onNuevaCotizacion = {
+                    desdeHistorialRain = false
+                    editandoDesdeHistorialRain = false
+                    rainDraft = CotizacionRainDraft()
+                    navController.navigate(Routes.RAIN_CLIENTE) {
+                        popUpTo(Routes.HOME_RAIN) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+                onVerCotizaciones = {
+                    navController.navigate(Routes.HISTORIAL) { launchSingleTop = true }
+                },
+                onPendientes = { navController.navigate(Routes.PENDIENTES_DRIVE) },
+                onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
+                onEnviosInstalacion = { /* TODO: Envíos Rain */ },
+                logoutEnabled = online,
+                onCambiarProducto = {
+                    // Volver al selector de producto
+                    navController.navigate(Routes.PRODUCT_SELECTOR) {
+                        popUpTo(Routes.HOME_RAIN) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ADMIN HOME - HURRICANE PROTECTION
         // ═══════════════════════════════════════════════════════════════════════════
 
         composable(Routes.ADMIN_HOME) {
@@ -240,7 +326,8 @@ fun AppNavigation(
                     editandoDesdeHistorialRain = false
                     cotizacionDraft.clear()
                     rainDraft = CotizacionRainDraft()
-                    navController.navigate(Routes.SELECCION_PRODUCTO) {
+                    // Ir directo al flujo Hurricane
+                    navController.navigate(Routes.SELECCION_CLIENTE) {
                         popUpTo(Routes.ADMIN_HOME) { inclusive = false }
                         launchSingleTop = true
                     }
@@ -258,25 +345,61 @@ fun AppNavigation(
                 onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },
                 logoutEnabled = online,
                 onCerrarSesion = {
-                    scope.launch {
-                        if (!isOnline(context)) return@launch
-                        try {
-                            AuthRepository.logout()
-                        } catch (_: Exception) {
-                            return@launch
-                        }
-                        SessionManager.logout(context)
-                        navController.navigate(Routes.LOGIN) {
-                            popUpTo(Routes.ADMIN_HOME) { inclusive = true }
-                            launchSingleTop = true
-                        }
+                    // CAMBIO: Volver al selector de producto en lugar de logout
+                    navController.navigate(Routes.PRODUCT_SELECTOR) {
+                        popUpTo(Routes.ADMIN_HOME) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // ADMIN - CONFIGURAR PRECIOS
+        // ADMIN HOME - RAIN PROTECTION (Usando AdminHomeRainScreen)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        composable(Routes.ADMIN_HOME_RAIN) {
+            AdminHomeRainScreen(
+                adminName = SessionManager.getNombre(context),
+                pendingCount = 0, // TODO: Contador de pendientes Rain
+                isDarkMode = isDarkMode,
+                onToggleDarkMode = { setDarkMode(!isDarkMode) },
+                onNuevaCotizacion = {
+                    // Ir directo al flujo Rain
+                    desdeHistorialRain = false
+                    editandoDesdeHistorialRain = false
+                    rainDraft = CotizacionRainDraft()
+                    navController.navigate(Routes.RAIN_CLIENTE) {
+                        launchSingleTop = true
+                    }
+                },
+                onVerMisCotizaciones = {
+                    navController.navigate(Routes.HISTORIAL) { launchSingleTop = true }
+                },
+                onPendientes = { navController.navigate(Routes.PENDIENTES_DRIVE) },
+                onPendientesDrive = { navController.navigate(Routes.PENDIENTES_DRIVE) },
+                onEnviosInstalacion = { /* TODO: Envíos Rain */ },
+                onConfigurePrecios = {
+                    navController.navigate(Routes.ADMIN_RAIN_PRECIOS)
+                },
+                onVerTodasCotizaciones = {
+                    navController.navigate(Routes.ADMIN_RAIN_COTIZACIONES)  // 👈 Ahora va a pantalla específica para Admin
+                },
+                onVerEmpleados = { navController.navigate(Routes.ADMIN_RAIN_EMPLEADOS) },
+                onGestionarLeads = { navController.navigate(Routes.ADMIN_LEADS) },
+                logoutEnabled = online,
+                onCambiarProducto = {
+                    // Volver al selector de producto
+                    navController.navigate(Routes.PRODUCT_SELECTOR) {
+                        popUpTo(Routes.ADMIN_HOME_RAIN) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ADMIN - CONFIGURAR PRECIOS HURRICANE
         // ═══════════════════════════════════════════════════════════════════════════
 
         composable(
@@ -290,6 +413,102 @@ fun AppNavigation(
                 isDarkMode = isDarkMode,
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ADMIN - CONFIGURAR PRECIOS RAIN
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        composable(
+            route = Routes.ADMIN_RAIN_PRECIOS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminRainPreciosScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ADMIN RAIN - GESTIONAR EMPLEADOS (sin M² Cotizados)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        composable(
+            route = Routes.ADMIN_RAIN_EMPLEADOS,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminEmpleadosScreen(
+                isRainMode = true,  // 👈 Rain Mode: oculta M² Cotizados
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onVerCotizacionesEmpleado = { userId ->
+                    navController.navigate("admin_rain_cotizaciones_filtrado/$userId")
+                }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ADMIN RAIN - VER COTIZACIONES (NUEVO)
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        composable(
+            route = Routes.ADMIN_RAIN_COTIZACIONES,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            AdminCotizacionesRainScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onVerDetalle = { cotizacion ->
+                    cotizacionRainRemotaSeleccionada = cotizacion
+                    navController.navigate(Routes.adminRainCotizacionDetalle(cotizacion.folio))
+                }
+            )
+        }
+
+        // Cotizaciones Rain filtradas por empleado
+        composable(
+            route = "admin_rain_cotizaciones_filtrado/{userId}",
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+            AdminCotizacionesRainScreen(
+                isDarkMode = isDarkMode,
+                onBack = { navController.popBackStack() },
+                onVerDetalle = { cotizacion ->
+                    cotizacionRainRemotaSeleccionada = cotizacion
+                    navController.navigate(Routes.adminRainCotizacionDetalle(cotizacion.folio))
+                },
+                filtroUsuarioInicial = userId
+            )
+        }
+
+        // Detalle de cotización Rain (solo lectura para Admin)
+        composable(
+            route = Routes.ADMIN_RAIN_COTIZACION_DETALLE,
+            enterTransition = { enterTransition() },
+            exitTransition = { exitTransition() },
+            popEnterTransition = { popEnterTransition() },
+            popExitTransition = { popExitTransition() }
+        ) {
+            cotizacionRainRemotaSeleccionada?.let { cotizacion ->
+                AdminCotizacionDetalleRainScreen(
+                    cotizacion = cotizacion,
+                    isDarkMode = isDarkMode,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
@@ -774,7 +993,8 @@ fun AppNavigation(
             popExitTransition = { popExitTransition() }
         ) {
             val currentUserRole = SessionManager.getRole(context)
-            val homeDestination = if (currentUserRole == "ADMIN") Routes.ADMIN_HOME else Routes.HOME
+            // CAMBIO: Rain vuelve a ADMIN_HOME_RAIN o HOME_RAIN según el rol
+            val homeDestination = if (currentUserRole == "ADMIN") Routes.ADMIN_HOME_RAIN else Routes.HOME_RAIN
 
             RainResumenScreen(
                 rainDraft = rainDraft,

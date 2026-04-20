@@ -26,6 +26,10 @@ import kotlinx.coroutines.launch
 /**
  * Pantalla de administración de precios Rain Protection
  */
+
+// Color Rain Protection
+private val RainBlue = Color(0xFF2346AF)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminRainPreciosScreen(
@@ -103,7 +107,7 @@ fun AdminRainPreciosScreen(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    color = if (isDarkMode) Color.White else Color.Black
+                    color = if (isDarkMode) Color.White else RainBlue
                 )
             }
         } else {
@@ -297,14 +301,14 @@ fun AdminRainPreciosScreen(
                         enabled = !isSaving,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDarkMode) Color.White else Color.Black,
-                            contentColor = if (isDarkMode) Color.Black else Color.White
+                            containerColor = if (isDarkMode) Color.White else RainBlue,
+                            contentColor = Color.White
                         )
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = if (isDarkMode) Color.Black else Color.White,
+                                color = Color.White,
                                 strokeWidth = 2.dp
                             )
                         } else {

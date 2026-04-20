@@ -26,6 +26,10 @@ import androidx.compose.ui.unit.sp
  * Pantalla de selección de Tipo de Propiedad para Rain Protection
  * Copia exacta de TipoPropiedadScreen pero usando CotizacionRainDraft
  */
+
+// Color Rain Protection
+private val RainBlue = Color(0xFF2346AF)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RainTipoPropiedadScreen(
@@ -45,7 +49,7 @@ fun RainTipoPropiedadScreen(
     val textMuted = if (isDarkMode) Color(0xFF9CA3AF) else Color(0xFF6B7280)
     val border = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
     val cardBg = if (isDarkMode) Color(0xFF111111) else Color.White
-    val selectedBorder = if (isDarkMode) Color.White else Color.Black
+    val selectedBorder = if (isDarkMode) Color.White else RainBlue
 
     Scaffold(
         containerColor = bg,
@@ -187,7 +191,7 @@ private fun RainTipoPropiedadCard(
                 Icon(
                     Icons.Filled.CheckCircle,
                     contentDescription = "Seleccionado",
-                    tint = if (isDarkMode) Color.White else Color.Black,
+                    tint = if (isDarkMode) Color.White else RainBlue,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)

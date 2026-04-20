@@ -720,7 +720,7 @@ private fun CotizacionRainCard(
     onEliminar: () -> Unit
 ) {
     // Color distintivo para Rain Protection
-    val rainAccent = Color(0xFF3B82F6) // Azul
+    val rainAccent = Color(0xFF2346AF) // Azul RainBlue consistente
 
     Surface(
         modifier = Modifier
@@ -931,7 +931,7 @@ private fun CotizacionRainCard(
             HorizontalDivider(color = border.copy(0.5f))
             Spacer(Modifier.height(16.dp))
 
-            // Botones
+            // Botones - AZUL para Rain Protection
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -941,19 +941,19 @@ private fun CotizacionRainCard(
                     modifier = Modifier
                         .weight(2f)
                         .height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isDarkMode) Color.White else Color.Black),
+                    colors = ButtonDefaults.buttonColors(containerColor = rainAccent),  // 👈 Azul Rain
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
                         Icons.Default.PictureAsPdf,
                         contentDescription = null,
-                        tint = if (isDarkMode) Color.Black else Color.White,
+                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         "PDF",
-                        color = if (isDarkMode) Color.Black else Color.White,
+                        color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )

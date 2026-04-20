@@ -29,6 +29,7 @@ enum class TipoMecanismo(val id: String, val etiqueta: String) {
 
 /**
  * Estado del formulario para capturar una medida de Rain Protection
+ * ACTUALIZADO: Ahora soporta selección múltiple de mecanismos (Manual, Eléctrico, o Ambos)
  */
 data class MedidaRainFormState(
     var zona: String = "",           // Zona del área (ej: Terraza, Sala)
@@ -36,13 +37,16 @@ data class MedidaRainFormState(
     var alto: String = "",
     var ancho: String = "",
     var piezas: String = "1",        // Número de piezas (cada pieza lleva su propio mecanismo)
-    var tipoMecanismo: TipoMecanismo = TipoMecanismo.MANUAL
+    var incluyeManual: Boolean = true,    // Si incluye opción Manual
+    var incluyeElectrico: Boolean = false // Si incluye opción Eléctrico
 ) {
     fun isValid(): Boolean {
         val altoNum = alto.toDoubleOrNull() ?: return false
         val anchoNum = ancho.toDoubleOrNull() ?: return false
         val piezasNum = piezas.toIntOrNull() ?: return false
-        return zona.isNotBlank() && altoNum > 0 && anchoNum > 0 && piezasNum >= 1
+        // Debe tener al menos un tipo de mecanismo seleccionado
+        val tieneAlMenosUnTipo = incluyeManual || incluyeElectrico
+        return zona.isNotBlank() && altoNum > 0 && anchoNum > 0 && piezasNum >= 1 && tieneAlMenosUnTipo
     }
 
     fun toMedidaRain(): MedidaRain? {
@@ -51,16 +55,24 @@ data class MedidaRainFormState(
         val anchoNum = ancho.toDoubleOrNull() ?: return null
         val piezasNum = piezas.toIntOrNull() ?: 1
 
-        // Calcular subtotal usando RainPriceManager (piezas multiplica todo)
-        val subtotal = RainPriceManager.calcularSubtotalArea(altoNum, anchoNum, tipoMecanismo, piezasNum)
+        // Calcular subtotales usando RainPriceManager
+        val subtotalManual = if (incluyeManual) {
+            RainPriceManager.calcularSubtotalArea(altoNum, anchoNum, TipoMecanismo.MANUAL, piezasNum)
+        } else 0.0
+
+        val subtotalElectrico = if (incluyeElectrico) {
+            RainPriceManager.calcularSubtotalArea(altoNum, anchoNum, TipoMecanismo.ELECTRICO, piezasNum)
+        } else 0.0
 
         return MedidaRain(
             descripcion = if (descripcion.isNotBlank()) "$zona - $descripcion" else zona,
             alto = altoNum,
             ancho = anchoNum,
             piezas = piezasNum,
-            tipoMecanismo = tipoMecanismo,
-            subtotal = subtotal
+            incluyeManual = incluyeManual,
+            incluyeElectrico = incluyeElectrico,
+            subtotalManual = subtotalManual,
+            subtotalElectrico = subtotalElectrico
         )
     }
 }
@@ -79,10 +91,25 @@ data class MedidaRain(
     val alto: Double,
     val ancho: Double,
     val piezas: Int = 1,
-    val tipoMecanismo: TipoMecanismo = TipoMecanismo.MANUAL,
-    val subtotal: Double = 0.0
+    val incluyeManual: Boolean = true,
+    val incluyeElectrico: Boolean = false,
+    val subtotalManual: Double = 0.0,
+    val subtotalElectrico: Double = 0.0
 ) {
     val areaM2: Double get() = alto * ancho * piezas
+
+    // Subtotal combinado (para cálculos que necesiten el total de la apertura)
+    val subtotal: Double get() = subtotalManual + subtotalElectrico
+
+    // Para compatibilidad: devuelve el tipo predominante o AMBOS
+    val tipoMecanismo: TipoMecanismo get() = when {
+        incluyeManual && incluyeElectrico -> TipoMecanismo.MANUAL // Por defecto si ambos
+        incluyeElectrico -> TipoMecanismo.ELECTRICO
+        else -> TipoMecanismo.MANUAL
+    }
+
+    // Helper para saber si incluye ambos tipos
+    val incluyeAmbos: Boolean get() = incluyeManual && incluyeElectrico
 
     /**
      * Convierte a JSON para guardar en Supabase
@@ -93,8 +120,10 @@ data class MedidaRain(
             alto = alto,
             ancho = ancho,
             piezas = piezas,
-            tipoMecanismo = tipoMecanismo.id,
-            subtotal = subtotal
+            incluyeManual = incluyeManual,
+            incluyeElectrico = incluyeElectrico,
+            subtotalManual = subtotalManual,
+            subtotalElectrico = subtotalElectrico
         )
     }
 }
@@ -198,7 +227,8 @@ data class CotizacionRainDraft(
                 alto = String.format("%.2f", m.alto),
                 ancho = String.format("%.2f", m.ancho),
                 piezas = m.piezas.toString(),
-                tipoMecanismo = m.tipoMecanismo
+                incluyeManual = m.incluyeManual,
+                incluyeElectrico = m.incluyeElectrico
             )
         }.toMutableList()
 
@@ -211,11 +241,18 @@ data class CotizacionRainDraft(
 
     fun getMedidas(): List<MedidaRain> = medidasForm.mapNotNull { it.toMedidaRain() }
 
+    // Subtotal combinado (para compatibilidad)
     fun getSubtotal(): Double = getMedidas().sumOf { it.subtotal }
+
+    // Subtotales separados por tipo de mecanismo
+    fun getSubtotalManual(): Double = getMedidas().sumOf { it.subtotalManual }
+    fun getSubtotalElectrico(): Double = getMedidas().sumOf { it.subtotalElectrico }
 
     fun getDescuentoPorcentaje(): Double = RainPriceManager.getDescuentoPorZona(zonaGeografica)
 
     fun getDescuentoMonto(): Double = getSubtotal() * (getDescuentoPorcentaje() / 100)
+    fun getDescuentoMontoManual(): Double = getSubtotalManual() * (getDescuentoPorcentaje() / 100)
+    fun getDescuentoMontoElectrico(): Double = getSubtotalElectrico() * (getDescuentoPorcentaje() / 100)
 
     /**
      * Calcula costo de accesorios adicionales (SIN descuento de zona)
@@ -232,11 +269,20 @@ data class CotizacionRainDraft(
      */
     fun getTotal(): Double = (getSubtotal() - getDescuentoMonto()) + getCostoAccesorios()
 
+    // Totales separados por tipo (para el PDF)
+    fun getTotalManual(): Double = (getSubtotalManual() - getDescuentoMontoManual()) + getCostoAccesorios()
+    fun getTotalElectrico(): Double = (getSubtotalElectrico() - getDescuentoMontoElectrico()) + getCostoAccesorios()
+
     fun getTotalAreas(): Int = getMedidas().size
 
-    fun getAreasElectricas(): Int = getMedidas().filter { it.tipoMecanismo == TipoMecanismo.ELECTRICO }.sumOf { it.piezas }
+    // Cuenta las piezas que INCLUYEN cada tipo de mecanismo
+    fun getAreasElectricas(): Int = getMedidas().filter { it.incluyeElectrico }.sumOf { it.piezas }
+    fun getAreasManuales(): Int = getMedidas().filter { it.incluyeManual }.sumOf { it.piezas }
 
-    fun getAreasManuales(): Int = getMedidas().filter { it.tipoMecanismo == TipoMecanismo.MANUAL }.sumOf { it.piezas }
+    // Verifica si la cotización tiene algún mecanismo de cada tipo
+    fun tieneManual(): Boolean = getMedidas().any { it.incluyeManual }
+    fun tieneElectrico(): Boolean = getMedidas().any { it.incluyeElectrico }
+    fun tieneAmbos(): Boolean = tieneManual() && tieneElectrico()
 
     fun getTotalTelas(): Int = getMedidas().sumOf { it.piezas }
 
@@ -266,9 +312,13 @@ data class CotizacionRain(
     val zonaGeografica: ZonaGeografica = ZonaGeografica.CONTINENTAL,
     val tipoPropiedad: String = "",
     val subtotal: Double = 0.0,
+    val subtotalManual: Double = 0.0,
+    val subtotalElectrico: Double = 0.0,
     val descuentoPorcentaje: Double = 0.0,
     val descuentoMonto: Double = 0.0,
     val total: Double = 0.0,
+    val totalManual: Double = 0.0,
+    val totalElectrico: Double = 0.0,
     val totalAreas: Int = 0,
     val areasElectricas: Int = 0,
     val areasManuales: Int = 0,
@@ -287,6 +337,11 @@ data class CotizacionRain(
         val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
         return sdf.format(java.util.Date(updatedAt))
     }
+
+    // Verifica si la cotización tiene algún mecanismo de cada tipo
+    fun tieneManual(): Boolean = medidas.any { it.incluyeManual }
+    fun tieneElectrico(): Boolean = medidas.any { it.incluyeElectrico }
+    fun tieneAmbos(): Boolean = tieneManual() && tieneElectrico()
 
     /**
      * Obtiene el texto para mostrar tipo de mecanismo en cards

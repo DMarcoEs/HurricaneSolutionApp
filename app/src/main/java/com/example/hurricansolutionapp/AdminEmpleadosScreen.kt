@@ -29,9 +29,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * ADMIN EMPLEADOS SCREEN
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * Pantalla de gestión de especialistas.
+ *
+ * CAMBIO: Agregado parámetro isRainMode para ocultar M² Cotizados en Rain Protection
+ * - isRainMode = false (default): Muestra M² Cotizados, Monto USD, Cotizaciones
+ * - isRainMode = true: Solo muestra Monto USD y Cotizaciones (sin M²)
+ */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminEmpleadosScreen(
+    isRainMode: Boolean = false,  // 👈 NUEVO: Si es true, oculta M² Cotizados
     isDarkMode: Boolean,
     onBack: () -> Unit,
     onVerCotizacionesEmpleado: (String) -> Unit = {}
@@ -233,6 +246,7 @@ fun AdminEmpleadosScreen(
                                 expandedUserId = if (expandedUserId == empleado.id) null else empleado.id
                             },
                             isDarkMode = isDarkMode,
+                            isRainMode = isRainMode,  // 👈 Pasar el parámetro
                             onToggleActive = {
                                 empleadoSeleccionado = empleado
                                 showConfirmDialog = true
@@ -375,6 +389,7 @@ private fun StitchEmpleadoCardExpandible(
     isExpanded: Boolean,
     onExpandToggle: () -> Unit,
     isDarkMode: Boolean,
+    isRainMode: Boolean = false,  // 👈 NUEVO: Oculta M² si es true
     onToggleActive: () -> Unit,
     onVerCotizaciones: () -> Unit
 ) {
@@ -527,21 +542,26 @@ private fun StitchEmpleadoCardExpandible(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "${String.format("%.2f", totalM2)} m²",
-                            color = Color(0xFF10B981), // Verde
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "M² Cotizados",
-                            color = textSecondary,
-                            fontSize = 11.sp
-                        )
+                    // ═══════════════════════════════════════════════════════════════════
+                    // M² COTIZADOS - Solo mostrar si NO es Rain Mode
+                    // ═══════════════════════════════════════════════════════════════════
+                    if (!isRainMode) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${String.format("%.2f", totalM2)} m²",
+                                color = Color(0xFF10B981), // Verde
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "M² Cotizados",
+                                color = textSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
 
-                    // Monto USD
+                    // Monto USD - Siempre se muestra
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "$${String.format("%,.2f", montoTotal)}",
@@ -556,7 +576,7 @@ private fun StitchEmpleadoCardExpandible(
                         )
                     }
 
-                    // Total Cotizaciones
+                    // Total Cotizaciones - Siempre se muestra
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "$cotizaciones",

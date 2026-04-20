@@ -413,17 +413,37 @@ data class MedidaRainJson(
     val alto: Double,
     val ancho: Double,
     val piezas: Int = 1,
-    @SerialName("tipo_mecanismo") val tipoMecanismo: String,
-    val subtotal: Double
+    @SerialName("incluye_manual") val incluyeManual: Boolean = true,
+    @SerialName("incluye_electrico") val incluyeElectrico: Boolean = false,
+    @SerialName("subtotal_manual") val subtotalManual: Double = 0.0,
+    @SerialName("subtotal_electrico") val subtotalElectrico: Double = 0.0,
+    // Campos legacy para compatibilidad con cotizaciones antiguas
+    @SerialName("tipo_mecanismo") val tipoMecanismo: String? = null,
+    val subtotal: Double? = null
 ) {
     fun toMedidaRain(): MedidaRain {
+        // Si tiene campos nuevos, usarlos
+        // Si solo tiene campos legacy, convertir
+        val usaManual = incluyeManual || tipoMecanismo == "manual"
+        val usaElectrico = incluyeElectrico || tipoMecanismo == "electrico"
+
+        val subManual = if (subtotalManual > 0) subtotalManual
+        else if (tipoMecanismo == "manual" && subtotal != null) subtotal
+        else 0.0
+
+        val subElectrico = if (subtotalElectrico > 0) subtotalElectrico
+        else if (tipoMecanismo == "electrico" && subtotal != null) subtotal
+        else 0.0
+
         return MedidaRain(
             descripcion = nombre,
             alto = alto,
             ancho = ancho,
             piezas = piezas,
-            tipoMecanismo = TipoMecanismo.fromId(tipoMecanismo),
-            subtotal = subtotal
+            incluyeManual = usaManual,
+            incluyeElectrico = usaElectrico,
+            subtotalManual = subManual,
+            subtotalElectrico = subElectrico
         )
     }
 }

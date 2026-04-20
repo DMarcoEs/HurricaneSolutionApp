@@ -38,6 +38,10 @@ import androidx.compose.ui.platform.LocalConfiguration
  * - Sin sección de "¿Requiere Adecuaciones?"
  * - Con "Tipo de Mecanismo" (Manual/Eléctrico) en lugar de "Tipo de Montaje"
  */
+
+// Color Rain Protection
+private val RainBlue = Color(0xFF2346AF)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RainMedidasScreen(
@@ -105,8 +109,8 @@ fun RainMedidasScreen(
     val inputBorder = if (isDarkMode) Color(0xFF3F3F46) else Color(0xFFE5E7EB)
     val carouselBg = if (isDarkMode) Color(0xFF18181B) else Color.White
     val carouselBorder = if (isDarkMode) Color(0xFF27272A) else Color(0xFFE5E7EB)
-    val pillBg = if (isDarkMode) Color.White else Color.Black
-    val pillText = if (isDarkMode) Color.Black else Color.White
+    val pillBg = if (isDarkMode) Color.White else RainBlue
+    val pillText = Color.White
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
@@ -185,20 +189,20 @@ fun RainMedidasScreen(
                             .height(56.dp)
                             .shadow(if (isDarkMode) 0.dp else 8.dp, RoundedCornerShape(12.dp)),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isDarkMode) Color.White else Color.Black
+                            containerColor = if (isDarkMode) Color.White else RainBlue
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
                             Icons.Default.Add,
                             null,
-                            tint = if (isDarkMode) Color.Black else Color.White,
+                            tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Agregar Medida",
-                            color = if (isDarkMode) Color.Black else Color.White,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -222,7 +226,7 @@ fun RainMedidasScreen(
                                 .weight(1f)
                                 .height(56.dp),
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else Color.Black)
+                            border = BorderStroke(1.5.dp, if (isDarkMode) Color.White else RainBlue)
                         ) {
                             Icon(
                                 Icons.Default.Add,
@@ -293,13 +297,13 @@ fun RainMedidasScreen(
                                 .height(56.dp)
                                 .shadow(if (isDarkMode) 0.dp else 4.dp, RoundedCornerShape(12.dp)),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDarkMode) Color.White else Color.Black
+                                containerColor = if (isDarkMode) Color.White else RainBlue
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
                                 "Terminar",
-                                color = if (isDarkMode) Color.Black else Color.White,
+                                color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
@@ -307,7 +311,7 @@ fun RainMedidasScreen(
                             Icon(
                                 Icons.Default.ArrowForward,
                                 null,
-                                tint = if (isDarkMode) Color.Black else Color.White,
+                                tint = Color.White,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -528,7 +532,7 @@ fun RainMedidasScreen(
                         )
 
                         // ═══════════════════════════════════════════════════════════════
-                        // TIPO DE MECANISMO (en lugar de Tipo de Montaje)
+                        // TIPO DE MECANISMO - Selección múltiple (puede elegir ambos)
                         // ═══════════════════════════════════════════════════════════════
                         Text(
                             "TIPO DE MECANISMO",
@@ -537,42 +541,58 @@ fun RainMedidasScreen(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.5.sp
                         )
+                        Text(
+                            "Puedes seleccionar uno o ambos",
+                            color = textMuted.copy(alpha = 0.7f),
+                            fontSize = 9.sp,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Opción MANUAL
-                            RainMecanismoCard(
+                            // Opción MANUAL (checkbox style)
+                            RainMecanismoCardMultiple(
                                 "MANUAL",
                                 Icons.Default.Settings,
-                                actual.tipoMecanismo == TipoMecanismo.MANUAL,
+                                actual.incluyeManual,
                                 Modifier.weight(1f),
                                 isDarkMode,
                                 textMuted,
                                 border
                             ) {
                                 if (indexActual in areas.indices) {
-                                    areas[indexActual] = areas[indexActual].copy(
-                                        tipoMecanismo = TipoMecanismo.MANUAL
-                                    )
-                                    syncDraft()
+                                    val currentManual = areas[indexActual].incluyeManual
+                                    val currentElectrico = areas[indexActual].incluyeElectrico
+                                    // No permitir deseleccionar ambos
+                                    if (!(!currentManual && !currentElectrico) || currentElectrico) {
+                                        areas[indexActual] = areas[indexActual].copy(
+                                            incluyeManual = !currentManual
+                                        )
+                                        syncDraft()
+                                    }
                                 }
                             }
-                            // Opción ELÉCTRICO
-                            RainMecanismoCard(
+                            // Opción ELÉCTRICO (checkbox style)
+                            RainMecanismoCardMultiple(
                                 "ELÉCTRICO",
                                 Icons.Default.FlashOn,
-                                actual.tipoMecanismo == TipoMecanismo.ELECTRICO,
+                                actual.incluyeElectrico,
                                 Modifier.weight(1f),
                                 isDarkMode,
                                 textMuted,
                                 border
                             ) {
                                 if (indexActual in areas.indices) {
-                                    areas[indexActual] = areas[indexActual].copy(
-                                        tipoMecanismo = TipoMecanismo.ELECTRICO
-                                    )
-                                    syncDraft()
+                                    val currentManual = areas[indexActual].incluyeManual
+                                    val currentElectrico = areas[indexActual].incluyeElectrico
+                                    // No permitir deseleccionar ambos
+                                    if (!(!currentManual && !currentElectrico) || currentManual) {
+                                        areas[indexActual] = areas[indexActual].copy(
+                                            incluyeElectrico = !currentElectrico
+                                        )
+                                        syncDraft()
+                                    }
                                 }
                             }
                         }
@@ -635,7 +655,7 @@ private fun RainMeasurementField(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = inputBg,
                 unfocusedContainerColor = inputBg,
-                focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                focusedBorderColor = if (isDarkMode) Color.White else RainBlue,
                 unfocusedBorderColor = inputBorder,
                 focusedTextColor = textPrimary,
                 unfocusedTextColor = textPrimary,
@@ -779,12 +799,12 @@ private fun RainInputField(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = inputBg,
                 unfocusedContainerColor = inputBg,
-                focusedBorderColor = if (isDarkMode) Color.White else Color.Black,
+                focusedBorderColor = if (isDarkMode) Color.White else RainBlue,
                 unfocusedBorderColor = inputBorder,
                 focusedTextColor = textPrimary,
                 unfocusedTextColor = textPrimary,
                 cursorColor = textPrimary,
-                focusedLeadingIconColor = if (isDarkMode) Color.White else Color.Black,
+                focusedLeadingIconColor = if (isDarkMode) Color.White else RainBlue,
                 unfocusedLeadingIconColor = textLabel
             ),
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
@@ -855,6 +875,80 @@ private fun RainMecanismoCard(
                         "Seleccionado",
                         tint = if (isDarkMode) Color.White else Color.Black,
                         modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Card de mecanismo para selección MÚLTIPLE (checkbox style)
+ * Usa RainBlue en lugar de negro cuando está seleccionado
+ */
+@Composable
+private fun RainMecanismoCardMultiple(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    modifier: Modifier,
+    isDarkMode: Boolean,
+    textMuted: Color,
+    border: Color,
+    onClick: () -> Unit
+) {
+    val backgroundColor = when {
+        selected && isDarkMode -> Color.White
+        selected -> RainBlue  // Usar azul Rain en lugar de negro
+        isDarkMode -> Color(0xFF18181B)
+        else -> Color.White
+    }
+    val contentColor = when {
+        selected && isDarkMode -> RainBlue
+        selected -> Color.White
+        else -> textMuted
+    }
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(90.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        border = if (!selected) BorderStroke(1.dp, border) else BorderStroke(2.dp, RainBlue),
+        shadowElevation = if (selected) 4.dp else 1.dp
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(icon, null, tint = contentColor, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    label,
+                    color = contentColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+            }
+            // Checkbox indicator
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (selected) (if (isDarkMode) RainBlue else Color.White) else border.copy(alpha = 0.3f))
+                    .border(1.dp, if (selected) RainBlue else border, RoundedCornerShape(4.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Icon(
+                        Icons.Default.Check,
+                        "Seleccionado",
+                        tint = if (isDarkMode) Color.White else RainBlue,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

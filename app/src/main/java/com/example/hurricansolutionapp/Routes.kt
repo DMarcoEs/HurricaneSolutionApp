@@ -2,6 +2,7 @@ package com.example.hurricansolutionapp
 
 /**
  * Rutas de navegación de la aplicación Hurricane Solution
+ * ACTUALIZADO: Incluye selector de producto y homes separados
  */
 object Routes {
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -10,9 +11,15 @@ object Routes {
     const val LOGIN = "login"
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // SELECTOR DE PRODUCTO (NUEVO - Primera pantalla después del login)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const val PRODUCT_SELECTOR = "product_selector"
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // ESPECIALISTA (SPECIALIST)
     // ═══════════════════════════════════════════════════════════════════════════════
     const val HOME = "home"
+    const val HOME_RAIN = "home_rain"  // NUEVO: Home Rain para especialista
     const val CLIENTE = "cliente"
     const val SELECCION_CLIENTE = "seleccion_cliente"
     const val TIPO_PROPIEDAD = "tipo_propiedad"
@@ -26,7 +33,7 @@ object Routes {
     const val ENVIOS_INSTALACION = "envios_instalacion"
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // ADMINISTRADOR (ADMIN)
+    // ADMINISTRADOR (ADMIN) - HURRICANE
     // ═══════════════════════════════════════════════════════════════════════════════
     const val ADMIN_HOME = "admin_home"
     const val ADMIN_LEADS = "admin_leads"
@@ -35,6 +42,18 @@ object Routes {
     const val ADMIN_EMPLEADOS = "admin_empleados"
     const val ADMIN_PRECIOS = "admin_precios"
     const val ADMIN_METROS = "admin_metros"
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // ADMINISTRADOR (ADMIN) - RAIN (NUEVO)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const val ADMIN_HOME_RAIN = "admin_home_rain"
+    const val ADMIN_RAIN_PRECIOS = "admin_rain_precios"
+    const val ADMIN_RAIN_COTIZACIONES = "admin_rain_cotizaciones"
+    const val ADMIN_RAIN_COTIZACION_DETALLE = "admin_rain_cotizacion_detalle/{folio}"  // 👈 NUEVO
+    const val ADMIN_RAIN_EMPLEADOS = "admin_rain_empleados"
+
+    // Helper para ruta con parámetro
+    fun adminRainCotizacionDetalle(folio: String): String = "admin_rain_cotizacion_detalle/$folio"
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // INSTALADOR (INSTALLER)
@@ -46,7 +65,7 @@ object Routes {
     const val INSTALADOR_DRIVE = "instalador_drive"
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // SELECCIÓN DE PRODUCTO
+    // SELECCIÓN DE PRODUCTO (para cotización dentro del flujo)
     // ═══════════════════════════════════════════════════════════════════════════════
     const val SELECCION_PRODUCTO = "seleccion_producto"
 
@@ -58,9 +77,6 @@ object Routes {
     const val RAIN_TIPO_PROPIEDAD = "rain_tipo_propiedad" // Selección tipo propiedad
     const val RAIN_MEDIDAS = "rain_medidas"              // Captura de medidas
     const val RAIN_RESUMEN = "rain_resumen"              // Resumen y generación PDF
-
-    // Admin Rain
-    const val ADMIN_RAIN_PRECIOS = "admin_rain_precios"
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // HELPERS PARA RUTAS CON PARÁMETROS
@@ -77,4 +93,12 @@ object UserRoles {
     const val ADMIN = "ADMIN"
     const val SPECIALIST = "SPECIALIST"
     const val INSTALLER = "INSTALLER"
+}
+
+/**
+ * Tipo de producto seleccionado
+ */
+enum class ProductoSeleccionado {
+    HURRICANE,
+    RAIN
 }

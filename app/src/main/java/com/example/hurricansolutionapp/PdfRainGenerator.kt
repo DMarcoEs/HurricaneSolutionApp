@@ -25,8 +25,8 @@ fun generarPdfRainCotizacion(
 
     val pdfDocument = PdfDocument()
     val margin = 32f
-    val headerBarHeight = 90f
-    val bottomBarHeight = 45f
+    val headerBarHeight = 65f
+    val bottomBarHeight = 55f
 
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -35,6 +35,8 @@ fun generarPdfRainCotizacion(
     // ═══════════════════════════════════════════════════════════════════════════
     val colorGrayCell = Color.parseColor("#C4C4C4")
     val colorBlue = Color.parseColor("#2984D1")
+    val colorBlueDark = Color.parseColor("#1B6AAA")
+    val colorRed = Color.parseColor("#CC0000")
 
     fun capitalizeWords(text: String): String {
         return text.split(" ").joinToString(" ") { word ->
@@ -86,12 +88,26 @@ fun generarPdfRainCotizacion(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // HEADER
+    // HEADER — Banner full-width (rain_header_banner)
     // ═══════════════════════════════════════════════════════════════════════════
 
     fun drawHeader(canvas: Canvas) {
         try {
             val options = BitmapFactory.Options().apply { inScaled = false }
+            // Intenta cargar el banner Rain nuevo; si no existe, usa el anterior
+            val headerId = context.resources.getIdentifier("rain_header_banner", "drawable", context.packageName)
+            if (headerId != 0) {
+                val bannerImg = BitmapFactory.decodeResource(context.resources, headerId, options)
+                if (bannerImg != null) {
+                    val imgAR = bannerImg.width.toFloat() / bannerImg.height.toFloat()
+                    val finalWidth = pageWidth.toFloat()
+                    val finalHeight = finalWidth / imgAR
+                    val destRect = RectF(0f, 0f, finalWidth, finalHeight)
+                    canvas.drawBitmap(bannerImg, null, destRect, null)
+                    return
+                }
+            }
+            // Fallback: logo_header_new + made_in_usa (diseño anterior)
             val rawLogo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_header_new, options)
             val croppedLogo = cropTransparent(rawLogo)
             val targetHeight = 45f
@@ -143,13 +159,16 @@ fun generarPdfRainCotizacion(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // FOOTER
+    // FOOTER — Banner full-width (rain_footer_banner)
     // ═══════════════════════════════════════════════════════════════════════════
 
     fun drawFooter(canvas: Canvas) {
         try {
             val options = BitmapFactory.Options().apply { inScaled = false }
-            val footerImg = BitmapFactory.decodeResource(context.resources, R.drawable.footer_nuevo, options)
+            // Intenta cargar el footer Rain nuevo; si no existe, usa el anterior
+            val footerId = context.resources.getIdentifier("rain_footer_banner", "drawable", context.packageName)
+            val resId = if (footerId != 0) footerId else R.drawable.footer_nuevo
+            val footerImg = BitmapFactory.decodeResource(context.resources, resId, options)
             if (footerImg != null) {
                 val imgWidth = footerImg.width.toFloat()
                 val imgHeight = footerImg.height.toFloat()
@@ -171,11 +190,9 @@ fun generarPdfRainCotizacion(
 
     fun drawDoubleLineSeparator(canvas: Canvas, yStart: Float): Float {
         paint.style = Paint.Style.STROKE
-        // Línea gris (#C4C4C4) arriba - más gruesa
         paint.color = colorGrayCell
         paint.strokeWidth = 2.5f
         canvas.drawLine(margin, yStart, pageWidth.toFloat() - margin, yStart, paint)
-        // Línea azul (#2984D1) abajo - más delgada
         paint.color = colorBlue
         paint.strokeWidth = 1.5f
         canvas.drawLine(margin, yStart + 4f, pageWidth.toFloat() - margin, yStart + 4f, paint)
@@ -184,7 +201,8 @@ fun generarPdfRainCotizacion(
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // CONFIGURACIÓN DE TABLA
+    // CONFIGURACIÓN DE TABLA — Columnas según PDF de referencia
+    // Sin columna # | Área | Cantidad | Tela(Ancho,Alto,m²) | Control(Manivela,Remoto) | Comentarios | TOTAL(Manual,Eléctrico)
     // ═══════════════════════════════════════════════════════════════════════════
 
     val tableLeft = margin
@@ -194,16 +212,24 @@ fun generarPdfRainCotizacion(
     val cellPadding = 4f
     val cellLineHeight = 12f
 
-    val colNumeroW = 25f
-    val colAreaW = 100f
-    val colCantidadW = 40f
-    val colAnchoW = 42f
-    val colAltoW = 42f
-    val colM2W = 48f
-    val colManualW = 45f
-    val colElectricoW = 50f
-    val colComentariosW = tableWidth - colNumeroW - colAreaW - colCantidadW - colAnchoW - colAltoW - colM2W - colManualW - colElectricoW - 65f
-    val colTotalW = 65f
+    // Determinar si la cotización tiene Manual, Eléctrico o ambos
+    val tieneManual = cotizacion.tieneManual()
+    val tieneElectrico = cotizacion.tieneElectrico()
+    val tieneAmbos = tieneManual && tieneElectrico
+
+    // Anchos de columna según el PDF de referencia (sin Comentarios)
+    val colAreaW = 115f
+    val colCantidadW = 45f
+    val colAnchoW = 45f
+    val colAltoW = 45f
+    val colM2W = 50f
+    val colManivelaW = 50f
+    val colRemotoW = 50f
+    // TOTAL: si tiene ambos, dividir en 2 sub-columnas; si solo uno, 1 columna
+    val colTotalManualW = if (tieneAmbos) 66f else 0f
+    val colTotalElectricoW = if (tieneAmbos) 65f else 0f
+    val colTotalUnicoW = if (!tieneAmbos) (tableWidth - colAreaW - colCantidadW - colAnchoW - colAltoW - colM2W - colManivelaW - colRemotoW) else 0f
+    val totalColumnsW = if (tieneAmbos) colTotalManualW + colTotalElectricoW else colTotalUnicoW
 
     // ═══════════════════════════════════════════════════════════════════════════
     // PREPARAR FILAS DE DATOS
@@ -211,13 +237,16 @@ fun generarPdfRainCotizacion(
 
     data class RainRowLayout(
         val descripcion: String,
+        val aperturaLabel: String,
         val ancho: String,
         val alto: String,
         val m2: String,
         val piezas: String,
-        val esManual: Boolean,
-        val esElectrico: Boolean,
-        val subtotal: String,
+        val manivelas: String,
+        val remotos: String,
+        val subtotalManual: String,
+        val subtotalElectrico: String,
+        val subtotalUnico: String,
         val linesDescripcion: List<String>,
         val height: Float
     )
@@ -226,41 +255,70 @@ fun generarPdfRainCotizacion(
     paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     paint.letterSpacing = 0f
 
-    val filas = cotizacion.medidas.map { medida ->
+    val filas = cotizacion.medidas.mapIndexed { index, medida ->
         val txtDesc = capitalizeWords(medida.descripcion)
         val txtAncho = "%.2f".format(medida.ancho)
         val txtAlto = "%.2f".format(medida.alto)
         val txtM2 = "%.2f".format(medida.areaM2)
-        val txtSubtotal = "$ %,.2f".format(medida.subtotal)
         val txtPiezas = medida.piezas.toString()
 
+        // Manivelas y remotos por apertura
+        val manivelas = if (medida.incluyeManual) medida.piezas else 0
+        val remotos = if (medida.incluyeElectrico) medida.piezas else 0
+
+        // Precios separados
+        val txtSubManual = if (medida.incluyeManual) "$ %,.2f".format(medida.subtotalManual) else ""
+        val txtSubElectrico = if (medida.incluyeElectrico) "$ %,.2f".format(medida.subtotalElectrico) else ""
+        // Precio único (cuando la cotización solo tiene un tipo)
+        val txtSubUnico = if (!tieneAmbos) {
+            "$ %,.2f".format(if (medida.incluyeManual) medida.subtotalManual else medida.subtotalElectrico)
+        } else ""
+
         val linesDesc = wrapText(txtDesc, colAreaW - cellPadding * 2, paint)
-        val rowH = linesDesc.size * cellLineHeight + 4f
+        val rowH = (linesDesc.size * cellLineHeight + 4f).coerceAtLeast(cellLineHeight * 2 + 4f) // Mínimo 2 líneas para nombre + apertura
 
         RainRowLayout(
             descripcion = txtDesc,
+            aperturaLabel = "Apertura ${index + 1}",
             ancho = txtAncho,
             alto = txtAlto,
             m2 = txtM2,
             piezas = txtPiezas,
-            esManual = medida.tipoMecanismo == TipoMecanismo.MANUAL,
-            esElectrico = medida.tipoMecanismo == TipoMecanismo.ELECTRICO,
-            subtotal = txtSubtotal,
+            manivelas = manivelas.toString(),
+            remotos = remotos.toString(),
+            subtotalManual = txtSubManual,
+            subtotalElectrico = txtSubElectrico,
+            subtotalUnico = txtSubUnico,
             linesDescripcion = linesDesc,
-            height = rowH.coerceAtLeast(cellLineHeight + 4f)
+            height = rowH
         )
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // CÁLCULOS DE RESUMEN
+    // CÁLCULOS DE RESUMEN — Calculados desde las medidas directamente para evitar $0
     // ═══════════════════════════════════════════════════════════════════════════
 
-    val subtotalGeneral = cotizacion.subtotal
+    // Calcular desde medidas directamente (más confiable que los campos del cotizacion)
+    val subtotalManual = cotizacion.medidas.sumOf { it.subtotalManual }
+    val subtotalElectrico = cotizacion.medidas.sumOf { it.subtotalElectrico }
+    val subtotalGeneral = subtotalManual + subtotalElectrico
     val descuentoPorcentaje = cotizacion.descuentoPorcentaje
-    val descuentoMonto = cotizacion.descuentoMonto
-    val subtotalConDescuento = subtotalGeneral - descuentoMonto
-    val iva = subtotalConDescuento * RAIN_IVA_RATE
-    val totalFinal = subtotalConDescuento + iva
+
+    val descuentoMontoManual = subtotalManual * (descuentoPorcentaje / 100.0)
+    val descuentoMontoElectrico = subtotalElectrico * (descuentoPorcentaje / 100.0)
+    val descuentoMontoTotal = subtotalGeneral * (descuentoPorcentaje / 100.0)
+
+    val sub2Manual = subtotalManual - descuentoMontoManual
+    val sub2Electrico = subtotalElectrico - descuentoMontoElectrico
+    val sub2Total = subtotalGeneral - descuentoMontoTotal
+
+    val ivaManual = sub2Manual * RAIN_IVA_RATE
+    val ivaElectrico = sub2Electrico * RAIN_IVA_RATE
+    val ivaTotal = sub2Total * RAIN_IVA_RATE
+
+    val totalManual = sub2Manual + ivaManual
+    val totalElectrico = sub2Electrico + ivaElectrico
+    val totalFinal = sub2Total + ivaTotal
 
     // ═══════════════════════════════════════════════════════════════════════════
     // DIMENSIONES PAGINACIÓN
@@ -270,7 +328,7 @@ fun generarPdfRainCotizacion(
     val headerTableRow2H = 20f
     val headerTableTotalH = headerTableRow1H + headerTableRow2H
 
-    val resumenBlockHeight = 14f * 6
+    val resumenBlockHeight = 14f * 7
     val extraSpaceNeededLastPage = resumenBlockHeight + 80f
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -285,24 +343,19 @@ fun generarPdfRainCotizacion(
     drawHeader(canvas)
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // TÍTULO: "Instalación de Protección Contra Lluvia"
+    // FOLIO — esquina superior derecha, sobre/debajo del header
     // ═══════════════════════════════════════════════════════════════════════════
 
-    paint.color = Color.BLACK
-    paint.textSize = 14f
-    paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-    paint.textAlign = Paint.Align.CENTER
-    paint.letterSpacing = 0f
-    val tituloY = 105f
-    canvas.drawText("INSTALACIÓN DE PROTECCIÓN CONTRA LLUVIA", pageWidth / 2f, tituloY, paint)
-    drawFolioBox(canvas, tituloY)
-    paint.textAlign = Paint.Align.LEFT
+    val folioY = headerBarHeight + 14f
+    drawFolioBox(canvas, folioY)
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // INFO DEL CLIENTE — Labels azul #2984D1 sin fondo, valores fondo #C4C4C4
+    // INFO DEL CLIENTE — Según PDF de referencia
+    // Izq: Nombre, Dirección, Teléfono, Municipio, Zona
+    // Der: Fecha, Especialista, Tipo Propiedad, Rectificación
     // ═══════════════════════════════════════════════════════════════════════════
 
-    var y = 130f
+    var y = headerBarHeight + 28f
     val leftX = margin
     val leftBlockWidth = 270f
     val rightBlockWidth = 230f
@@ -312,7 +365,7 @@ fun generarPdfRainCotizacion(
         canvasRef: Canvas, x: Float, yTop: Float,
         label: String, value: String, blockW: Float
     ): Float {
-        val labelW = 100f; val gapW = 8f; val paddingX = 6f; val lineHeightText = 10f
+        val labelW = 110f; val gapW = 6f; val paddingX = 6f; val lineHeightText = 10f
         val valueX = x + labelW + gapW; val valueW = blockW - labelW - gapW
         paint.textSize = 8f
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
@@ -323,7 +376,7 @@ fun generarPdfRainCotizacion(
         val rowH = (numLines * lineHeightText + 8f).coerceAtLeast(20f)
         val yBottom = yTop + rowH
 
-        // Label: SIN fondo (transparente), texto azul #2984D1 bold
+        // Label: texto azul bold
         paint.style = Paint.Style.FILL
         paint.color = colorBlue
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
@@ -331,7 +384,7 @@ fun generarPdfRainCotizacion(
         paint.textAlign = Paint.Align.LEFT
         canvasRef.drawText(label, x + paddingX, yTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
-        // Value: fondo gris #C4C4C4, borde azul #2984D1
+        // Value: fondo gris, borde azul
         paint.style = Paint.Style.FILL; paint.color = colorGrayCell
         canvasRef.drawRect(valueX, yTop, valueX + valueW, yBottom, paint)
         paint.style = Paint.Style.STROKE; paint.color = colorBlue; paint.strokeWidth = 0.6f
@@ -350,13 +403,12 @@ fun generarPdfRainCotizacion(
         return yBottom + 6f
     }
 
+    // Izquierda: Nombre, Dirección, Teléfono, Municipio, Zona
     var leftY = y; var rightY = y
+
     leftY = drawInfoRow(canvas, leftX, leftY, "Nombre del Cliente:", cotizacion.clienteNombre, leftBlockWidth)
 
-    if (cotizacion.ciudad.isNotBlank()) {
-        leftY = drawInfoRow(canvas, leftX, leftY, "Ciudad:", cotizacion.ciudad, leftBlockWidth)
-    }
-
+    // Dirección: concatenar colonia + calle
     val ubicacionCompleta = cotizacion.ubicacion
     val ciudadCompleta = cotizacion.ciudad
     var restoDireccion = ubicacionCompleta
@@ -364,18 +416,45 @@ fun generarPdfRainCotizacion(
         restoDireccion = ubicacionCompleta.replace(ciudadCompleta, "").trim()
         restoDireccion = restoDireccion.trimStart(',').trim()
     }
-    val partesRestantes = restoDireccion.split(",").map { it.trim() }.filter { it.isNotBlank() }
-    val colonia = partesRestantes.getOrNull(0) ?: ""
-    val calleNumero = partesRestantes.getOrNull(1) ?: ""
+    if (restoDireccion.isNotBlank()) {
+        leftY = drawInfoRow(canvas, leftX, leftY, "Dirección:", restoDireccion, leftBlockWidth)
+    }
 
-    if (colonia.isNotBlank()) leftY = drawInfoRow(canvas, leftX, leftY, "Colonia:", colonia, leftBlockWidth)
-    if (calleNumero.isNotBlank()) leftY = drawInfoRow(canvas, leftX, leftY, "Calle y Número:", calleNumero, leftBlockWidth)
+    // Teléfono
+    if (cotizacion.clienteTelefono.isNotBlank()) {
+        leftY = drawInfoRow(canvas, leftX, leftY, "Teléfono:", cotizacion.clienteTelefono, leftBlockWidth)
+    }
 
-    val totalAreasM2 = cotizacion.medidas.sumOf { it.areaM2 }
-    rightY = drawInfoRow(canvas, rightX, rightY, "Especialista:", cotizacion.especialista, rightBlockWidth)
+    // Municipio (ciudad)
+    if (cotizacion.ciudad.isNotBlank()) {
+        leftY = drawInfoRow(canvas, leftX, leftY, "Municipio:", cotizacion.ciudad, leftBlockWidth)
+    }
+
+    // Zona geográfica
+    val zonaTexto = when (cotizacion.zonaGeografica) {
+        ZonaGeografica.CONTINENTAL -> "Continental Q.Roo."
+        ZonaGeografica.ISLAS -> "Islas"
+        ZonaGeografica.FORANEA -> "Foránea"
+    }
+    leftY = drawInfoRow(canvas, leftX, leftY, "Zona:", zonaTexto, leftBlockWidth)
+
+    // Derecha: Fecha, Especialista, Tipo Propiedad, Rectificación
     rightY = drawInfoRow(canvas, rightX, rightY, "Fecha:", cotizacion.fecha, rightBlockWidth)
-    rightY = drawInfoRow(canvas, rightX, rightY, "Total Áreas:", "${cotizacion.medidas.size}", rightBlockWidth)
-    rightY = drawInfoRow(canvas, rightX, rightY, "m² Totales:", "%.2f M²".format(totalAreasM2), rightBlockWidth)
+    rightY = drawInfoRow(canvas, rightX, rightY, "Especialista:", cotizacion.especialista, rightBlockWidth)
+
+    // Tipo Propiedad
+    val tipoPropTexto = when (cotizacion.tipoPropiedad.uppercase()) {
+        "CASA" -> "Casa"
+        "DEPARTAMENTO" -> "Departamento"
+        "COMERCIAL" -> "Comercial"
+        "HOTEL" -> "Hotel"
+        else -> cotizacion.tipoPropiedad.ifBlank { "-" }
+    }
+    rightY = drawInfoRow(canvas, rightX, rightY, "Tipo Propiedad:", tipoPropTexto, rightBlockWidth)
+
+    // Rectificación
+    val rectificacion = if (cotizacion.fueEditada()) "SI" else "NO"
+    rightY = drawInfoRow(canvas, rightX, rightY, "Rectificación:", rectificacion, rightBlockWidth)
 
     y = maxOf(leftY, rightY) + 8f
 
@@ -394,7 +473,6 @@ fun generarPdfRainCotizacion(
     val presupuestoY = y + 12f
     canvas.drawText("PRESUPUESTO", pageWidth / 2f, presupuestoY, paint)
 
-    // Subrayado
     val textW = paint.measureText("PRESUPUESTO")
     paint.style = Paint.Style.STROKE; paint.color = Color.BLACK; paint.strokeWidth = 0.8f
     canvas.drawLine(pageWidth / 2f - textW / 2f, presupuestoY + 3f, pageWidth / 2f + textW / 2f, presupuestoY + 3f, paint)
@@ -403,7 +481,7 @@ fun generarPdfRainCotizacion(
     y = presupuestoY + 14f
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // TABLA — Gris #C4C4C4, sub-celdas blancas, TOTAL azul #2984D1
+    // TABLA HEADER — Sin #, con Control(Manivela/Remoto), TOTAL(Manual/Eléctrico)
     // ═══════════════════════════════════════════════════════════════════════════
 
     fun drawRainTableHeader(startY: Float): Float {
@@ -420,91 +498,103 @@ fun generarPdfRainCotizacion(
             style = Paint.Style.STROKE; color = colorGrayCell; strokeWidth = 0.5f
         }
 
-        // # (gris, vacío)
-        paint.color = colorGrayCell
-        canvas.drawRect(tableLeft, row1Top, tableLeft + colNumeroW, row2Bottom, paint)
-        canvas.drawRect(tableLeft, row1Top, tableLeft + colNumeroW, row2Bottom, borderP)
+        var xCol = tableLeft
 
-        // Área a Proteger (gris, texto azul #2984D1)
-        val areaX = tableLeft + colNumeroW
+        // Área a Proteger (gris completo, texto azul)
         paint.color = colorGrayCell
-        canvas.drawRect(areaX, row1Top, areaX + colAreaW, row2Bottom, paint)
-        canvas.drawRect(areaX, row1Top, areaX + colAreaW, row2Bottom, borderP)
+        canvas.drawRect(xCol, row1Top, xCol + colAreaW, row2Bottom, paint)
+        canvas.drawRect(xCol, row1Top, xCol + colAreaW, row2Bottom, borderP)
         paint.color = colorBlue
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
         paint.textSize = 8f
-        canvas.drawText("Área a Proteger", areaX + colAreaW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawText("Área a Proteger", xCol + colAreaW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        xCol += colAreaW
 
-        // Cantidad (gris, texto azul)
-        val cantX = areaX + colAreaW
+        // Cantidad (gris completo, texto azul)
         paint.color = colorGrayCell
-        canvas.drawRect(cantX, row1Top, cantX + colCantidadW, row2Bottom, paint)
-        canvas.drawRect(cantX, row1Top, cantX + colCantidadW, row2Bottom, borderP)
-        paint.color = colorBlue
-        paint.textSize = 8f
-        canvas.drawText("Cantidad", cantX + colCantidadW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawRect(xCol, row1Top, xCol + colCantidadW, row2Bottom, paint)
+        canvas.drawRect(xCol, row1Top, xCol + colCantidadW, row2Bottom, borderP)
+        paint.color = colorBlue; paint.textSize = 8f
+        canvas.drawText("Cantidad", xCol + colCantidadW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        xCol += colCantidadW
 
         // Tela (fila 1 gris, texto azul)
-        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        val telaX = cantX + colCantidadW
         val telaW = colAnchoW + colAltoW + colM2W
         paint.color = colorGrayCell
-        canvas.drawRect(telaX, row1Top, telaX + telaW, row1Bottom, paint)
-        canvas.drawRect(telaX, row1Top, telaX + telaW, row1Bottom, borderP)
-        paint.color = colorBlue
-        paint.textSize = 9f
-        canvas.drawText("Tela", telaX + telaW / 2f, row1Top + headerTableRow1H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawRect(xCol, row1Top, xCol + telaW, row1Bottom, paint)
+        canvas.drawRect(xCol, row1Top, xCol + telaW, row1Bottom, borderP)
+        paint.color = colorBlue; paint.textSize = 9f
+        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        canvas.drawText("Tela", xCol + telaW / 2f, row1Top + headerTableRow1H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
         // Sub-columnas Tela (fila 2 blanco, texto azul)
         listOf(
-            Triple(telaX, colAnchoW, "Ancho"),
-            Triple(telaX + colAnchoW, colAltoW, "Alto"),
-            Triple(telaX + colAnchoW + colAltoW, colM2W, "m² Total")
-        ).forEach { (x, w, text) ->
+            Pair(colAnchoW, "Ancho"),
+            Pair(colAltoW, "Alto"),
+            Pair(colM2W, "m² Total")
+        ).fold(xCol) { acc, (w, text) ->
             paint.style = Paint.Style.FILL; paint.color = Color.WHITE
-            canvas.drawRect(x, row2Top, x + w, row2Bottom, paint)
-            canvas.drawRect(x, row2Top, x + w, row2Bottom, borderP)
+            canvas.drawRect(acc, row2Top, acc + w, row2Bottom, paint)
+            canvas.drawRect(acc, row2Top, acc + w, row2Bottom, borderP)
             paint.style = Paint.Style.FILL; paint.color = colorBlue; paint.textSize = 7.5f
-            canvas.drawText(text, x + w / 2f, row2Top + headerTableRow2H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+            canvas.drawText(text, acc + w / 2f, row2Top + headerTableRow2H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+            acc + w
         }
+        xCol += telaW
 
-        // Mecanismo (fila 1 gris, texto azul)
-        val mecX = telaX + telaW
-        val mecW = colManualW + colElectricoW
-        paint.color = colorGrayCell
-        canvas.drawRect(mecX, row1Top, mecX + mecW, row1Bottom, paint)
-        canvas.drawRect(mecX, row1Top, mecX + mecW, row1Bottom, borderP)
-        paint.color = colorBlue; paint.textSize = 9f
-        canvas.drawText("Mecanismo", mecX + mecW / 2f, row1Top + headerTableRow1H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
-
-        // Sub-columnas Mecanismo (fila 2 blanco, texto azul)
-        listOf(
-            Triple(mecX, colManualW, "Manual"),
-            Triple(mecX + colManualW, colElectricoW, "Eléctrico")
-        ).forEach { (x, w, text) ->
-            paint.style = Paint.Style.FILL; paint.color = Color.WHITE
-            canvas.drawRect(x, row2Top, x + w, row2Bottom, paint)
-            canvas.drawRect(x, row2Top, x + w, row2Bottom, borderP)
-            paint.style = Paint.Style.FILL; paint.color = colorBlue; paint.textSize = 7.5f
-            canvas.drawText(text, x + w / 2f, row2Top + headerTableRow2H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
-        }
-
-        // Comentarios (gris completo, texto azul)
-        val comX = mecX + mecW
+        // Control (fila 1 gris, texto azul) — antes era "Mecanismo"
+        val controlW = colManivelaW + colRemotoW
         paint.style = Paint.Style.FILL; paint.color = colorGrayCell
-        canvas.drawRect(comX, row1Top, comX + colComentariosW, row2Bottom, paint)
-        canvas.drawRect(comX, row1Top, comX + colComentariosW, row2Bottom, borderP)
-        paint.color = colorBlue; paint.textSize = 8f
+        canvas.drawRect(xCol, row1Top, xCol + controlW, row1Bottom, paint)
+        canvas.drawRect(xCol, row1Top, xCol + controlW, row1Bottom, borderP)
+        paint.color = colorBlue; paint.textSize = 9f
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        canvas.drawText("Comentarios", comX + colComentariosW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawText("Control", xCol + controlW / 2f, row1Top + headerTableRow1H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
 
-        // TOTAL (AZUL #2984D1, texto blanco)
-        val totalX = comX + colComentariosW
+        // Sub-columnas Control (fila 2 blanco, texto azul): Manivela | Remoto
+        listOf(
+            Pair(colManivelaW, "Manivela"),
+            Pair(colRemotoW, "Remoto")
+        ).fold(xCol) { acc, (w, text) ->
+            paint.style = Paint.Style.FILL; paint.color = Color.WHITE
+            canvas.drawRect(acc, row2Top, acc + w, row2Bottom, paint)
+            canvas.drawRect(acc, row2Top, acc + w, row2Bottom, borderP)
+            paint.style = Paint.Style.FILL; paint.color = colorBlue; paint.textSize = 7.5f
+            canvas.drawText(text, acc + w / 2f, row2Top + headerTableRow2H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+            acc + w
+        }
+        xCol += controlW
+
+        // TOTAL (AZUL fondo, texto blanco)
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        paint.style = Paint.Style.FILL; paint.color = colorBlue
-        canvas.drawRect(totalX, row1Top, totalX + colTotalW, row2Bottom, paint)
-        paint.color = Color.WHITE; paint.textSize = 9f
-        canvas.drawText("TOTAL", totalX + colTotalW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        if (tieneAmbos) {
+            // Fila 1: "TOTAL" abarca las 2 sub-columnas
+            paint.style = Paint.Style.FILL; paint.color = colorBlue
+            canvas.drawRect(xCol, row1Top, xCol + totalColumnsW, row1Bottom, paint)
+            canvas.drawRect(xCol, row1Top, xCol + totalColumnsW, row1Bottom, borderP)
+            paint.color = Color.WHITE; paint.textSize = 9f
+            canvas.drawText("TOTAL", xCol + totalColumnsW / 2f, row1Top + headerTableRow1H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+
+            // Fila 2: "Manual" | "Eléctrico" sub-columnas con fondo azul oscuro
+            listOf(
+                Pair(colTotalManualW, "Manual"),
+                Pair(colTotalElectricoW, "Eléctrico")
+            ).fold(xCol) { acc, (w, text) ->
+                paint.style = Paint.Style.FILL; paint.color = colorBlueDark
+                canvas.drawRect(acc, row2Top, acc + w, row2Bottom, paint)
+                canvas.drawRect(acc, row2Top, acc + w, row2Bottom, borderP)
+                paint.style = Paint.Style.FILL; paint.color = Color.WHITE; paint.textSize = 7.5f
+                canvas.drawText(text, acc + w / 2f, row2Top + headerTableRow2H / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+                acc + w
+            }
+        } else {
+            // Solo 1 columna TOTAL
+            paint.style = Paint.Style.FILL; paint.color = colorBlue
+            canvas.drawRect(xCol, row1Top, xCol + colTotalUnicoW, row2Bottom, paint)
+            canvas.drawRect(xCol, row1Top, xCol + colTotalUnicoW, row2Bottom, borderP)
+            paint.color = Color.WHITE; paint.textSize = 9f
+            canvas.drawText("TOTAL", xCol + colTotalUnicoW / 2f, row1Top + headerTableTotalH / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        }
 
         return row2Bottom
     }
@@ -541,9 +631,11 @@ fun generarPdfRainCotizacion(
         val rowTop = y
         val rowBottom = y + rowH
 
+        // Fondo blanco de la fila
         paint.style = Paint.Style.FILL; paint.color = Color.WHITE
         canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, paint)
 
+        // Línea separadora inferior
         paint.style = Paint.Style.STROKE; paint.color = Color.parseColor("#E0E0E0"); paint.strokeWidth = 0.5f
         canvas.drawLine(tableLeft, rowBottom, tableRight, rowBottom, paint)
 
@@ -555,95 +647,195 @@ fun generarPdfRainCotizacion(
         val numCenterY = rowTop + rowH / 2f - (paint.descent() + paint.ascent()) / 2f
         var xCol = tableLeft
 
+        // Área a Proteger — Nombre del área (bold) + "Apertura N" debajo
         paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("#${index + 1}", xCol + colNumeroW / 2f, numCenterY, paint)
-        xCol += colNumeroW
-
-        val areaCenterX = xCol + colAreaW / 2f
+        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        val descLine1Y = rowTop + cellLineHeight
         if (fila.linesDescripcion.size == 1) {
-            canvas.drawText(fila.linesDescripcion.first(), areaCenterX, numCenterY, paint)
+            canvas.drawText(fila.linesDescripcion.first(), xCol + colAreaW / 2f, descLine1Y, paint)
         } else {
             var textY = rowTop + cellPadding + cellLineHeight - paint.descent()
             fila.linesDescripcion.forEach { line ->
-                canvas.drawText(line, areaCenterX, textY, paint); textY += cellLineHeight
+                canvas.drawText(line, xCol + colAreaW / 2f, textY, paint); textY += cellLineHeight
             }
         }
+        // "Apertura N" debajo del nombre
+        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+        paint.textSize = 7.5f
+        canvas.drawText(fila.aperturaLabel, xCol + colAreaW / 2f, descLine1Y + cellLineHeight, paint)
+        paint.textSize = bodyTextSize
         xCol += colAreaW
 
+        // Cantidad
+        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
         canvas.drawText(fila.piezas, xCol + colCantidadW / 2f, numCenterY, paint)
         xCol += colCantidadW
 
+        // Ancho
         canvas.drawText(fila.ancho, xCol + colAnchoW / 2f, numCenterY, paint)
         xCol += colAnchoW
 
+        // Alto
         canvas.drawText(fila.alto, xCol + colAltoW / 2f, numCenterY, paint)
         xCol += colAltoW
 
+        // m² Total
         canvas.drawText(fila.m2, xCol + colM2W / 2f, numCenterY, paint)
         xCol += colM2W
 
-        // Mecanismo — texto centrado entre las 2 columnas (Manual + Eléctrico combinadas)
-        val mecAreaX = xCol
-        val mecAreaW = colManualW + colElectricoW
-        val mecText = if (fila.esManual) "Manual" else "Eléctrico"
-        paint.textAlign = Paint.Align.CENTER
-        canvas.drawText(mecText, mecAreaX + mecAreaW / 2f, numCenterY, paint)
-        xCol += mecAreaW
+        // Manivela
+        canvas.drawText(fila.manivelas, xCol + colManivelaW / 2f, numCenterY, paint)
+        xCol += colManivelaW
 
-        xCol += colComentariosW
+        // Remoto
+        canvas.drawText(fila.remotos, xCol + colRemotoW / 2f, numCenterY, paint)
+        xCol += colRemotoW
 
+        // TOTAL
         paint.textAlign = Paint.Align.RIGHT
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        canvas.drawText(fila.subtotal, xCol + colTotalW - 6f, numCenterY, paint)
+        if (tieneAmbos) {
+            // Manual
+            if (fila.subtotalManual.isNotBlank()) {
+                canvas.drawText(fila.subtotalManual, xCol + colTotalManualW - 4f, numCenterY, paint)
+            }
+            xCol += colTotalManualW
+            // Eléctrico
+            if (fila.subtotalElectrico.isNotBlank()) {
+                canvas.drawText(fila.subtotalElectrico, xCol + colTotalElectricoW - 4f, numCenterY, paint)
+            }
+        } else {
+            canvas.drawText(fila.subtotalUnico, xCol + colTotalUnicoW - 4f, numCenterY, paint)
+        }
         paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
 
         y = rowBottom
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // RESUMEN (Sub-Total 1, Descuento, Sub-Total 2, IVA, Total)
+    // RESUMEN — Dual columnas (Manual + Eléctrico) o única
     // ═══════════════════════════════════════════════════════════════════════════
 
-    val labelWidth = 180f
-    val valueColumnWidth = 100f
+    val labelWidth = 100f
+    val valueColumnWidth = 90f
     val rowHeightResumen = 14f
     val resumenTextSize = 9f
 
+    val numValueCols = if (tieneAmbos) 2 else 1
+    val totalResumenWidth = labelWidth + valueColumnWidth * numValueCols
     val margenSobreFooter = 8f
-    val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - rowHeightResumen * 5
+    val resumenTopDesdeAbajo = pageHeight.toFloat() - bottomBarHeight - margenSobreFooter - rowHeightResumen * 7
     val resumenTop = maxOf(y + 15f, resumenTopDesdeAbajo)
 
     val resumenRight = tableRight
-    val resumenLeft = resumenRight - labelWidth - valueColumnWidth
+    val resumenLeft = resumenRight - totalResumenWidth
     var filaTop = resumenTop
 
-    fun drawResumenRow(
-        label: String, value: String, isBold: Boolean = false,
-        drawLineAbove: Boolean = false, labelColor: Int = Color.BLACK, valueColor: Int = Color.BLACK
+    fun drawResumenRowDual(
+        label: String,
+        valueManual: String,
+        valueElectrico: String,
+        valueUnico: String = "",
+        isBold: Boolean = false,
+        drawLineAbove: Boolean = false,
+        labelColor: Int = Color.BLACK,
+        valueColor: Int = Color.BLACK
     ) {
         val filaBottom = filaTop + rowHeightResumen
         if (drawLineAbove) {
             paint.style = Paint.Style.STROKE; paint.color = Color.BLACK; paint.strokeWidth = 1f
             canvas.drawLine(resumenLeft, filaTop, resumenRight, filaTop, paint)
         }
+        val centerY = filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f
+
+        // Label
         paint.style = Paint.Style.FILL; paint.color = labelColor
         paint.textAlign = Paint.Align.LEFT; paint.textSize = resumenTextSize
         paint.typeface = if (isBold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
         paint.letterSpacing = 0f
-        canvas.drawText(label, resumenLeft + 2f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        canvas.drawText(label, resumenLeft + 2f, centerY, paint)
+
+        // Valores
         paint.color = valueColor; paint.textAlign = Paint.Align.RIGHT
-        canvas.drawText(value, resumenRight - 8f, filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f, paint)
+        if (tieneAmbos) {
+            val col1Right = resumenLeft + labelWidth + valueColumnWidth
+            canvas.drawText(valueManual, col1Right - 4f, centerY, paint)
+            canvas.drawText(valueElectrico, resumenRight - 4f, centerY, paint)
+        } else {
+            canvas.drawText(valueUnico, resumenRight - 4f, centerY, paint)
+        }
         filaTop = filaBottom
     }
 
-    drawResumenRow("Sub-Total 1", "$ %,.2f".format(subtotalGeneral), drawLineAbove = true)
-    drawResumenRow("Descuento  -%.2f%%".format(descuentoPorcentaje), "-$ %,.2f".format(descuentoMonto), labelColor = Color.RED, valueColor = Color.RED)
-    drawResumenRow("Sub-Total 2", "$ %,.2f".format(subtotalConDescuento))
-    drawResumenRow("IVA", "$ %,.2f".format(iva))
-    drawResumenRow("Total", "$ %,.2f".format(totalFinal), isBold = true, drawLineAbove = true)
+    // Header del resumen con etiquetas de columna
+    if (tieneAmbos) {
+        val headerBottom = filaTop + rowHeightResumen
+        paint.style = Paint.Style.FILL; paint.textSize = resumenTextSize
+        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        paint.color = colorBlue; paint.textAlign = Paint.Align.RIGHT
+        paint.letterSpacing = 0f
+        val centerY = filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f
+        val col1Right = resumenLeft + labelWidth + valueColumnWidth
+        canvas.drawText("Manual", col1Right - 4f, centerY, paint)
+        canvas.drawText("Eléctrico", resumenRight - 4f, centerY, paint)
+        filaTop = headerBottom
+    }
+
+    // Sub-Total 1
+    drawResumenRowDual(
+        label = "Sub- Total 1",
+        valueManual = "$ %,.2f".format(subtotalManual),
+        valueElectrico = "$ %,.2f".format(subtotalElectrico),
+        valueUnico = "$ %,.2f".format(subtotalGeneral),
+        drawLineAbove = true
+    )
+    // Descuento
+    drawResumenRowDual(
+        label = "Descuento  %.2f%%".format(descuentoPorcentaje),
+        valueManual = "-$ %,.2f".format(descuentoMontoManual),
+        valueElectrico = "-$ %,.2f".format(descuentoMontoElectrico),
+        valueUnico = "-$ %,.2f".format(descuentoMontoTotal),
+        labelColor = colorRed, valueColor = colorRed
+    )
+    // Sub-Total 2
+    drawResumenRowDual(
+        label = "Sub-Total 2",
+        valueManual = "$ %,.2f".format(sub2Manual),
+        valueElectrico = "$ %,.2f".format(sub2Electrico),
+        valueUnico = "$ %,.2f".format(sub2Total)
+    )
+    // IVA
+    drawResumenRowDual(
+        label = "Iva",
+        valueManual = "$ %,.2f".format(ivaManual),
+        valueElectrico = "$ %,.2f".format(ivaElectrico),
+        valueUnico = "$ %,.2f".format(ivaTotal)
+    )
+    // Total
+    drawResumenRowDual(
+        label = "Total",
+        valueManual = "$ %,.2f".format(totalManual),
+        valueElectrico = "$ %,.2f".format(totalElectrico),
+        valueUnico = "$ %,.2f".format(totalFinal),
+        isBold = true, drawLineAbove = true
+    )
+
+    // Etiquetas finales "Manual" / "Eléctrico" debajo del total
+    if (tieneAmbos) {
+        val labelBottom = filaTop + rowHeightResumen
+        paint.style = Paint.Style.FILL; paint.textSize = resumenTextSize
+        paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        paint.color = colorBlue; paint.textAlign = Paint.Align.RIGHT
+        paint.letterSpacing = 0f
+        val centerY = filaTop + rowHeightResumen / 2f - (paint.descent() + paint.ascent()) / 2f
+        val col1Right = resumenLeft + labelWidth + valueColumnWidth
+        canvas.drawText("Manual", col1Right - 4f, centerY, paint)
+        canvas.drawText("Eléctrico", resumenRight - 4f, centerY, paint)
+        filaTop = labelBottom
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // CONDICIONES COMERCIALES
+    // CONDICIONES COMERCIALES — Imagen (rain_condiciones_comerciales)
     // ═══════════════════════════════════════════════════════════════════════════
 
     val condicionesLeft = margin
@@ -654,7 +846,10 @@ fun generarPdfRainCotizacion(
 
     try {
         val options = BitmapFactory.Options().apply { inScaled = false }
-        val condicionesImg = BitmapFactory.decodeResource(context.resources, R.drawable.condiciones_comerciales, options)
+        // Intenta cargar la imagen de condiciones Rain; si no existe, usa la de Hurricane
+        val condRainId = context.resources.getIdentifier("rain_condiciones_comerciales", "drawable", context.packageName)
+        val condResId = if (condRainId != 0) condRainId else R.drawable.condiciones_comerciales
+        val condicionesImg = BitmapFactory.decodeResource(context.resources, condResId, options)
         if (condicionesImg != null) {
             val imgW = condicionesImg.width.toFloat()
             val imgH = condicionesImg.height.toFloat()

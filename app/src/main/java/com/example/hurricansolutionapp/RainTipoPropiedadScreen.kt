@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
@@ -25,6 +27,10 @@ import androidx.compose.ui.unit.sp
 /**
  * Pantalla de selección de Tipo de Propiedad para Rain Protection
  * Copia exacta de TipoPropiedadScreen pero usando CotizacionRainDraft
+ *
+ * FIX: Agregado verticalScroll para que en pantallas más pequeñas
+ * (como Samsung S25 Ultra) la card de HOTEL no se corte.
+ * También se redujo la altura de las cards de 140dp a 110dp.
  */
 
 // Color Rain Protection
@@ -65,9 +71,10 @@ fun RainTipoPropiedadScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState()) // FIX: Scroll para pantallas pequeñas
                 .padding(horizontal = 24.dp)
         ) {
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
 
             // Título y subtítulo centrados
             Text(
@@ -89,7 +96,7 @@ fun RainTipoPropiedadScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(32.dp))
 
             // Cards de tipos de propiedad
             TipoPropiedad.entries.forEach { tipo ->
@@ -112,8 +119,11 @@ fun RainTipoPropiedadScreen(
                     }
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
             }
+
+            // Espacio extra al final para que el scroll tenga margen
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -142,7 +152,7 @@ private fun RainTipoPropiedadCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
+            .height(110.dp) // FIX: Reducido de 140dp a 110dp para que quepan las 4 cards
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -175,7 +185,7 @@ private fun RainTipoPropiedadCard(
                     modifier = Modifier.size(36.dp)
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
 
                 Text(
                     text = tipo.label.uppercase(),

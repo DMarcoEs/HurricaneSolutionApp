@@ -221,8 +221,8 @@ fun RainResumenScreen(
     BackHandler {
         when {
             desdeHistorial -> onVolverAHistorial()
-            guardado -> onVolverAInicio()
-            else -> showExitDialog = true
+            guardado -> showExitDialog = true
+            else -> onBack() // Volver a MedidasScreen para corregir
         }
     }
 
@@ -290,7 +290,7 @@ fun RainResumenScreen(
                     when {
                         desdeHistorial -> onVolverAHistorial()
                         guardado -> showExitDialog = true
-                        else -> showExitDialog = true
+                        else -> onBack() // Volver a MedidasScreen para corregir
                     }
                 },
                 isDarkMode = isDarkMode

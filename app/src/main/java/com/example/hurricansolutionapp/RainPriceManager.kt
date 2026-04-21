@@ -10,14 +10,17 @@ import kotlinx.coroutines.flow.asStateFlow
  * ═══════════════════════════════════════════════════════════════════════════════
  *
  * Calcula precios para Rain Protection basado en:
- * - Tela: $173.50/m²
- * - Kit Manual: $7,195.70 (manivela se agrega como accesorio)
- * - Kit Eléctrico: $7,865.63 + Adaptador $1,120.95
- * - Perfil: $749.39 × ancho
- * - Contrapeso: $412.96 × ancho
- * - Inserto: $17.80 × ancho × 2
- * - Tensor: $16.65 × alto × 2
- * - Control adicional: $1,500.00 unidad
+ * - Tela: $312.30/m²
+ * - Kit Manual (Componentes Toldo /Incluye Manivela): $12,952.26
+ * - Kit Eléctrico (Motor bidireccional): $14,158.13 + Adaptador $2,017.71
+ * - Perfil (Tubo 70mm): $1,348.90 × ancho
+ * - Contrapeso: $743.33 × ancho
+ * - Inserto: $32.05 × ancho × 2
+ * - Tensor: $29.97 × alto × 2
+ * - Control adicional: $600.00 unidad
+ *
+ * Componentes de referencia (solo admin, no afectan cálculo):
+ * - Manivela, Intermedio conector, Control Bmighty, etc.
  *
  * Descuentos por zona:
  * - Continental: 23.50%
@@ -50,15 +53,24 @@ object RainPriceManager {
     // ═══════════════════════════════════════════════════════════════════════════
 
     private fun getDefaultPrecios(): Map<String, Double> = mapOf(
-        "tela" to 173.50,
-        "kit_manual" to 7195.70,
-        "kit_electrico" to 7865.63,
-        "perfil" to 749.39,
-        "contrapeso" to 412.96,
-        "inserto" to 17.80,
-        "tensor" to 16.65,
-        "manivela" to 495.93,
-        "kit_adaptador" to 1120.95,
+        // Componentes compartidos
+        "tela" to 312.30,
+        "perfil" to 1348.90,
+        "contrapeso" to 743.33,
+        "inserto" to 32.05,
+        "tensor" to 29.97,
+        // Componentes Manual
+        "kit_manual" to 12952.26,
+        "manivela" to 892.67,
+        // Componentes Eléctrico
+        "kit_adaptador" to 2017.71,
+        "componentes_toldo_electrico" to 12745.04,
+        "intermedio_conector" to 567.45,
+        "inserto_plastico" to 32.05,
+        "kit_electrico" to 14158.13,
+        "control_multicanal" to 2438.01,
+        "control_monocanal" to 2010.42,
+        // Accesorios adicionales
         "control_adicional" to 600.00
     )
 

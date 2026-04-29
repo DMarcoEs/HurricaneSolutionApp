@@ -148,8 +148,8 @@ data class CotizacionRainDraft(
     var medidasForm: MutableList<MedidaRainFormState> = mutableListOf(MedidaRainFormState()),
     var observaciones: String = "",
     // Accesorios adicionales
-    var quiereControles: Boolean = false,
-    var cantidadControles: Int = 0,
+    var tipoControl: String = "multicanal",  // "multicanal" (default) o "monocanal"
+    var cantidadControles: Int = 0,           // Solo aplica si es monocanal
     var quiereManivelas: Boolean = false,
     var cantidadManivelas: Int = 0
 ) {
@@ -173,7 +173,7 @@ data class CotizacionRainDraft(
         tipoPropiedad = ""
         medidasForm = mutableListOf(MedidaRainFormState())
         observaciones = ""
-        quiereControles = false
+        tipoControl = "multicanal"
         cantidadControles = 0
         quiereManivelas = false
         cantidadManivelas = 0
@@ -214,7 +214,7 @@ data class CotizacionRainDraft(
         observaciones = cotizacion.observaciones
 
         // Accesorios
-        quiereControles = cotizacion.controlesAdicionales > 0
+        tipoControl = cotizacion.tipoControl
         cantidadControles = cotizacion.controlesAdicionales
         quiereManivelas = cotizacion.manivelasAdicionales > 0
         cantidadManivelas = cotizacion.manivelasAdicionales
@@ -241,11 +241,11 @@ data class CotizacionRainDraft(
 
     fun getMedidas(): List<MedidaRain> = medidasForm.mapNotNull { it.toMedidaRain() }
 
-    // Subtotal combinado (para compatibilidad)
-    fun getSubtotal(): Double = getMedidas().sumOf { it.subtotal }
+    // Subtotal combinado (medidas + accesorios — TODO lleva descuento)
+    fun getSubtotal(): Double = getMedidas().sumOf { it.subtotal } + getCostoAccesorios()
 
     // Subtotales separados por tipo de mecanismo
-    fun getSubtotalManual(): Double = getMedidas().sumOf { it.subtotalManual }
+    fun getSubtotalManual(): Double = getMedidas().sumOf { it.subtotalManual } + getCostoAccesorios()
     fun getSubtotalElectrico(): Double = getMedidas().sumOf { it.subtotalElectrico }
 
     fun getDescuentoPorcentaje(): Double = RainPriceManager.getDescuentoPorZona(zonaGeografica)
@@ -255,23 +255,33 @@ data class CotizacionRainDraft(
     fun getDescuentoMontoElectrico(): Double = getSubtotalElectrico() * (getDescuentoPorcentaje() / 100)
 
     /**
-     * Calcula costo de accesorios adicionales (SIN descuento de zona)
+     * Calcula costo de accesorios adicionales
+     * Estos se suman al Sub-Total 1 ANTES del descuento
      */
     fun getCostoAccesorios(): Double {
-        val ctrlCount = if (quiereControles) cantidadControles else 0
         val manCount = if (quiereManivelas) cantidadManivelas else 0
-        return RainPriceManager.calcularCostoAccesorios(ctrlCount, manCount)
+        val ctrlCount = if (tipoControl == "monocanal") cantidadControles else 0
+        return RainPriceManager.calcularCostoAccesorios(manCount, tipoControl, ctrlCount)
     }
 
     /**
-     * Total = (Subtotal - Descuento) + Accesorios
-     * Los accesorios NO llevan descuento de zona
+     * Total = Sub-Total 1 - Descuento + IVA
+     * Accesorios ya están incluidos en Sub-Total 1
      */
-    fun getTotal(): Double = (getSubtotal() - getDescuentoMonto()) + getCostoAccesorios()
+    fun getTotal(): Double {
+        val sub2 = getSubtotal() - getDescuentoMonto()
+        return sub2 + (sub2 * 0.16)
+    }
 
-    // Totales separados por tipo (para el PDF)
-    fun getTotalManual(): Double = (getSubtotalManual() - getDescuentoMontoManual()) + getCostoAccesorios()
-    fun getTotalElectrico(): Double = (getSubtotalElectrico() - getDescuentoMontoElectrico()) + getCostoAccesorios()
+    // Totales separados por tipo
+    fun getTotalManual(): Double {
+        val sub2 = getSubtotalManual() - getDescuentoMontoManual()
+        return sub2 + (sub2 * 0.16)
+    }
+    fun getTotalElectrico(): Double {
+        val sub2 = getSubtotalElectrico() - getDescuentoMontoElectrico()
+        return sub2 + (sub2 * 0.16)
+    }
 
     fun getTotalAreas(): Int = getMedidas().size
 
@@ -328,7 +338,8 @@ data class CotizacionRain(
     // Accesorios adicionales
     val controlesAdicionales: Int = 0,
     val manivelasAdicionales: Int = 0,
-    val costoAccesorios: Double = 0.0
+    val costoAccesorios: Double = 0.0,
+    val tipoControl: String = "multicanal"
 ) {
     fun fueEditada(): Boolean = updatedAt > 0L
 

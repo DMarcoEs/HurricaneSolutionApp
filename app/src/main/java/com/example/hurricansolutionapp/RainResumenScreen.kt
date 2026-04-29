@@ -73,7 +73,7 @@ fun RainResumenScreen(
     // ═══════════════════════════════════════════════════════════════════════════
     // ESTADOS DE ACCESORIOS
     // ═══════════════════════════════════════════════════════════════════════════
-    var quiereControles by rememberSaveable { mutableStateOf(rainDraft.quiereControles) }
+    var tipoControl by rememberSaveable { mutableStateOf(rainDraft.tipoControl) }
     var cantidadControles by rememberSaveable { mutableIntStateOf(rainDraft.cantidadControles.coerceAtLeast(1)) }
     var quiereManivelas by rememberSaveable { mutableStateOf(rainDraft.quiereManivelas) }
     var cantidadManivelas by rememberSaveable { mutableIntStateOf(rainDraft.cantidadManivelas.coerceAtLeast(1)) }
@@ -121,34 +121,45 @@ fun RainResumenScreen(
     // Obtener medidas válidas
     val medidas = rainDraft.getMedidas()
     val totalAreas = medidas.size
-    val subtotal = rainDraft.getSubtotal()
-    val subtotalManual = rainDraft.getSubtotalManual()
-    val subtotalElectrico = rainDraft.getSubtotalElectrico()
-    val descuentoPorcentaje = rainDraft.getDescuentoPorcentaje()
-    val descuentoMonto = rainDraft.getDescuentoMonto()
-    val descuentoMontoManual = rainDraft.getDescuentoMontoManual()
-    val descuentoMontoElectrico = rainDraft.getDescuentoMontoElectrico()
 
     // Costo de accesorios (reactivo a switches/cantidades)
-    val costoAccesorios = remember(quiereControles, cantidadControles, quiereManivelas, cantidadManivelas) {
-        val ctrlCount = if (quiereControles) cantidadControles else 0
+    val costoAccesorios = remember(tipoControl, cantidadControles, quiereManivelas, cantidadManivelas) {
         val manCount = if (quiereManivelas) cantidadManivelas else 0
-        RainPriceManager.calcularCostoAccesorios(ctrlCount, manCount)
+        val ctrlCount = if (tipoControl == "monocanal") cantidadControles else 0
+        RainPriceManager.calcularCostoAccesorios(manCount, tipoControl, ctrlCount)
     }
 
-    // Totales = (Subtotal - Descuento) + Accesorios
-    val total = (subtotal - descuentoMonto) + costoAccesorios
-    val totalManual = (subtotalManual - descuentoMontoManual) + costoAccesorios
-    val totalElectrico = (subtotalElectrico - descuentoMontoElectrico) + costoAccesorios
+    // Sub-Total 1 = medidas + accesorios (TODO lleva descuento)
+    val subtotalMedidas = medidas.sumOf { it.subtotal }
+    val subtotalMedidasManual = medidas.sumOf { it.subtotalManual }
+    val subtotalMedidasElectrico = medidas.sumOf { it.subtotalElectrico }
+
+    // Accesorios se suman al Manual (manivelas son para manual, controles para eléctrico)
+    val subtotal = subtotalMedidas + costoAccesorios
+    val subtotalManual = subtotalMedidasManual + costoAccesorios
+    val subtotalElectrico = subtotalMedidasElectrico
+
+    val descuentoPorcentaje = rainDraft.getDescuentoPorcentaje()
+    val descuentoMonto = subtotal * (descuentoPorcentaje / 100)
+    val descuentoMontoManual = subtotalManual * (descuentoPorcentaje / 100)
+    val descuentoMontoElectrico = subtotalElectrico * (descuentoPorcentaje / 100)
+
+    // Totales = Sub-Total 2 + IVA (accesorios ya dentro del subtotal)
+    val sub2 = subtotal - descuentoMonto
+    val sub2Manual = subtotalManual - descuentoMontoManual
+    val sub2Electrico = subtotalElectrico - descuentoMontoElectrico
+    val total = sub2 + (sub2 * 0.16)
+    val totalManual = sub2Manual + (sub2Manual * 0.16)
+    val totalElectrico = sub2Electrico + (sub2Electrico * 0.16)
 
     // Verificar si tiene cada tipo de mecanismo
     val tieneManual = rainDraft.tieneManual()
     val tieneElectrico = rainDraft.tieneElectrico()
 
     // Sincronizar con el draft
-    LaunchedEffect(quiereControles, cantidadControles, quiereManivelas, cantidadManivelas) {
-        rainDraft.quiereControles = quiereControles
-        rainDraft.cantidadControles = if (quiereControles) cantidadControles else 0
+    LaunchedEffect(tipoControl, cantidadControles, quiereManivelas, cantidadManivelas) {
+        rainDraft.tipoControl = tipoControl
+        rainDraft.cantidadControles = if (tipoControl == "monocanal") cantidadControles else 0
         rainDraft.quiereManivelas = quiereManivelas
         rainDraft.cantidadManivelas = if (quiereManivelas) cantidadManivelas else 0
     }
@@ -197,9 +208,10 @@ fun RainResumenScreen(
             areasElectricas = rainDraft.getAreasElectricas(),
             areasManuales = rainDraft.getAreasManuales(),
             observaciones = rainDraft.observaciones,
-            controlesAdicionales = if (quiereControles) cantidadControles else 0,
+            controlesAdicionales = if (tipoControl == "monocanal") cantidadControles else 0,
             manivelasAdicionales = if (quiereManivelas) cantidadManivelas else 0,
-            costoAccesorios = costoAccesorios
+            costoAccesorios = costoAccesorios,
+            tipoControl = tipoControl
         )
     }
 
@@ -441,9 +453,10 @@ fun RainResumenScreen(
                                             areasManuales = rainDraft.getAreasManuales(),
                                             leadId = rainDraft.leadId,
                                             observaciones = rainDraft.observaciones.ifBlank { null },
-                                            controlesAdicionales = if (quiereControles) cantidadControles else 0,
+                                            controlesAdicionales = if (tipoControl == "monocanal") cantidadControles else 0,
                                             manivelasAdicionales = if (quiereManivelas) cantidadManivelas else 0,
-                                            costoAccesorios = costoAccesorios
+                                            costoAccesorios = costoAccesorios,
+                                            tipoControl = tipoControl
                                         )
 
                                         val saveResult = withContext(Dispatchers.IO) {
@@ -896,76 +909,125 @@ fun RainResumenScreen(
                     textMuted = textMuted
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        // ── Controles adicionales ──
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Controles adicionales",
-                                    color = textPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    formatMoney(RainPriceManager.getPrecio("control_adicional")) + " c/u",
-                                    color = textMuted,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            // Toggle No/Sí estilo Hurricane
-                            RainToggleButton(
-                                isActive = quiereControles,
-                                onToggle = { quiereControles = !quiereControles },
-                                isDarkMode = isDarkMode,
-                                textMuted = textMuted
+                        // ── Tipo de Control (solo si tiene Eléctrico) ──
+                        if (tieneElectrico) {
+                            Text(
+                                "Tipo de Control",
+                                color = textPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
-                        }
+                            Text(
+                                "Multicanal incluido por default",
+                                color = textMuted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(8.dp))
 
-                        // Selector de cantidad controles
-                        AnimatedVisibility(visible = quiereControles) {
+                            // Selector Multicanal / Monocanal
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("Cantidad:", color = textMuted, fontSize = 13.sp)
-                                OutlinedTextField(
-                                    value = if (cantidadControles > 0) cantidadControles.toString() else "",
-                                    onValueChange = { input ->
-                                        val num = input.filter { it.isDigit() }.take(2).toIntOrNull()
-                                        cantidadControles = (num ?: 0).coerceIn(0, 99)
-                                    },
-                                    modifier = Modifier.width(72.dp).height(48.dp),
-                                    textStyle = androidx.compose.ui.text.TextStyle(
-                                        color = textPrimary,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                                    ),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(6.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = if (isDarkMode) Color.White else RainBlue,
-                                        unfocusedBorderColor = border,
-                                        cursorColor = textPrimary
-                                    )
-                                )
+                                // Botón Multicanal
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { tipoControl = "multicanal" },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (tipoControl == "multicanal") RainBlue else {
+                                        if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+                                    }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "Multicanal",
+                                            color = if (tipoControl == "multicanal") Color.White else textMuted,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                                // Botón Monocanal
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { tipoControl = "monocanal" },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (tipoControl == "monocanal") RainBlue else {
+                                        if (isDarkMode) Color(0xFF27272A) else Color(0xFFF3F4F6)
+                                    }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            "Monocanal",
+                                            color = if (tipoControl == "monocanal") Color.White else textMuted,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
                             }
+
+                            // Precio del tipo seleccionado
+                            Spacer(Modifier.height(4.dp))
+                            val precioControl = if (tipoControl == "multicanal")
+                                RainPriceManager.getPrecio("control_multicanal")
+                            else
+                                RainPriceManager.getPrecio("control_monocanal")
+                            Text(
+                                "${formatMoney(precioControl)} c/u",
+                                color = textMuted,
+                                fontSize = 11.sp
+                            )
+
+                            // Cantidad (solo si es Monocanal)
+                            AnimatedVisibility(visible = tipoControl == "monocanal") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Cantidad:", color = textMuted, fontSize = 13.sp)
+                                    OutlinedTextField(
+                                        value = if (cantidadControles > 0) cantidadControles.toString() else "",
+                                        onValueChange = { input ->
+                                            val num = input.filter { it.isDigit() }.take(2).toIntOrNull()
+                                            cantidadControles = (num ?: 0).coerceIn(0, 99)
+                                        },
+                                        modifier = Modifier.width(72.dp).height(48.dp),
+                                        textStyle = androidx.compose.ui.text.TextStyle(
+                                            color = textPrimary,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                        ),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(6.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = if (isDarkMode) Color.White else RainBlue,
+                                            unfocusedBorderColor = border,
+                                            cursorColor = textPrimary
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(color = border.copy(0.3f))
+                            Spacer(Modifier.height(12.dp))
                         }
 
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = border.copy(0.3f))
-                        Spacer(Modifier.height(12.dp))
-
-                        // ── Manivelas adicionales ──
+                        // ── Manivelas adicionales (solo si tiene Manual) ──
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1031,12 +1093,13 @@ fun RainResumenScreen(
                         }
 
                         // Mostrar subtotal de accesorios si hay alguno seleccionado
-                        if (quiereControles || quiereManivelas) {
+                        val tieneAccesoriosExtra = (tipoControl == "monocanal" && cantidadControles > 0) || quiereManivelas
+                        if (tieneAccesoriosExtra) {
                             Spacer(Modifier.height(12.dp))
                             HorizontalDivider(color = border.copy(0.3f))
                             Spacer(Modifier.height(8.dp))
 
-                            if (quiereControles) {
+                            if (tipoControl == "monocanal" && cantidadControles > 0) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1044,12 +1107,12 @@ fun RainResumenScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        "Controles × $cantidadControles",
+                                        "Monocanal × $cantidadControles (reemplaza Multicanal)",
                                         color = textMuted,
                                         fontSize = 13.sp
                                     )
                                     Text(
-                                        formatMoney(cantidadControles * RainPriceManager.getPrecio("control_adicional")),
+                                        formatMoney(cantidadControles * RainPriceManager.getPrecio("control_monocanal") - RainPriceManager.getPrecio("control_multicanal")),
                                         color = textPrimary,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold

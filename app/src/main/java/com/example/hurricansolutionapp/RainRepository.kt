@@ -304,6 +304,7 @@ data class CotizacionRainRemota(
     @SerialName("controles_adicionales") val controlesAdicionales: Int = 0,
     @SerialName("manivelas_adicionales") val manivelasAdicionales: Int = 0,
     @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0,
+    @SerialName("tipo_control") val tipoControl: String = "multicanal",
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null
 ) {
@@ -346,6 +347,7 @@ data class CotizacionRainRemota(
             controlesAdicionales = controlesAdicionales,
             manivelasAdicionales = manivelasAdicionales,
             costoAccesorios = costoAccesorios,
+            tipoControl = tipoControl,
             updatedAt = try {
                 if (updatedAt != null && updatedAt != createdAt) {
                     java.time.Instant.parse(updatedAt).toEpochMilli()
@@ -383,7 +385,8 @@ data class CotizacionRainInsert(
     val observaciones: String? = null,
     @SerialName("controles_adicionales") val controlesAdicionales: Int = 0,
     @SerialName("manivelas_adicionales") val manivelasAdicionales: Int = 0,
-    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0
+    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0,
+    @SerialName("tipo_control") val tipoControl: String = "multicanal"
 )
 
 @Serializable
@@ -404,7 +407,8 @@ data class CotizacionRainUpdate(
     val observaciones: String? = null,
     @SerialName("controles_adicionales") val controlesAdicionales: Int = 0,
     @SerialName("manivelas_adicionales") val manivelasAdicionales: Int = 0,
-    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0
+    @SerialName("costo_accesorios") val costoAccesorios: Double = 0.0,
+    @SerialName("tipo_control") val tipoControl: String = "multicanal"
 )
 
 @Serializable

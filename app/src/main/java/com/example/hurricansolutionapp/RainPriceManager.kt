@@ -162,44 +162,56 @@ object RainPriceManager {
     /**
      * Calcula el subtotal de un área (sin descuento de zona)
      *
-     * Fórmula por pieza:
-     * - Tela: alto × ancho × precio_tela
-     * - Perfil: ancho × precio_perfil
-     * - Contrapeso: ancho × precio_contrapeso
-     * - Inserto: ancho × 2 × precio_inserto
-     * - Tensor: alto × 2 × precio_tensor
-     * - Kit: según tipo (manual o eléctrico)
+     * MANUAL:
+     * - Tela: alto × ancho × precio × piezas
+     * - Perfil: ancho × precio × piezas
+     * - Contrapeso: ancho × precio × piezas
+     * - Inserto: ancho × 2 × piezas × precio
+     * - Tensor: alto × 2 × piezas × precio
+     * - Kit Manual (incluye manivela): precio × piezas
      *
-     * Total = subtotal_por_pieza × piezas
-     * Cada pieza lleva su propio mecanismo (kit)
+     * ELÉCTRICO:
+     * - Tela: alto × ancho × precio × piezas
+     * - Kit Adaptador: precio × piezas
+     * - Componentes Toldo: precio × piezas
+     * - Perfil: ancho × precio × piezas
+     * - Intermedio conector: (piezas - 1) × precio (solo si piezas > 1)
+     * - Contrapeso: ancho × precio × piezas
+     * - Inserto Plástico: ancho × 2 × piezas × precio
+     * - Kit Motor: precio × piezas
+     * - Control Multicanal: 1 × precio (default, siempre incluido)
+     * - NO tensor en eléctrico
      */
     fun calcularSubtotalArea(alto: Double, ancho: Double, tipoMecanismo: TipoMecanismo, piezas: Int = 1): Double {
+        val p = piezas.coerceAtLeast(1)
         val m2 = alto * ancho
 
-        // Tela
-        val costoTela = m2 * getPrecio("tela")
+        return when (tipoMecanismo) {
+            TipoMecanismo.MANUAL -> {
+                val costoTela = m2 * getPrecio("tela") * p
+                val costoPerfil = ancho * getPrecio("perfil") * p
+                val costoContrapeso = ancho * getPrecio("contrapeso") * p
+                val costoInserto = ancho * 2.0 * p * getPrecio("inserto")
+                val costoTensor = alto * 2.0 * p * getPrecio("tensor")
+                val costoKit = getPrecio("kit_manual") * p  // Ya incluye manivela
 
-        // Perfil (ancho)
-        val costoPerfil = ancho * getPrecio("perfil")
+                costoTela + costoPerfil + costoContrapeso + costoInserto + costoTensor + costoKit
+            }
+            TipoMecanismo.ELECTRICO -> {
+                val costoTela = m2 * getPrecio("tela") * p
+                val costoAdaptador = getPrecio("kit_adaptador") * p
+                val costoComponentes = getPrecio("componentes_toldo_electrico") * p
+                val costoPerfil = ancho * getPrecio("perfil") * p
+                val costoIntermedio = if (p > 1) (p - 1) * getPrecio("intermedio_conector") else 0.0
+                val costoContrapeso = ancho * getPrecio("contrapeso") * p
+                val costoInserto = ancho * 2.0 * p * getPrecio("inserto_plastico")
+                val costoMotor = getPrecio("kit_electrico") * p
+                val costoControl = getPrecio("control_multicanal")  // 1 por default siempre
 
-        // Contrapeso (ancho)
-        val costoContrapeso = ancho * getPrecio("contrapeso")
-
-        // Inserto (ancho × 2)
-        val costoInserto = ancho * 2 * getPrecio("inserto")
-
-        // Tensor (alto × 2)
-        val costoTensor = alto * 2 * getPrecio("tensor")
-
-        // Kit según mecanismo
-        // NOTA: La manivela ya NO se incluye aquí — se agrega como accesorio
-        val costoKit = when (tipoMecanismo) {
-            TipoMecanismo.MANUAL -> getPrecio("kit_manual")
-            TipoMecanismo.ELECTRICO -> getPrecio("kit_electrico") + getPrecio("kit_adaptador")
+                costoTela + costoAdaptador + costoComponentes + costoPerfil + costoIntermedio +
+                        costoContrapeso + costoInserto + costoMotor + costoControl
+            }
         }
-
-        val subtotalPorPieza = costoTela + costoPerfil + costoContrapeso + costoInserto + costoTensor + costoKit
-        return subtotalPorPieza * piezas.coerceAtLeast(1)
     }
 
     /**
@@ -213,41 +225,61 @@ object RainPriceManager {
 
     /**
      * Calcula el costo de accesorios adicionales (SIN descuento de zona)
-     * - Controles adicionales: cantidad × precio_control_adicional
-     * - Manivelas adicionales: cantidad × precio_manivela
+     * - Manivelas adicionales: cantidad × precio_manivela (solo para Manual)
+     * - Controles adicionales: depende del tipo seleccionado
+     *   - Si cambiaron de Multicanal (default) a Monocanal: cantidad × precio_monocanal
+     *     NOTA: El Multicanal default ya está incluido en calcularSubtotalArea
+     *     Si eligen Monocanal, se REEMPLAZA el multicanal default por monocanales
      */
-    fun calcularCostoAccesorios(cantidadControles: Int, cantidadManivelas: Int): Double {
-        val costoControles = cantidadControles * getPrecio("control_adicional")
+    fun calcularCostoAccesorios(cantidadManivelas: Int, tipoControl: String, cantidadControles: Int): Double {
         val costoManivelas = cantidadManivelas * getPrecio("manivela")
-        return costoControles + costoManivelas
+
+        // Si el tipo de control es monocanal, se reemplaza el multicanal default
+        // Costo = (cantidad × monocanal) - (1 × multicanal que ya se cobró en el subtotal)
+        val costoControles = if (tipoControl == "monocanal" && cantidadControles > 0) {
+            val costoMonocanales = cantidadControles * getPrecio("control_monocanal")
+            val creditoMulticanal = getPrecio("control_multicanal") // Devolver el default que ya se cobró
+            costoMonocanales - creditoMulticanal
+        } else {
+            0.0 // Multicanal default ya incluido en el subtotal
+        }
+
+        return costoManivelas + costoControles
     }
 
     /**
      * Obtiene el desglose de costos para un área (solo para debug/admin, no mostrar al especialista)
      */
-    fun getDesgloseArea(alto: Double, ancho: Double, tipoMecanismo: TipoMecanismo): Map<String, Double> {
+    fun getDesgloseArea(alto: Double, ancho: Double, tipoMecanismo: TipoMecanismo, piezas: Int = 1): Map<String, Double> {
         val m2 = alto * ancho
+        val p = piezas.coerceAtLeast(1)
 
-        val base = mutableMapOf(
-            "Tela (${String.format("%.2f", m2)} m²)" to (m2 * getPrecio("tela")),
-            "Perfil (${String.format("%.2f", ancho)} m)" to (ancho * getPrecio("perfil")),
-            "Contrapeso (${String.format("%.2f", ancho)} m)" to (ancho * getPrecio("contrapeso")),
-            "Inserto (${String.format("%.2f", ancho)} m × 2)" to (ancho * 2 * getPrecio("inserto")),
-            "Tensor (${String.format("%.2f", alto)} m × 2)" to (alto * 2 * getPrecio("tensor"))
-        )
-
-        when (tipoMecanismo) {
-            TipoMecanismo.MANUAL -> {
-                base["Kit Manual"] = getPrecio("kit_manual")
-                // Manivela ya no se incluye — se maneja como accesorio
-            }
+        return when (tipoMecanismo) {
+            TipoMecanismo.MANUAL -> mutableMapOf(
+                "Tela (${String.format("%.2f", m2)} m² × $p pzas)" to (m2 * getPrecio("tela") * p),
+                "Perfil (${String.format("%.2f", ancho)} m × $p)" to (ancho * getPrecio("perfil") * p),
+                "Contrapeso (${String.format("%.2f", ancho)} m × $p)" to (ancho * getPrecio("contrapeso") * p),
+                "Inserto (${String.format("%.2f", ancho)} m × 2 × $p)" to (ancho * 2.0 * p * getPrecio("inserto")),
+                "Tensor (${String.format("%.2f", alto)} m × 2 × $p)" to (alto * 2.0 * p * getPrecio("tensor")),
+                "Kit Manual (incluye manivela) × $p" to (getPrecio("kit_manual") * p)
+            )
             TipoMecanismo.ELECTRICO -> {
-                base["Kit Eléctrico"] = getPrecio("kit_electrico")
-                base["Kit Adaptador"] = getPrecio("kit_adaptador")
+                val desglose = mutableMapOf(
+                    "Tela (${String.format("%.2f", m2)} m² × $p pzas)" to (m2 * getPrecio("tela") * p),
+                    "Kit Adaptador × $p" to (getPrecio("kit_adaptador") * p),
+                    "Componentes Toldo × $p" to (getPrecio("componentes_toldo_electrico") * p),
+                    "Perfil (${String.format("%.2f", ancho)} m × $p)" to (ancho * getPrecio("perfil") * p),
+                    "Contrapeso (${String.format("%.2f", ancho)} m × $p)" to (ancho * getPrecio("contrapeso") * p),
+                    "Inserto Plástico (${String.format("%.2f", ancho)} m × 2 × $p)" to (ancho * 2.0 * p * getPrecio("inserto_plastico")),
+                    "Kit Motor × $p" to (getPrecio("kit_electrico") * p),
+                    "Control Multicanal (default)" to getPrecio("control_multicanal")
+                )
+                if (p > 1) {
+                    desglose["Intermedio conector (${p - 1} uds)"] = (p - 1) * getPrecio("intermedio_conector")
+                }
+                desglose
             }
         }
-
-        return base
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

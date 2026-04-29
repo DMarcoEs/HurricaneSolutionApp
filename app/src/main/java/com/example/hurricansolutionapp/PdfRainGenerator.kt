@@ -297,9 +297,9 @@ fun generarPdfRainCotizacion(
     // CÁLCULOS DE RESUMEN — Calculados desde las medidas directamente para evitar $0
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // Calcular desde medidas directamente (más confiable que los campos del cotizacion)
-    val subtotalManual = cotizacion.medidas.sumOf { it.subtotalManual }
-    val subtotalElectrico = cotizacion.medidas.sumOf { it.subtotalElectrico }
+    // Usar los subtotales del objeto cotizacion (ya incluyen accesorios)
+    val subtotalManual = cotizacion.subtotalManual
+    val subtotalElectrico = cotizacion.subtotalElectrico
     val subtotalGeneral = subtotalManual + subtotalElectrico
     val descuentoPorcentaje = cotizacion.descuentoPorcentaje
 
